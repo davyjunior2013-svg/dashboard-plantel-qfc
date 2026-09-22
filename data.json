@@ -466,7 +466,8 @@
       "AVALIAÇÃO TÉCNICA": "",
       "AVALIAÇÃO TÁTICA": "",
       "AVALIAÇÃO FÍSICA": "",
-      "OBSERVAÇÕES": ""
+      "OBSERVAÇÕES": "",
+      "_FOTO": "fotos/everton.jpeg"
     },
     {
       "ATLETA": "Vinicius",
@@ -482,23 +483,8 @@
       "AVALIAÇÃO TÉCNICA": "",
       "AVALIAÇÃO TÁTICA": "",
       "AVALIAÇÃO FÍSICA": "",
-      "OBSERVAÇÕES": ""
-    },
-    {
-      "ATLETA": "Everton",
-      "POSIÇÃO": "Goleiro",
-      "MINUTOS": "",
-      "JOGOS": "",
-      "GOLS": "",
-      "ASSIST.": "",
-      "TITULAR": "",
-      "BANCO": "",
-      "LESÃO": "",
-      "CARGA": "",
-      "AVALIAÇÃO TÉCNICA": "",
-      "AVALIAÇÃO TÁTICA": "",
-      "AVALIAÇÃO FÍSICA": "",
-      "OBSERVAÇÕES": ""
+      "OBSERVAÇÕES": "",
+      "_FOTO": "fotos/vinicius.jpeg"
     },
     {
       "ATLETA": "Fornazier",
@@ -514,7 +500,8 @@
       "AVALIAÇÃO TÉCNICA": "",
       "AVALIAÇÃO TÁTICA": "",
       "AVALIAÇÃO FÍSICA": "",
-      "OBSERVAÇÕES": ""
+      "OBSERVAÇÕES": "",
+      "_FOTO": "fotos/fornazier.jpeg"
     },
     {
       "ATLETA": "Pedrinho",
@@ -530,7 +517,8 @@
       "AVALIAÇÃO TÉCNICA": "",
       "AVALIAÇÃO TÁTICA": "",
       "AVALIAÇÃO FÍSICA": "",
-      "OBSERVAÇÕES": ""
+      "OBSERVAÇÕES": "",
+      "_FOTO": "fotos/pedrinho.jpeg"
     },
     {
       "ATLETA": "Thalisson",
@@ -546,7 +534,8 @@
       "AVALIAÇÃO TÉCNICA": "",
       "AVALIAÇÃO TÁTICA": "",
       "AVALIAÇÃO FÍSICA": "",
-      "OBSERVAÇÕES": ""
+      "OBSERVAÇÕES": "",
+      "_FOTO": ""
     },
     {
       "ATLETA": "Carlos Junior",
@@ -562,7 +551,8 @@
       "AVALIAÇÃO TÉCNICA": "",
       "AVALIAÇÃO TÁTICA": "",
       "AVALIAÇÃO FÍSICA": "",
-      "OBSERVAÇÕES": ""
+      "OBSERVAÇÕES": "",
+      "_FOTO": "fotos/carlos_junior.png"
     },
     {
       "ATLETA": "Flávio",
@@ -578,23 +568,8 @@
       "AVALIAÇÃO TÉCNICA": "",
       "AVALIAÇÃO TÁTICA": "",
       "AVALIAÇÃO FÍSICA": "",
-      "OBSERVAÇÕES": ""
-    },
-    {
-      "ATLETA": "Ulisses",
-      "POSIÇÃO": "Zagueiro",
-      "MINUTOS": "",
-      "JOGOS": "",
-      "GOLS": "",
-      "ASSIST.": "",
-      "TITULAR": "",
-      "BANCO": "",
-      "LESÃO": "",
-      "CARGA": "",
-      "AVALIAÇÃO TÉCNICA": "",
-      "AVALIAÇÃO TÁTICA": "",
-      "AVALIAÇÃO FÍSICA": "",
-      "OBSERVAÇÕES": ""
+      "OBSERVAÇÕES": "",
+      "_FOTO": "fotos/flavio.jpeg"
     },
     {
       "ATLETA": "Luizão",
@@ -610,10 +585,11 @@
       "AVALIAÇÃO TÉCNICA": "",
       "AVALIAÇÃO TÁTICA": "",
       "AVALIAÇÃO FÍSICA": "",
-      "OBSERVAÇÕES": ""
+      "OBSERVAÇÕES": "",
+      "_FOTO": "fotos/luizao.png"
     },
     {
-      "ATLETA": "Pietro",
+      "ATLETA": "Ulisses",
       "POSIÇÃO": "Zagueiro",
       "MINUTOS": "",
       "JOGOS": "",
@@ -626,7 +602,8 @@
       "AVALIAÇÃO TÉCNICA": "",
       "AVALIAÇÃO TÁTICA": "",
       "AVALIAÇÃO FÍSICA": "",
-      "OBSERVAÇÕES": ""
+      "OBSERVAÇÕES": "",
+      "_FOTO": "fotos/ulisses.png"
     },
     {
       "ATLETA": "Reis",
@@ -642,7 +619,8 @@
       "AVALIAÇÃO TÉCNICA": "",
       "AVALIAÇÃO TÁTICA": "",
       "AVALIAÇÃO FÍSICA": "",
-      "OBSERVAÇÕES": ""
+      "OBSERVAÇÕES": "",
+      "_FOTO": "fotos/reis.png"
     },
     {
       "ATLETA": "Rafael",
@@ -658,7 +636,8 @@
       "AVALIAÇÃO TÉCNICA": "",
       "AVALIAÇÃO TÁTICA": "",
       "AVALIAÇÃO FÍSICA": "",
-      "OBSERVAÇÕES": ""
+      "OBSERVAÇÕES": "",
+      "_FOTO": "fotos/rafael.jpeg"
     },
     {
       "ATLETA": "Vitor",
@@ -674,23 +653,8 @@
       "AVALIAÇÃO TÉCNICA": "",
       "AVALIAÇÃO TÁTICA": "",
       "AVALIAÇÃO FÍSICA": "",
-      "OBSERVAÇÕES": ""
-    },
-    {
-      "ATLETA": "Davi Carioca",
-      "POSIÇÃO": "Volante",
-      "MINUTOS": "",
-      "JOGOS": "",
-      "GOLS": "",
-      "ASSIST.": "",
-      "TITULAR": "",
-      "BANCO": "",
-      "LESÃO": "",
-      "CARGA": "",
-      "AVALIAÇÃO TÉCNICA": "",
-      "AVALIAÇÃO TÁTICA": "",
-      "AVALIAÇÃO FÍSICA": "",
-      "OBSERVAÇÕES": ""
+      "OBSERVAÇÕES": "",
+      "_FOTO": "fotos/vitor.png"
     },
     {
       "ATLETA": "China",
@@ -706,7 +670,8 @@
       "AVALIAÇÃO TÉCNICA": "",
       "AVALIAÇÃO TÁTICA": "",
       "AVALIAÇÃO FÍSICA": "",
-      "OBSERVAÇÕES": ""
+      "OBSERVAÇÕES": "",
+      "_FOTO": "fotos/china.jpeg"
     },
     {
       "ATLETA": "Luizinho",
@@ -722,7 +687,8 @@
       "AVALIAÇÃO TÉCNICA": "",
       "AVALIAÇÃO TÁTICA": "",
       "AVALIAÇÃO FÍSICA": "",
-      "OBSERVAÇÕES": ""
+      "OBSERVAÇÕES": "",
+      "_FOTO": "fotos/luizinho.png"
     },
     {
       "ATLETA": "Antônio Vila",
@@ -738,87 +704,8 @@
       "AVALIAÇÃO TÉCNICA": "",
       "AVALIAÇÃO TÁTICA": "",
       "AVALIAÇÃO FÍSICA": "",
-      "OBSERVAÇÕES": ""
-    },
-    {
-      "ATLETA": "Enzo",
-      "POSIÇÃO": "Meia",
-      "MINUTOS": "",
-      "JOGOS": "",
-      "GOLS": "",
-      "ASSIST.": "",
-      "TITULAR": "",
-      "BANCO": "",
-      "LESÃO": "",
-      "CARGA": "",
-      "AVALIAÇÃO TÉCNICA": "",
-      "AVALIAÇÃO TÁTICA": "",
-      "AVALIAÇÃO FÍSICA": "",
-      "OBSERVAÇÕES": ""
-    },
-    {
-      "ATLETA": "Gabriel Júnior",
-      "POSIÇÃO": "Meia",
-      "MINUTOS": "",
-      "JOGOS": "",
-      "GOLS": "",
-      "ASSIST.": "",
-      "TITULAR": "",
-      "BANCO": "",
-      "LESÃO": "",
-      "CARGA": "",
-      "AVALIAÇÃO TÉCNICA": "",
-      "AVALIAÇÃO TÁTICA": "",
-      "AVALIAÇÃO FÍSICA": "",
-      "OBSERVAÇÕES": ""
-    },
-    {
-      "ATLETA": "Sabatine",
-      "POSIÇÃO": "Meia",
-      "MINUTOS": "",
-      "JOGOS": "",
-      "GOLS": "",
-      "ASSIST.": "",
-      "TITULAR": "",
-      "BANCO": "",
-      "LESÃO": "",
-      "CARGA": "",
-      "AVALIAÇÃO TÉCNICA": "",
-      "AVALIAÇÃO TÁTICA": "",
-      "AVALIAÇÃO FÍSICA": "",
-      "OBSERVAÇÕES": ""
-    },
-    {
-      "ATLETA": "Histone",
-      "POSIÇÃO": "Ponta Direito",
-      "MINUTOS": "",
-      "JOGOS": "",
-      "GOLS": "",
-      "ASSIST.": "",
-      "TITULAR": "",
-      "BANCO": "",
-      "LESÃO": "",
-      "CARGA": "",
-      "AVALIAÇÃO TÉCNICA": "",
-      "AVALIAÇÃO TÁTICA": "",
-      "AVALIAÇÃO FÍSICA": "",
-      "OBSERVAÇÕES": ""
-    },
-    {
-      "ATLETA": "Jararaca",
-      "POSIÇÃO": "Ponta Esquerda",
-      "MINUTOS": "",
-      "JOGOS": "",
-      "GOLS": "",
-      "ASSIST.": "",
-      "TITULAR": "",
-      "BANCO": "",
-      "LESÃO": "",
-      "CARGA": "",
-      "AVALIAÇÃO TÉCNICA": "",
-      "AVALIAÇÃO TÁTICA": "",
-      "AVALIAÇÃO FÍSICA": "",
-      "OBSERVAÇÕES": ""
+      "OBSERVAÇÕES": "",
+      "_FOTO": "fotos/antonio_vila.png"
     },
     {
       "ATLETA": "Pedro",
@@ -834,7 +721,25 @@
       "AVALIAÇÃO TÉCNICA": "",
       "AVALIAÇÃO TÁTICA": "",
       "AVALIAÇÃO FÍSICA": "",
-      "OBSERVAÇÕES": ""
+      "OBSERVAÇÕES": "",
+      "_FOTO": "fotos/pedro.jpeg"
+    },
+    {
+      "ATLETA": "Everton Heleno",
+      "POSIÇÃO": "Atacante",
+      "MINUTOS": "",
+      "JOGOS": "",
+      "GOLS": "",
+      "ASSIST.": "",
+      "TITULAR": "",
+      "BANCO": "",
+      "LESÃO": "",
+      "CARGA": "",
+      "AVALIAÇÃO TÉCNICA": "",
+      "AVALIAÇÃO TÁTICA": "",
+      "AVALIAÇÃO FÍSICA": "",
+      "OBSERVAÇÕES": "",
+      "_FOTO": "fotos/everton_heleno.jpeg"
     },
     {
       "ATLETA": "Everton Potiguar",
@@ -850,7 +755,110 @@
       "AVALIAÇÃO TÉCNICA": "",
       "AVALIAÇÃO TÁTICA": "",
       "AVALIAÇÃO FÍSICA": "",
-      "OBSERVAÇÕES": ""
+      "OBSERVAÇÕES": "",
+      "_FOTO": "fotos/everton_potiguar.png"
+    },
+    {
+      "ATLETA": "Jararaca",
+      "POSIÇÃO": "Ponta Esquerda",
+      "MINUTOS": "",
+      "JOGOS": "",
+      "GOLS": "",
+      "ASSIST.": "",
+      "TITULAR": "",
+      "BANCO": "",
+      "LESÃO": "",
+      "CARGA": "",
+      "AVALIAÇÃO TÉCNICA": "",
+      "AVALIAÇÃO TÁTICA": "",
+      "AVALIAÇÃO FÍSICA": "",
+      "OBSERVAÇÕES": "",
+      "_FOTO": "fotos/jararaca.jpeg"
+    },
+    {
+      "ATLETA": "Histone",
+      "POSIÇÃO": "Ponta Direito",
+      "MINUTOS": "",
+      "JOGOS": "",
+      "GOLS": "",
+      "ASSIST.": "",
+      "TITULAR": "",
+      "BANCO": "",
+      "LESÃO": "",
+      "CARGA": "",
+      "AVALIAÇÃO TÉCNICA": "",
+      "AVALIAÇÃO TÁTICA": "",
+      "AVALIAÇÃO FÍSICA": "",
+      "OBSERVAÇÕES": "",
+      "_FOTO": "fotos/histone.png"
+    },
+    {
+      "ATLETA": "Renato",
+      "POSIÇÃO": "Zagueiro",
+      "MINUTOS": "",
+      "JOGOS": "",
+      "GOLS": "",
+      "ASSIST.": "",
+      "TITULAR": "",
+      "BANCO": "",
+      "LESÃO": "",
+      "CARGA": "",
+      "AVALIAÇÃO TÉCNICA": "",
+      "AVALIAÇÃO TÁTICA": "",
+      "AVALIAÇÃO FÍSICA": "",
+      "OBSERVAÇÕES": "",
+      "_FOTO": "fotos/renato.jpeg"
+    },
+    {
+      "ATLETA": "Davi Carioca",
+      "POSIÇÃO": "Volante",
+      "MINUTOS": "",
+      "JOGOS": "",
+      "GOLS": "",
+      "ASSIST.": "",
+      "TITULAR": "",
+      "BANCO": "",
+      "LESÃO": "",
+      "CARGA": "",
+      "AVALIAÇÃO TÉCNICA": "",
+      "AVALIAÇÃO TÁTICA": "",
+      "AVALIAÇÃO FÍSICA": "",
+      "OBSERVAÇÕES": "",
+      "_FOTO": "fotos/davi_carioca.png"
+    },
+    {
+      "ATLETA": "Enzo",
+      "POSIÇÃO": "Meia",
+      "MINUTOS": "",
+      "JOGOS": "",
+      "GOLS": "",
+      "ASSIST.": "",
+      "TITULAR": "",
+      "BANCO": "",
+      "LESÃO": "",
+      "CARGA": "",
+      "AVALIAÇÃO TÉCNICA": "",
+      "AVALIAÇÃO TÁTICA": "",
+      "AVALIAÇÃO FÍSICA": "",
+      "OBSERVAÇÕES": "",
+      "_FOTO": "fotos/enzo.jpeg"
+    },
+    {
+      "ATLETA": "Gabriel Júnior",
+      "POSIÇÃO": "Meia",
+      "MINUTOS": "",
+      "JOGOS": "",
+      "GOLS": "",
+      "ASSIST.": "",
+      "TITULAR": "",
+      "BANCO": "",
+      "LESÃO": "",
+      "CARGA": "",
+      "AVALIAÇÃO TÉCNICA": "",
+      "AVALIAÇÃO TÁTICA": "",
+      "AVALIAÇÃO FÍSICA": "",
+      "OBSERVAÇÕES": "",
+      "_FOTO": "fotos/gabriel_junior.jpeg"
     },
     {
       "ATLETA": "João Lucas",
@@ -866,7 +874,8 @@
       "AVALIAÇÃO TÉCNICA": "",
       "AVALIAÇÃO TÁTICA": "",
       "AVALIAÇÃO FÍSICA": "",
-      "OBSERVAÇÕES": ""
+      "OBSERVAÇÕES": "",
+      "_FOTO": "fotos/joao_lucas.jpeg"
     },
     {
       "ATLETA": "Henrique",
@@ -882,7 +891,59 @@
       "AVALIAÇÃO TÉCNICA": "",
       "AVALIAÇÃO TÁTICA": "",
       "AVALIAÇÃO FÍSICA": "",
-      "OBSERVAÇÕES": ""
+      "OBSERVAÇÕES": "",
+      "_FOTO": "fotos/henrique.jpeg"
+    },
+    {
+      "ATLETA": "Pietro",
+      "POSIÇÃO": "Zagueiro",
+      "MINUTOS": "",
+      "JOGOS": "",
+      "GOLS": "",
+      "ASSIST.": "",
+      "TITULAR": "",
+      "BANCO": "",
+      "LESÃO": "",
+      "CARGA": "",
+      "AVALIAÇÃO TÉCNICA": "",
+      "AVALIAÇÃO TÁTICA": "",
+      "AVALIAÇÃO FÍSICA": "",
+      "OBSERVAÇÕES": "",
+      "_FOTO": "fotos/pietro.jpeg"
+    },
+    {
+      "ATLETA": "Sabatine",
+      "POSIÇÃO": "Meia",
+      "MINUTOS": "",
+      "JOGOS": "",
+      "GOLS": "",
+      "ASSIST.": "",
+      "TITULAR": "",
+      "BANCO": "",
+      "LESÃO": "",
+      "CARGA": "",
+      "AVALIAÇÃO TÉCNICA": "",
+      "AVALIAÇÃO TÁTICA": "",
+      "AVALIAÇÃO FÍSICA": "",
+      "OBSERVAÇÕES": "",
+      "_FOTO": "fotos/sabatine.jpeg"
+    },
+    {
+      "ATLETA": "Everton",
+      "POSIÇÃO": "Goleiro",
+      "MINUTOS": "",
+      "JOGOS": "",
+      "GOLS": "",
+      "ASSIST.": "",
+      "TITULAR": "",
+      "BANCO": "",
+      "LESÃO": "",
+      "CARGA": "",
+      "AVALIAÇÃO TÉCNICA": "",
+      "AVALIAÇÃO TÁTICA": "",
+      "AVALIAÇÃO FÍSICA": "",
+      "OBSERVAÇÕES": "",
+      "_FOTO": "fotos/everton_2.jpeg"
     },
     {
       "ATLETA": "Jorge",
@@ -898,7 +959,8 @@
       "AVALIAÇÃO TÉCNICA": "",
       "AVALIAÇÃO TÁTICA": "",
       "AVALIAÇÃO FÍSICA": "",
-      "OBSERVAÇÕES": ""
+      "OBSERVAÇÕES": "",
+      "_FOTO": "fotos/jorge.jpeg"
     }
   ],
   "formation": [
@@ -923,7 +985,7 @@
       70
     ],
     [
-      "Carlos junior",
+      "Carlos Junior",
       75,
       70
     ],
@@ -986,6 +1048,7 @@
     "Henrique": "fotos/henrique.jpeg",
     "Pietro": "fotos/pietro.jpeg",
     "Sabatine": "fotos/sabatine.jpeg",
-    "Jorge": "fotos/jorge.jpeg"
+    "Jorge": "fotos/jorge.jpeg",
+    "Thalisson": "fotos/thalisson.png"
   }
 }

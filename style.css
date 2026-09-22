@@ -16,3 +16,16 @@
 .pitch{position:relative;min-height:680px;background:linear-gradient(90deg,#f5f7f9,#fff,#f5f7f9);border:1px solid #d8dde3;border-radius:18px;overflow:hidden}.pitch:before{content:"";position:absolute;inset:7%;border:2px solid #d8dde3;border-radius:4px}.pitch-line.mid{position:absolute;left:7%;right:7%;top:50%;border-top:2px solid #d8dde3}.pitch-circle{position:absolute;width:150px;height:150px;border:2px solid #d8dde3;border-radius:50%;left:50%;top:50%;transform:translate(-50%,-50%)}.goal{position:absolute;left:40%;width:20%;height:7%;border:2px solid #d8dde3}.goal.top{top:7%}.goal.bottom{bottom:7%}.player-dot{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;z-index:2;font-size:11px;font-weight:700;white-space:nowrap}.dot-photo{width:48px;height:48px;border-radius:50%;padding:2px;background:#fff;border:2px solid #111827;box-shadow:0 3px 10px #0002}.tactical-photo{width:100%;height:100%;border-radius:50%;object-fit:cover}.player-dot span{margin-top:4px;background:#fff;padding:3px 7px;border-radius:8px;box-shadow:0 1px 5px #0001}.bench-title{font-size:12px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:#667085;margin:20px 0 8px}.pos.compact{padding:8px 0}.profile-head{display:flex;align-items:center;gap:22px}.profile-photo{width:130px;height:130px;border-radius:18px;object-fit:cover;border:1px solid #e5e7eb}.placeholder{display:flex;align-items:center;justify-content:center;background:#eef1f4;color:#98a2b3;font-weight:700}.athlete .avatar{width:42px;height:42px}.select-player{max-width:380px}
 @media(max-width:1100px){.cards.six{grid-template-columns:repeat(3,1fr)}.cards.five{grid-template-columns:repeat(3,1fr)}.grid2{grid-template-columns:1fr}.pitch{min-height:560px}}
 @media(max-width:700px){.cards.six,.cards.five{grid-template-columns:repeat(2,1fr)}.position-chart-row{grid-template-columns:105px 1fr 24px}.pitch{min-height:500px}.profile-head{align-items:flex-start}.profile-photo{width:100px;height:100px}}
+
+/* Ajustes finais de fotos e ficha do atleta */
+.tech-photo{width:42px;height:52px;display:block;object-fit:contain;border-radius:7px;background:#f4f6f8;border:1px solid #e5e7eb}
+.profile{display:block}
+.profile-photo-frame{width:180px;height:220px;border:1px solid #e5e7eb;border-radius:16px;background:#f4f6f8;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.profile-photo-frame .profile-photo{width:100%;height:100%;object-fit:contain;border:0;border-radius:16px;background:transparent}
+.profile-head{display:flex;align-items:center;gap:22px}
+.profile-panels{width:100%}
+.profile-panels .panel{min-width:0}
+.obs{width:100%;margin-top:18px}
+.dot-photo{overflow:hidden;display:flex;align-items:center;justify-content:center}
+.tactical-photo{object-fit:contain;background:#f4f6f8}
+.athlete .avatar,.table .avatar{object-fit:contain;background:#f4f6f8}
