@@ -1,5 +1,6 @@
 let D;
 const $=s=>document.querySelector(s);
+const norm=s=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 const val=(o,k)=>o&&o[k]!==''&&o[k]!=null?esc(o[k]):'—';
 function photo(n){
@@ -21,12 +22,12 @@ function renderTechnical(){
   $('#technical').innerHTML=`<div class="cards five"><div class="card"><div class="label">Jogos</div><div class="value">${totalGames||'—'}</div></div><div class="card"><div class="label">Minutos</div><div class="value">${totalMin||'—'}</div></div><div class="card"><div class="label">Gols</div><div class="value">${totalGoals||'—'}</div></div><div class="card"><div class="label">Assistências</div><div class="value">${totalAss||'—'}</div></div><div class="card"><div class="label">Titularidades</div><div class="value">${starts||'—'}</div></div></div><div class="panel"><div class="section-head"><h2>Controle técnico</h2><span>${t.length} atletas</span></div><div class="table-wrap"><table class="table technical-table"><thead><tr><th>Foto</th>${cols.map(c=>`<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${t.map(r=>`<tr><td>${pic(r,'tech-photo')}</td>${cols.map(c=>`<td>${val(r,c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div><div class="small-note">Campos ainda não preenchidos na planilha aparecem como “—”.</div></div>`
 }
 function tacticalPlayer(name){
-  const matches=D.elenco.filter(e=>e.ATLETA===name);
+  const matches=D.elenco.filter(e=>norm(e.ATLETA)===norm(name));
   return matches.find(e=>e.STATUS==='Titular') || matches.find(e=>e.STATUS==='Ativo') || matches[0] || null;
 }
 function renderTactical(){
   let f=D.formation;
-  $('#tactical').innerHTML=`<div class="tactical"><div class="pitch"><div class="pitch-line mid"></div><div class="pitch-circle"></div><div class="goal top"></div><div class="goal bottom"></div>${f.map(x=>{const p=tacticalPlayer(x[0]);return `<div class="player-dot" style="left:${x[1]}%;top:${x[2]}%"><div class="dot-photo">${pic(p||x[0],'tactical-photo')}</div><span>${esc(x[0])}</span></div>`}).join('')}</div><div class="panel"><div class="section-head"><h2>11 inicial · referência atual</h2><span>MAPA TÁTICO</span></div>${f.map((x,i)=>{const p=tacticalPlayer(x[0]);return `<div class="pos"><span><b>${i+1}.</b> ${esc(x[0])}</span><span>${esc(p?.POSIÇÃO||'')}</span></div>`}).join('')}<div class="bench-title">Banco / opções</div>${D.elenco.filter(e=>!f.some(x=>x[0]===e.ATLETA&&e===tacticalPlayer(x[0]))).map(x=>`<div class="pos compact"><span>${esc(x.ATLETA)}${x.ATLETA==='Everton'&&x.IDADE?` · ${esc(x.IDADE)} anos`:''}</span><span>${esc(x.POSIÇÃO)}</span></div>`).join('')}</div></div>`
+  $('#tactical').innerHTML=`<div class="tactical"><div class="pitch"><div class="pitch-line mid"></div><div class="pitch-circle"></div><div class="goal top"></div><div class="goal bottom"></div>${f.map(x=>{const p=tacticalPlayer(x[0]);return `<div class="player-dot" style="left:${x[1]}%;top:${x[2]}%"><div class="dot-photo">${pic(p||x[0],'tactical-photo')}</div><span>${esc(x[0])}</span></div>`}).join('')}</div><div class="panel"><div class="section-head"><h2>11 inicial · referência atual</h2><span>MAPA TÁTICO</span></div>${f.map((x,i)=>{const p=tacticalPlayer(x[0]);return `<div class="pos"><span><b>${i+1}.</b> ${esc(x[0])}</span><span>${esc(p?.POSIÇÃO||'')}</span></div>`}).join('')}<div class="bench-title">Banco / opções</div>${D.elenco.filter(e=>!f.some(x=>x[0]===e.ATLETA&&e===tacticalPlayer(x[0]))).map(x=>`<div class="pos compact"><span>${esc(x.ATLETA)}${norm(x.ATLETA)==='everton'&&x.IDADE?` · ${esc(x.IDADE)} anos`:''}</span><span>${esc(x.POSIÇÃO)}</span></div>`).join('')}</div></div>`
 }
 function renderPlayer(){
   let e=D.elenco;
