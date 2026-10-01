@@ -29,3 +29,22 @@
 .dot-photo{overflow:hidden;display:flex;align-items:center;justify-content:center}
 .tactical-photo{object-fit:contain;background:#f4f6f8}
 .athlete .avatar,.table .avatar{object-fit:contain;background:#f4f6f8}
+
+/* Histórico */
+.cards.four{grid-template-columns:repeat(4,1fr)}
+.history-panel{overflow:hidden}
+.history-filters{margin-bottom:12px}
+.history-note{font-size:12px;color:#667085;margin:0 0 14px;padding:10px 12px;background:#f7f8fa;border:1px solid #e6e9ed;border-radius:10px}
+.history-table-wrap{max-height:calc(100vh - 290px);overflow:auto}
+.history-table{min-width:1900px}
+.history-table th{position:sticky;top:0;z-index:3;background:#f8fafc}
+.history-table td{vertical-align:top}
+.history-photo{width:44px;height:54px;display:block;object-fit:contain;border-radius:8px;background:#f4f6f8;border:1px solid #e5e7eb}
+.history-table details{min-width:210px}
+.history-table details summary{cursor:pointer;color:#344054;font-weight:700}
+.history-text{white-space:normal;line-height:1.45;min-width:180px;max-width:300px}
+.link-btn{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;text-decoration:none;font-weight:700;font-size:12px;padding:8px 10px;border-radius:8px;border:1px solid #d0d5dd;background:#fff;color:#101828}
+.link-btn:hover{background:#f2f4f7}
+.link-btn.drive{border-color:#cfd8e3}
+.link-pending{font-size:12px;color:#98a2b3;white-space:nowrap}
+@media(max-width:1100px){.cards.four{grid-template-columns:repeat(2,1fr)}}

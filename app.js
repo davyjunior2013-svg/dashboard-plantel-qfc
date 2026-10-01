@@ -38,6 +38,61 @@ function renderPlayer(){
   }
   $('#sel').addEventListener('change',draw);draw()
 }
-const titles={overview:'Visão Geral',squad:'Elenco',technical:'Controle Técnico',tactical:'Mapa Tático',player:'Fichas do Atleta'};
+
+function renderHistory(){
+  const h=D.historico||[];
+  const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0};
+  const total26=h.reduce((a,r)=>a+num(r["MINUTAGEM 2026"]),0);
+  const total25=h.reduce((a,r)=>a+num(r["MINUTAGEM 2025"]),0);
+  const titles=h.filter(r=>r["TÍTULOS"]&&r["TÍTULOS"]!=="-").length;
+  const releg=h.filter(r=>r["REBAIXAMENTO"]&&r["REBAIXAMENTO"]!=="-").length;
+  const fmt=n=>new Intl.NumberFormat('pt-BR').format(n);
+  $('#history').innerHTML=`
+    <div class="cards four">
+      <div class="card"><div class="label">Atletas com histórico</div><div class="value">${h.length}</div></div>
+      <div class="card"><div class="label">Minutos · 2026</div><div class="value">${fmt(total26)}</div></div>
+      <div class="card"><div class="label">Minutos · 2025</div><div class="value">${fmt(total25)}</div></div>
+      <div class="card"><div class="label">Atletas com títulos</div><div class="value">${titles}</div></div>
+    </div>
+    <div class="panel history-panel">
+      <div class="filterbar history-filters">
+        <div class="field"><label>Buscar atleta</label><input id="hs" placeholder="Nome..."></div>
+        <div class="field"><label>Posição</label><select id="hp"><option value="">Todas</option>${[...new Set(h.map(x=>x["POSIÇÃO"]))].map(x=>`<option>${esc(x)}</option>`).join('')}</select></div>
+      </div>
+      <div class="history-note">Os links do Ogol abrem diretamente a página do atleta. O campo “Últimos 10 jogos” já está preparado para receber o link da pasta do Drive de cada atleta.</div>
+      <div id="hcontent"></div>
+    </div>`;
+  function draw(){
+    const q=norm($('#hs').value), p=$('#hp').value;
+    const rows=h.filter(r=>(!q||norm(r.ATLETA).includes(q))&&(!p||r["POSIÇÃO"]===p));
+    $('#hcontent').innerHTML=`
+      <div class="result-count">${rows.length} atleta(s) encontrado(s)</div>
+      <div class="table-wrap history-table-wrap"><table class="table history-table">
+        <thead><tr>
+          <th>Foto</th><th>Atleta</th><th>Posição</th>
+          <th>Min. 2026</th><th>J. Rel. 2026</th><th>J. Disp. 2026</th><th>Últ. jogo</th>
+          <th>Min. 2025</th><th>J. Rel. 2025</th><th>J. Disp. 2025</th>
+          <th>Títulos</th><th>Rebaixamento</th><th>Observação</th><th>Ogol</th><th>Últimos 10 jogos</th>
+        </tr></thead>
+        <tbody>${rows.map(r=>{
+          const titles=r["TÍTULOS"]?`<details><summary>Ver</summary><div class="history-text">${esc(r["TÍTULOS"]).replace(/\n/g,'<br>')}</div></details>`:'—';
+          const releg=r["REBAIXAMENTO"]?`<div class="history-text">${esc(r["REBAIXAMENTO"]).replace(/\n/g,'<br>')}</div>`:'—';
+          const obs=r["OBSERVAÇÃO"]?`<div class="history-text">${esc(r["OBSERVAÇÃO"]).replace(/\n/g,'<br>')}</div>`:'—';
+          const og=r.OGOL?`<a class="link-btn" href="${esc(r.OGOL)}" target="_blank" rel="noopener noreferrer">Abrir Ogol ↗</a>`:'—';
+          const drive=r.DRIVE?`<a class="link-btn drive" href="${esc(r.DRIVE)}" target="_blank" rel="noopener noreferrer">Abrir Drive ↗</a>`:`<span class="link-pending">Aguardando link</span>`;
+          return `<tr>
+            <td>${pic({ATLETA:r.ATLETA,FOTO:r.FOTO},'history-photo')}</td>
+            <td><b>${esc(r.ATLETA)}</b></td><td>${esc(r["POSIÇÃO"])}</td>
+            <td>${val(r,"MINUTAGEM 2026")}</td><td>${val(r,"JOGOS RELACIONADO 2026")}</td><td>${val(r,"JOGOS DISPUTADO 2026")}</td><td>${val(r,"ÚLTIMO JOGO (atuando)")}</td>
+            <td>${val(r,"MINUTAGEM 2025")}</td><td>${val(r,"JOGOS RELACIONADO 2025")}</td><td>${val(r,"JOGOS DISPUTADO 2025")}</td>
+            <td>${titles}</td><td>${releg}</td><td>${obs}</td><td>${og}</td><td>${drive}</td>
+          </tr>`}).join('')}</tbody>
+      </table></div>`;
+  }
+  ['hs','hp'].forEach(id=>$('#'+id).addEventListener('input',draw));
+  draw();
+}
+
+const titles={overview:'Visão Geral',squad:'Elenco',technical:'Controle Técnico',tactical:'Mapa Tático',player:'Fichas do Atleta',history:'Histórico'};
 document.querySelectorAll('.nav-btn').forEach(b=>b.onclick=()=>{document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$('#'+b.dataset.page).classList.add('active');$('#pageTitle').textContent=titles[b.dataset.page];scrollTo(0,0)});
-fetch('data.json').then(r=>r.json()).then(x=>{D=x;const tm=$('#topMeta');if(tm)tm.textContent=`Elenco atual · ${D.elenco.length} atletas`;renderOverview();renderSquad();renderTechnical();renderTactical();renderPlayer()}).catch(()=>document.querySelector('.main').innerHTML='<div class="panel empty">Erro ao carregar os dados.</div>');
+fetch('data.json').then(r=>r.json()).then(x=>{D=x;const tm=$('#topMeta');if(tm)tm.textContent=`Elenco atual · ${D.elenco.length} atletas`;renderOverview();renderSquad();renderTechnical();renderTactical();renderPlayer();renderHistory()}).catch(()=>document.querySelector('.main').innerHTML='<div class="panel empty">Erro ao carregar os dados.</div>');
