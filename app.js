@@ -41,30 +41,31 @@ function renderPlayer(){
 
 function renderHistory(){
   const h=D.historico||[];
-  const num=v=>{const n=Number(v);return Number.isFinite(n)?n:0};
-  const total26=h.reduce((a,r)=>a+num(r["MINUTAGEM 2026"]),0);
-  const total25=h.reduce((a,r)=>a+num(r["MINUTAGEM 2025"]),0);
+  const returning=h.filter(r=>norm(r["OBSERVAÇÃO"]).includes('voltando de lesao')).length;
+  const active=h.filter(r=>r.ATIVO_ATUAL===true).length;
   const titles=h.filter(r=>r["TÍTULOS"]&&r["TÍTULOS"]!=="-").length;
-  const releg=h.filter(r=>r["REBAIXAMENTO"]&&r["REBAIXAMENTO"]!=="-").length;
-  const fmt=n=>new Intl.NumberFormat('pt-BR').format(n);
   $('#history').innerHTML=`
     <div class="cards four">
       <div class="card"><div class="label">Atletas com histórico</div><div class="value">${h.length}</div></div>
-      <div class="card"><div class="label">Minutos · 2026</div><div class="value">${fmt(total26)}</div></div>
-      <div class="card"><div class="label">Minutos · 2025</div><div class="value">${fmt(total25)}</div></div>
+      <div class="card"><div class="label">Voltando de lesão</div><div class="value">${returning}</div></div>
+      <div class="card card-active"><div class="label">Ativos em competição</div><div class="value">${active}</div></div>
       <div class="card"><div class="label">Atletas com títulos</div><div class="value">${titles}</div></div>
     </div>
     <div class="panel history-panel">
       <div class="filterbar history-filters">
         <div class="field"><label>Buscar atleta</label><input id="hs" placeholder="Nome..."></div>
         <div class="field"><label>Posição</label><select id="hp"><option value="">Todas</option>${[...new Set(h.map(x=>x["POSIÇÃO"]))].map(x=>`<option>${esc(x)}</option>`).join('')}</select></div>
+        <div class="field"><label>Minutagem 2026</label><select id="hsort"><option value="">Sem ordenação</option><option value="desc">Maior → menor</option><option value="asc">Menor → maior</option></select></div>
       </div>
-      <div class="history-note">Os links do Ogol abrem diretamente a página do atleta. O campo “Últimos 10 jogos” já está preparado para receber o link da pasta do Drive de cada atleta.</div>
+      <div class="history-note">A ordenação abaixo considera exclusivamente a minutagem de 2026. Os nomes destacados em cinza correspondem aos atletas que estão atuando em uma competição atual. Os links do Ogol abrem diretamente a página do atleta e o campo “Últimos 10 jogos” está preparado para receber o link do Drive.</div>
       <div id="hcontent"></div>
     </div>`;
   function draw(){
-    const q=norm($('#hs').value), p=$('#hp').value;
-    const rows=h.filter(r=>(!q||norm(r.ATLETA).includes(q))&&(!p||r["POSIÇÃO"]===p));
+    const q=norm($('#hs').value), p=$('#hp').value, sort=$('#hsort').value;
+    let rows=h.filter(r=>(!q||norm(r.ATLETA).includes(q))&&(!p||r["POSIÇÃO"]===p));
+    const minutes=v=>{const n=Number(String(v??'').replace(',','.'));return Number.isFinite(n)?n:-1};
+    if(sort==='desc') rows.sort((a,b)=>minutes(b["MINUTAGEM 2026"])-minutes(a["MINUTAGEM 2026"]));
+    if(sort==='asc') rows.sort((a,b)=>minutes(a["MINUTAGEM 2026"])-minutes(b["MINUTAGEM 2026"]));
     $('#hcontent').innerHTML=`
       <div class="result-count">${rows.length} atleta(s) encontrado(s)</div>
       <div class="table-wrap history-table-wrap"><table class="table history-table">
@@ -75,21 +76,23 @@ function renderHistory(){
           <th>Títulos</th><th>Rebaixamento</th><th>Observação</th><th>Ogol</th><th>Últimos 10 jogos</th>
         </tr></thead>
         <tbody>${rows.map(r=>{
+          const activeClass=r.ATIVO_ATUAL?' current-active':'';
+          const activeName=r.ATIVO_ATUAL?`<span class="current-active-name">${esc(r.ATLETA)}</span>`:esc(r.ATLETA);
           const titles=r["TÍTULOS"]?`<details><summary>Ver</summary><div class="history-text">${esc(r["TÍTULOS"]).replace(/\n/g,'<br>')}</div></details>`:'—';
           const releg=r["REBAIXAMENTO"]?`<div class="history-text">${esc(r["REBAIXAMENTO"]).replace(/\n/g,'<br>')}</div>`:'—';
           const obs=r["OBSERVAÇÃO"]?`<div class="history-text">${esc(r["OBSERVAÇÃO"]).replace(/\n/g,'<br>')}</div>`:'—';
           const og=r.OGOL?`<a class="link-btn" href="${esc(r.OGOL)}" target="_blank" rel="noopener noreferrer">Abrir Ogol ↗</a>`:'—';
           const drive=r.DRIVE?`<a class="link-btn drive" href="${esc(r.DRIVE)}" target="_blank" rel="noopener noreferrer">Abrir Drive ↗</a>`:`<span class="link-pending">Aguardando link</span>`;
-          return `<tr>
+          return `<tr class="${activeClass}">
             <td>${pic({ATLETA:r.ATLETA,FOTO:r.FOTO},'history-photo')}</td>
-            <td><b>${esc(r.ATLETA)}</b></td><td>${esc(r["POSIÇÃO"])}</td>
+            <td><b>${activeName}</b></td><td>${esc(r["POSIÇÃO"])}</td>
             <td>${val(r,"MINUTAGEM 2026")}</td><td>${val(r,"JOGOS RELACIONADO 2026")}</td><td>${val(r,"JOGOS DISPUTADO 2026")}</td><td>${val(r,"ÚLTIMO JOGO (atuando)")}</td>
             <td>${val(r,"MINUTAGEM 2025")}</td><td>${val(r,"JOGOS RELACIONADO 2025")}</td><td>${val(r,"JOGOS DISPUTADO 2025")}</td>
             <td>${titles}</td><td>${releg}</td><td>${obs}</td><td>${og}</td><td>${drive}</td>
           </tr>`}).join('')}</tbody>
       </table></div>`;
   }
-  ['hs','hp'].forEach(id=>$('#'+id).addEventListener('input',draw));
+  ['hs','hp','hsort'].forEach(id=>$('#'+id).addEventListener('input',draw));
   draw();
 }
 

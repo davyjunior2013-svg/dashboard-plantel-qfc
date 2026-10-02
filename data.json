@@ -452,7 +452,7 @@
     },
     {
       "Nº": "",
-      "FOTO": "",
+      "FOTO": "fotos/joao_paulo.png",
       "ATLETA": "João Paulo",
       "POSIÇÃO": "Atacante",
       "PÉ": "Destro",
@@ -1082,7 +1082,8 @@
     "Pietro": "fotos/pietro.jpeg",
     "Sabatine": "fotos/sabatine.jpeg",
     "Everton": "fotos/everton_2.jpeg",
-    "Jorge": "fotos/jorge.jpeg"
+    "Jorge": "fotos/jorge.jpeg",
+    "João Paulo": "fotos/joao_paulo.png"
   },
   "historico": [
     {
@@ -1100,7 +1101,8 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "VOLTANDO DE LESÃO.\n\n2 convocações para \nseleção brasileira de base:\nSub-18 (2016)\nSub-20 (2017)",
       "DRIVE": "",
-      "FOTO": "fotos/everton.jpeg"
+      "FOTO": "fotos/everton.jpeg",
+      "ATIVO_ATUAL": false
     },
     {
       "ATLETA": "VINICIUS",
@@ -1117,7 +1119,8 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "",
       "DRIVE": "",
-      "FOTO": "fotos/vinicius.jpeg"
+      "FOTO": "fotos/vinicius.jpeg",
+      "ATIVO_ATUAL": false
     },
     {
       "ATLETA": "EVERTON",
@@ -1134,7 +1137,8 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "",
       "DRIVE": "",
-      "FOTO": "fotos/everton_2.jpeg"
+      "FOTO": "fotos/everton_2.jpeg",
+      "ATIVO_ATUAL": false
     },
     {
       "ATLETA": "FLÁVIO",
@@ -1151,7 +1155,8 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "",
       "DRIVE": "",
-      "FOTO": "fotos/flavio.jpeg"
+      "FOTO": "fotos/flavio.jpeg",
+      "ATIVO_ATUAL": false
     },
     {
       "ATLETA": "LUIZÃO",
@@ -1168,7 +1173,8 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "",
       "DRIVE": "",
-      "FOTO": "fotos/luizao.png"
+      "FOTO": "fotos/luizao.png",
+      "ATIVO_ATUAL": true
     },
     {
       "ATLETA": "ULISSES",
@@ -1185,7 +1191,8 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "",
       "DRIVE": "",
-      "FOTO": "fotos/ulisses.png"
+      "FOTO": "fotos/ulisses.png",
+      "ATIVO_ATUAL": false
     },
     {
       "ATLETA": "RENATO",
@@ -1202,7 +1209,8 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "",
       "DRIVE": "",
-      "FOTO": "fotos/renato.jpeg"
+      "FOTO": "fotos/renato.jpeg",
+      "ATIVO_ATUAL": false
     },
     {
       "ATLETA": "PIETRO",
@@ -1219,7 +1227,8 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "",
       "DRIVE": "",
-      "FOTO": "fotos/pietro.jpeg"
+      "FOTO": "fotos/pietro.jpeg",
+      "ATIVO_ATUAL": false
     },
     {
       "ATLETA": "CARLOS JUNIOR",
@@ -1236,7 +1245,8 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "VOLTANDO DE LESÃO",
       "DRIVE": "",
-      "FOTO": "fotos/carlos_junior.png"
+      "FOTO": "fotos/carlos_junior.png",
+      "ATIVO_ATUAL": false
     },
     {
       "ATLETA": "THALISSON",
@@ -1253,7 +1263,8 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "",
       "DRIVE": "",
-      "FOTO": "fotos/thalisson.png"
+      "FOTO": "fotos/thalisson.png",
+      "ATIVO_ATUAL": true
     },
     {
       "ATLETA": "FORNAZIER",
@@ -1270,7 +1281,8 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "",
       "DRIVE": "",
-      "FOTO": "fotos/fornazier.jpeg"
+      "FOTO": "fotos/fornazier.jpeg",
+      "ATIVO_ATUAL": true
     },
     {
       "ATLETA": "PEDRINHO",
@@ -1287,7 +1299,8 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "",
       "DRIVE": "",
-      "FOTO": "fotos/pedrinho.jpeg"
+      "FOTO": "fotos/pedrinho.jpeg",
+      "ATIVO_ATUAL": false
     },
     {
       "ATLETA": "REIS",
@@ -1304,7 +1317,8 @@
       "REBAIXAMENTO": "2023 - SÉRIE B (ABC)",
       "OBSERVAÇÃO": "VOLTANDO DE LESÃO",
       "DRIVE": "",
-      "FOTO": "fotos/reis.png"
+      "FOTO": "fotos/reis.png",
+      "ATIVO_ATUAL": false
     },
     {
       "ATLETA": "RAFAEL",
@@ -1321,7 +1335,8 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "",
       "DRIVE": "",
-      "FOTO": "fotos/rafael.jpeg"
+      "FOTO": "fotos/rafael.jpeg",
+      "ATIVO_ATUAL": false
     },
     {
       "ATLETA": "VITOR",
@@ -1338,7 +1353,8 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "",
       "DRIVE": "",
-      "FOTO": "fotos/vitor.png"
+      "FOTO": "fotos/vitor.png",
+      "ATIVO_ATUAL": true
     },
     {
       "ATLETA": "DAVI CARIOCA",
@@ -1355,7 +1371,8 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "",
       "DRIVE": "",
-      "FOTO": "fotos/davi_carioca.png"
+      "FOTO": "fotos/davi_carioca.png",
+      "ATIVO_ATUAL": false
     },
     {
       "ATLETA": "CHINA",
@@ -1372,7 +1389,8 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "",
       "DRIVE": "",
-      "FOTO": "fotos/china.jpeg"
+      "FOTO": "fotos/china.jpeg",
+      "ATIVO_ATUAL": false
     },
     {
       "ATLETA": "LUIZINHO",
@@ -1389,7 +1407,8 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "",
       "DRIVE": "",
-      "FOTO": "fotos/luizinho.png"
+      "FOTO": "fotos/luizinho.png",
+      "ATIVO_ATUAL": false
     },
     {
       "ATLETA": "ANTÔNIO VILA",
@@ -1406,7 +1425,8 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "",
       "DRIVE": "",
-      "FOTO": "fotos/antonio_vila.png"
+      "FOTO": "fotos/antonio_vila.png",
+      "ATIVO_ATUAL": false
     },
     {
       "ATLETA": "ENZO",
@@ -1423,7 +1443,8 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "",
       "DRIVE": "",
-      "FOTO": "fotos/enzo.jpeg"
+      "FOTO": "fotos/enzo.jpeg",
+      "ATIVO_ATUAL": false
     },
     {
       "ATLETA": "GABRIEL JÚNIOR",
@@ -1440,7 +1461,8 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "",
       "DRIVE": "",
-      "FOTO": "fotos/gabriel_junior.jpeg"
+      "FOTO": "fotos/gabriel_junior.jpeg",
+      "ATIVO_ATUAL": false
     },
     {
       "ATLETA": "SABATINE",
@@ -1457,7 +1479,8 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "",
       "DRIVE": "",
-      "FOTO": "fotos/sabatine.jpeg"
+      "FOTO": "fotos/sabatine.jpeg",
+      "ATIVO_ATUAL": false
     },
     {
       "ATLETA": "HISTONE",
@@ -1474,7 +1497,8 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "",
       "DRIVE": "",
-      "FOTO": "fotos/histone.png"
+      "FOTO": "fotos/histone.png",
+      "ATIVO_ATUAL": false
     },
     {
       "ATLETA": "JARARACA",
@@ -1491,7 +1515,8 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "2025 SEM HISTÓRICO DE ATUAÇÃO\n(números de 2024 na coluna 2025)\n\nVOLTANDO DE LESÃO",
       "DRIVE": "",
-      "FOTO": "fotos/jararaca.jpeg"
+      "FOTO": "fotos/jararaca.jpeg",
+      "ATIVO_ATUAL": false
     },
     {
       "ATLETA": "PEDRO",
@@ -1508,7 +1533,8 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "",
       "DRIVE": "",
-      "FOTO": "fotos/pedro.jpeg"
+      "FOTO": "fotos/pedro.jpeg",
+      "ATIVO_ATUAL": false
     },
     {
       "ATLETA": "EVERTON HELENO",
@@ -1525,7 +1551,8 @@
       "REBAIXAMENTO": "2017 - SÉRIE A (ATLÉTICO-GO)",
       "OBSERVAÇÃO": "",
       "DRIVE": "",
-      "FOTO": "fotos/everton_heleno.jpeg"
+      "FOTO": "fotos/everton_heleno.jpeg",
+      "ATIVO_ATUAL": false
     },
     {
       "ATLETA": "EWERTON POTIGUAR",
@@ -1542,7 +1569,8 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "",
       "DRIVE": "",
-      "FOTO": "fotos/everton_potiguar.png"
+      "FOTO": "fotos/everton_potiguar.png",
+      "ATIVO_ATUAL": false
     },
     {
       "ATLETA": "JOÃO PAULO",
@@ -1559,7 +1587,8 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "VOLTANDO DE LESÃO",
       "DRIVE": "",
-      "FOTO": ""
+      "FOTO": "fotos/joao_paulo.png",
+      "ATIVO_ATUAL": false
     },
     {
       "ATLETA": "JOÃO LUCAS",
@@ -1576,7 +1605,8 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "",
       "DRIVE": "",
-      "FOTO": "fotos/joao_lucas.jpeg"
+      "FOTO": "fotos/joao_lucas.jpeg",
+      "ATIVO_ATUAL": false
     },
     {
       "ATLETA": "HENRIQUE",
@@ -1593,7 +1623,8 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "",
       "DRIVE": "",
-      "FOTO": "fotos/henrique.jpeg"
+      "FOTO": "fotos/henrique.jpeg",
+      "ATIVO_ATUAL": false
     },
     {
       "ATLETA": "JORGE",
@@ -1610,7 +1641,8 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "",
       "DRIVE": "",
-      "FOTO": "fotos/jorge.jpeg"
+      "FOTO": "fotos/jorge.jpeg",
+      "ATIVO_ATUAL": false
     }
   ]
 }
