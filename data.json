@@ -32,7 +32,7 @@
     },
     {
       "Nº": "",
-      "FOTO": "",
+      "FOTO": "fotos/elcio.jpeg",
       "ATLETA": "Elcio",
       "POSIÇÃO": "Goleiro",
       "PÉ": "Destro",
@@ -152,7 +152,7 @@
     },
     {
       "Nº": "",
-      "FOTO": "",
+      "FOTO": "fotos/yago.jpeg",
       "ATLETA": "Yago",
       "POSIÇÃO": "Volante",
       "PÉ": "Destro",
@@ -452,7 +452,7 @@
     },
     {
       "Nº": "",
-      "FOTO": "",
+      "FOTO": "fotos/joao_victor.jpeg",
       "ATLETA": "João Victor",
       "POSIÇÃO": "Atacante",
       "PÉ": "Destro",
@@ -516,7 +516,7 @@
       "AVALIAÇÃO TÁTICA": "",
       "AVALIAÇÃO FÍSICA": "",
       "OBSERVAÇÕES": "",
-      "FOTO": ""
+      "FOTO": "fotos/elcio.jpeg"
     },
     {
       "ATLETA": "Fornazier",
@@ -652,7 +652,7 @@
       "AVALIAÇÃO TÁTICA": "",
       "AVALIAÇÃO FÍSICA": "",
       "OBSERVAÇÕES": "",
-      "FOTO": ""
+      "FOTO": "fotos/yago.jpeg"
     },
     {
       "ATLETA": "Vitor",
@@ -980,7 +980,7 @@
       "AVALIAÇÃO TÁTICA": "",
       "AVALIAÇÃO FÍSICA": "",
       "OBSERVAÇÕES": "",
-      "FOTO": ""
+      "FOTO": "fotos/joao_victor.jpeg"
     }
   ],
   "formation": [
@@ -1043,7 +1043,7 @@
   "photoMap": {
     "Éverton Correia": "fotos/everton.jpeg",
     "Vinicius": "fotos/vinicius.jpeg",
-    "Elcio": "",
+    "Elcio": "fotos/elcio.jpeg",
     "Fornazier": "fotos/fornazier.jpeg",
     "Thalisson": "fotos/thalisson.png",
     "Carlos Junior": "fotos/carlos_junior.png",
@@ -1051,7 +1051,7 @@
     "Luizão": "fotos/luizao.png",
     "Ulisses": "fotos/ulisses.png",
     "Reis": "fotos/reis.png",
-    "Yago": "",
+    "Yago": "fotos/yago.jpeg",
     "Vitor": "fotos/vitor.png",
     "China": "fotos/china.jpeg",
     "Luizinho": "fotos/luizinho.png",
@@ -1071,11 +1071,12 @@
     "Sabatine": "fotos/sabatine.jpeg",
     "Everton": "fotos/everton_2.jpeg",
     "João Paulo": "fotos/joao_paulo.png",
-    "João Victor": "",
+    "João Victor": "fotos/joao_victor.jpeg",
     "Pedrinho": "fotos/pedrinho.jpeg",
     "Rafael": "fotos/rafael.jpeg",
     "Ewerton Potiguar": "",
-    "Jorge": "fotos/jorge.jpeg"
+    "Jorge": "fotos/jorge.jpeg",
+    "Yago Henrique": "fotos/yago.jpeg"
   },
   "historico": [
     {
@@ -1147,7 +1148,7 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "",
       "DRIVE": "",
-      "FOTO": "",
+      "FOTO": "fotos/elcio.jpeg",
       "ATIVO_ATUAL": false
     },
     {
@@ -1327,7 +1328,7 @@
       "REBAIXAMENTO": "",
       "OBSERVAÇÃO": "",
       "DRIVE": "",
-      "FOTO": "",
+      "FOTO": "fotos/yago.jpeg",
       "ATIVO_ATUAL": false
     },
     {
