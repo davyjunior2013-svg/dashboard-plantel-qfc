@@ -130,13 +130,14 @@ function renderPasta(a) {
   const h = histDe(a), ans = S.ind.analises, noXI = S.mapa.some(m => m.atleta_id === a.id);
   const nVid = ans.reduce((s, x) => s + (x.videos || []).length, 0);
   const fato = (k, v) => `<div><span>${k}</span><b>${v ? esc(v) : '—'}</b></div>`;
+  const pa = S.ind.pasta || {}, ogol = pa.ogol || h?.ogol, obs = pa.observacao, podeEd = indPodeEditar(a.id);
   $('#main').innerHTML = topoInd(a) + `
   <section class="panel ind-hero">
     <div class="ind-foto">${fotoGrande(a)}</div>
     <div class="ind-id">
       <div class="eyebrow">${esc(a.posicao)}${a.numero ? ' · Nº ' + esc(a.numero) : ''}</div>
       <h2>${esc(a.nome)}</h2>
-      <div class="row"><span class="badge s-${esc(a.status)}">${esc(a.status)}</span>${noXI ? '<span class="badge t-Treino">11 inicial</span>' : ''}</div>
+      <div class="row"><span class="badge s-${esc(a.status)}">${esc(a.status)}</span>${noXI ? '<span class="badge t-Treino">11 inicial</span>' : ''}${ogol ? `<a class="btn sm ind-ogol" href="${esc(ogol)}" target="_blank" rel="noopener">oGol ↗</a>` : ''}</div>
       <div class="ind-facts">
         ${fato('Idade', a.idade && a.idade + ' anos')}${fato('Pé', a.pe)}${fato('Altura', a.altura && String(a.altura).replace('.', ',') + ' m')}
         ${fato('Contrato até', a.contrato_fim && dataBR(a.contrato_fim))}${fato('Min. 2026', h && h.min_2026 != null && num(h.min_2026))}${fato('Jogos 2026', h && h.disp_2026 != null && `${num(h.disp_2026)}/${num(h.rel_2026)}`)}
@@ -147,6 +148,8 @@ function renderPasta(a) {
       <div><b>${nVid}</b><span>${nVid === 1 ? 'Vídeo' : 'Vídeos'}</span></div>
       <div><b>${ans[0] ? fmt(ans[0].data) : '—'}</b><span>Última análise</span></div>
     </div>
+    ${obs ? `<div class="ind-obs"><div class="ind-obs-h"><span>Observação</span>${podeEd ? '<button class="btn sm" id="iobs">Editar</button>' : ''}</div><p>${esc(obs)}</p></div>`
+      : podeEd ? `<div class="ind-obs vazio"><span>Observação</span><p>Registre aqui o que é importante saber sobre o atleta: trajetória, contexto pessoal, momento atual.</p><button class="btn sm" id="iobs">Adicionar observação</button></div>` : ''}
   </section>
   <div class="ind-tabs" id="itabs">
     <button data-aba="analises">Análises <small>${ans.length}</small></button>
@@ -157,6 +160,7 @@ function renderPasta(a) {
   $('#itrocar').onclick = trocarAtleta;
   if ($('#icomp')) $('#icomp').onclick = () => compartilharInd(a);
   if ($('#inova')) $('#inova').onclick = () => formAnalise(a, null);
+  if ($('#iobs')) $('#iobs').onclick = () => formPerfilInd(a);
   $('#itabs').onclick = e => { const b = e.target.closest('[data-aba]'); if (b) { S.ind.aba = b.dataset.aba; abaInd(a); } };
   abaInd(a);
 }
@@ -303,6 +307,25 @@ function abaFicha(a) {
       if (error) return toast(erroAmigavel(error), true);
       fechar(); toast('Visão geral salva.'); S.ind.aba = 'ficha'; pIndividual();
     };
+  };
+}
+
+/* ---------- observação e oGol ---------- */
+function formPerfilInd(a) {
+  const pa = S.ind.pasta || {}, h = histDe(a);
+  modal(`<h2>Observação · ${esc(a.nome)}</h2><form id="fpi">
+    <label class="f"><span>Observação</span><textarea class="in" name="observacao" rows="7" placeholder="Ex.: atleta com lastro na base, momento pessoal, retorno...">${esc(pa.observacao || '')}</textarea></label>
+    <label class="f"><span>Link do oGol</span><input class="in" name="ogol" type="url" value="${esc(pa.ogol || h?.ogol || '')}" placeholder="https://www.ogol.com.br/jogador/..."></label>
+    <div class="note">A observação aparece no topo da pasta, logo abaixo do atleta, e só quem tem acesso à pasta vê.</div>
+    <div class="mfoot"><span></span><div class="row"><button type="button" class="btn" id="fpic">Cancelar</button><button class="btn pri">Salvar</button></div></div></form>`);
+  $('#fpic').onclick = fechar;
+  $('#fpi').onsubmit = async e => {
+    e.preventDefault();
+    const d = formData(e.target);
+    if (d.ogol && !/^https?:\/\//i.test(d.ogol)) return toast('Cole o link completo do oGol (https://…).', true);
+    const { error } = await sb.from('individual_pastas').upsert({ atleta_id: a.id, observacao: nul(d.observacao), ogol: nul(d.ogol) });
+    if (error) return toast(erroAmigavel(error), true);
+    fechar(); toast('Observação salva.'); pIndividual();
   };
 }
 

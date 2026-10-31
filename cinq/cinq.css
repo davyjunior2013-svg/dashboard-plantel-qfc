@@ -358,3 +358,12 @@ ul.modelo{padding-left:18px;margin:6px 0}
 @media (max-width:900px){.ind-grid,.ind-ficha{grid-template-columns:1fr}.ind-tl{position:static;max-height:none}.ind-doc{padding:18px}.doc-head{flex-direction:column}.vid-row{grid-template-columns:1fr 1fr}.ind-hero{grid-template-columns:1fr;text-align:left}.ind-nums div{min-width:0;flex:1}}
 .doc-head>.row{flex-shrink:0;flex-wrap:nowrap}.ind-facts span{white-space:nowrap}
 @media (max-width:900px){.doc-head>.row{flex-wrap:wrap}}
+/* v6.1: observação e oGol na pasta */
+.ind-ogol{margin-left:4px}
+.ind-obs{grid-column:1/-1;border-top:1px solid var(--line);padding-top:14px;margin-top:2px}
+.ind-obs-h{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.ind-obs span{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.ind-obs p{margin:6px 0 0;white-space:pre-line;font-size:14px;line-height:1.6;color:#22303a;max-width:980px;border-left:3px solid #d99a1e;padding-left:12px}
+.ind-obs.vazio p{border-left-color:var(--line);color:var(--muted);font-size:13px}
+.ind-obs.vazio .btn{margin-top:8px}
+.ind-facts{display:flex;flex-wrap:wrap;gap:8px 26px}
