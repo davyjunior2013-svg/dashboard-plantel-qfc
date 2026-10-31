@@ -22,8 +22,8 @@ const MODELO = [
     sug: 'Treinar as 4 movimentações ofensivas da comissão, com amplitude do extremo esquerdo e do lateral-direito.' },
   { m: 'Organização ofensiva', id: 'finalizacao', nome: 'Finalização (domínio orientado + até 2 toques)', chaves: ['finaliza', 'finalizacao', 'finalizar', 'chute', 'baliza', 'gol '],
     sug: 'Domínio orientado + finalização em até 2 toques, em situação de jogo.' },
-  { m: 'Transição defensiva', id: 'reacao', nome: 'Reação imediata pós-perda (regra dos 6 s)', chaves: ['pos-perda', 'pos perda', 'perdeu', 'perda da bola', 'na perda', 'apos perder', 'reage', 'reagir', 'reacao imediata', 'reacao a perda', 'reacao em', '6 segundos', '7 segundos', 'seis segundos', 'sete segundos', 'atacar marcando'],
-    sug: 'Jogo reduzido com a regra dos 6 segundos: PERDEU → REAGE → APROXIMA → CRIA SUPERIORIDADE → RECUPERA.' },
+  { m: 'Transição defensiva', id: 'reacao', nome: 'Reação imediata pós-perda (regra dos 7 s)', chaves: ['pos-perda', 'pos perda', 'perdeu', 'perda da bola', 'na perda', 'apos perder', 'reage', 'reagir', 'reacao imediata', 'reacao a perda', 'reacao em', '6 segundos', '7 segundos', 'seis segundos', 'sete segundos', 'atacar marcando'],
+    sug: 'Jogo reduzido com a regra dos 7 segundos: PERDEU → REAGE → APROXIMA → CRIA SUPERIORIDADE → RECUPERA.' },
   { m: 'Organização defensiva', id: 'pressao', nome: 'Pressão coordenada (1 salta, os demais fecham linhas)', chaves: ['pressiona', 'pressao', 'pressionar', 'salta no portador', 'fecham linha', 'fechar linha', 'tiram a linha', 'tirar a linha', 'induz', 'induzir'],
     sug: 'Pressão coordenada: 1 salta no portador e os demais fecham as linhas de passe para induzir o erro.' },
   { m: 'Organização defensiva', id: 'bloco', nome: 'Reorganização defensiva (4-3-1, linha de 4 compacta)', chaves: ['4-3-1', 'linha de 4', 'linha defensiva', 'bloco', 'compact', 'reorganiza', 'balanco defensivo', 'balanco'],
@@ -135,8 +135,8 @@ function analisarCiclo(c) {
   });
   espacos.filter(x => x.alerta).forEach(x => checks.push({ n: 'warn', t: `${fmt(x.d)} · ${x.e}: ${x.md.txt} num dia de ${x.exp.toLowerCase()} — ${x.alerta}. Conferir com o treinador.` }));
   const seg = ex.map(e => (semAcento([e.objetivo, e.comportamento, e.descricao].join(' ')).match(/(\d+)\s*segundos/) || [])[1]).filter(Boolean);
-  const outros = [...new Set(seg.filter(x => x !== '6'))];
-  if (outros.length) checks.push({ n: 'warn', t: `Regra de reação à perda: o modelo prevê 6 segundos, mas ${outros.length === 1 && outros[0] === '7' ? 'os planos usam 7 segundos' : 'os planos usam ' + outros.join(' / ') + ' segundos'}. Confirmar qual é a referência.` });
+  const outros = [...new Set(seg.filter(x => x !== '7'))];
+  if (outros.length) checks.push({ n: 'warn', t: `Regra de reação à perda: o modelo prevê 7 segundos, mas os planos usam ${outros.join(' / ')} segundos. Ajustar o plano.` });
   const semTexto = ex.filter(e => !e.objetivo && !e.comportamento && !e.descricao);
   if (semTexto.length) checks.push({ n: 'warn', t: `${semTexto.map(e => `${fmt(e._s.data)} · ${e.nome}${e.numero_plano ? ' (plano ' + e.numero_plano + ')' : ''}`).join('; ')}: sem objetivo nem descrição no PDF, ficou fora da análise.` });
   const semMedida = espacos.filter(x => !x.md).length;
