@@ -8,7 +8,7 @@ const LOGO = '../fotos/logo_qfc.png';
 
 const POSICOES = ['Goleiro','Lateral Direito','Lateral Esquerdo','Zagueiro','Volante','Meia','Ponta Direito','Ponta Esquerda','Atacante'];
 const TURNOS = ['Manhã','Tarde','Noite'];
-const TIPOS = ['Treino','Amistoso','Avaliação','Recuperação','Folga'];
+const TIPOS = ['Treino','Amistoso','Jogo','Avaliação','Recuperação','Folga'];
 const FASES = ['Pré-temporada','Competição','Transição'];
 const FUNCOES = {
   tecnico: 'Técnico / Auxiliar',
