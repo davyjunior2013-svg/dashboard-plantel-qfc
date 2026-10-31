@@ -114,7 +114,7 @@ function analisarCiclo(c) {
   const posses = ex.filter(e => tipoAtividade(e).r === 1 || tipoAtividade(e).r === 2);
   if (posses.length && !doisToques.length) checks.push({ n: 'warn', t: `Regra padrão de 2 toques não aparece em nenhum plano de posse (${posses.length} atividade${posses.length > 1 ? 's' : ''}).` });
   c.sessoes.forEach(s => {
-    const lst = exDe(s.id); if (lst.length < 2) return;
+    const lst = exDe(s.id).filter(e => e.objetivo || e.comportamento || e.descricao); if (lst.length < 2) return;
     const rs = lst.map(tipoAtividade), quebra = rs.findIndex((r, i) => i && r.r < rs[i - 1].r);
     if (quebra > 0) checks.push({ n: 'warn', t: `${fmt(s.data)}: a progressão volta de “${rs[quebra - 1].n}” para “${rs[quebra].n}” (${lst[quebra].nome}). Pelo modelo, a sessão sobe de posse/pressão até o jogo.` });
   });
