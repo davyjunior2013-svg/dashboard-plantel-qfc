@@ -142,7 +142,7 @@ async function carregar() {
 
 /* ---------- estrutura ---------- */
 const PAGINAS = [
-  ['inicio', 'Início'], ['calendario', 'Calendário'], ['elenco', 'Elenco'], ['mapa', 'Mapa tático'], ['historico', 'Histórico']
+  ['inicio', 'Painel Geral'], ['calendario', 'Calendário'], ['elenco', 'Elenco'], ['mapa', 'Mapa tático'], ['historico', 'Histórico']
 ];
 const EM_BREVE = ['Fisiologia', 'Fisioterapia / DM', 'Técnico individual', 'Amistosos'];
 
@@ -186,7 +186,7 @@ function pInicio() {
   const diasPre = Math.round((parse(INICIO_PRETEMPORADA) - parse(h)) / 864e5);
   const micro = S.micros.find(m => m.inicio <= h && m.fim >= h);
   const amistosos = S.sessoes.filter(s => s.tipo === 'Amistoso' && s.data >= h).length;
-  $('#main').innerHTML = topo('CINQ · Painel', `Olá, ${S.perfil.nome}`, fmtLong(h).replace(/^./, c => c.toUpperCase())) + `
+  $('#main').innerHTML = topo('CINQ · Painel Geral', `Olá, ${S.perfil.nome}`, fmtLong(h).replace(/^./, c => c.toUpperCase())) + `
   <div class="cards">
     <div class="card hl"><div class="l">${diasPre > 0 ? 'Início da pré-temporada' : 'Pré-temporada'}</div><div class="v">${diasPre > 0 ? `${diasPre} dia${diasPre > 1 ? 's' : ''}` : `Dia ${1 - diasPre}`}</div><div class="s">${diasPre > 0 ? 'Começa em ' + fmt(INICIO_PRETEMPORADA) : micro ? esc(micro.nome) : 'Em andamento'}</div></div>
     <div class="card"><div class="l">Atletas no elenco</div><div class="v">${ativos.length}</div><div class="s">${ativos.filter(a => a.status === 'Titular').length} titulares</div></div>
