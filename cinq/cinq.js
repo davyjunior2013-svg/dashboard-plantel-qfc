@@ -20,7 +20,7 @@ const FUNCOES = {
 const DIAS = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-const S = { user: null, perfil: null, page: 'inicio', atletas: [], sessoes: [], micros: [], perfis: [], semana: null, filtro: { q: '', pos: '', st: '' } };
+const S = { user: null, perfil: null, page: 'inicio', atletas: [], sessoes: [], micros: [], perfis: [], historico: [], mapa: [], semana: null, filtro: { q: '', pos: '', st: '' }, hf: { q: '', pos: '', ord: '' }, editMapa: false };
 
 /* ---------- utilidades ---------- */
 const $ = (s, el = document) => el.querySelector(s);
@@ -36,6 +36,12 @@ const turnoOrd = t => TURNOS.indexOf(t);
 const opts = (arr, sel, vazio) => (vazio !== undefined ? `<option value="">${esc(vazio)}</option>` : '') + arr.map(o => { const [v, l] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(v)}"${String(v) === String(sel ?? '') ? ' selected' : ''}>${esc(l)}</option>`; }).join('');
 const isAdmin = () => !!S.perfil?.admin;
 const podeSessoes = () => isAdmin() || ['tecnico', 'analise'].includes(S.perfil?.funcao);
+const podeHistorico = () => isAdmin() || S.perfil?.funcao === 'analise';
+const podeMapa = () => isAdmin() || ['tecnico', 'analise'].includes(S.perfil?.funcao);
+const num = v => (v === null || v === undefined || v === '' ? '—' : Number(v).toLocaleString('pt-BR'));
+const dataBR = s => s ? parse(s).toLocaleDateString('pt-BR') : '—';
+const histDe = a => S.historico.find(h => h.atleta_id === a.id);
+const fotoH = h => { const a = S.atletas.find(x => x.id === h.atleta_id); return foto({ nome: h.nome, foto_url: h.foto_url || a?.foto_url }); };
 const iniciais = n => String(n || '?').trim().slice(0, 1).toUpperCase();
 const foto = a => a.foto_url ? `<img class="av" src="${esc(a.foto_url)}" alt="">` : `<div class="av">${esc(iniciais(a.nome))}</div>`;
 
@@ -102,19 +108,21 @@ async function iniciar() {
 
 /* ---------- dados ---------- */
 async function carregar() {
-  const [a, s, m] = await Promise.all([
+  const [a, s, m, h, t] = await Promise.all([
     sb.from('atletas').select('*').order('nome'),
     sb.from('sessoes').select('*').order('data').order('turno'),
-    sb.from('microciclos').select('*').order('inicio')
+    sb.from('microciclos').select('*').order('inicio'),
+    sb.from('historico').select('*').order('nome'),
+    sb.from('mapa_tatico').select('*').order('ordem')
   ]);
-  for (const r of [a, s, m]) if (r.error) toast(erroAmigavel(r.error), true);
-  S.atletas = a.data || []; S.sessoes = s.data || []; S.micros = m.data || [];
+  for (const r of [a, s, m, h, t]) if (r.error) toast(erroAmigavel(r.error), true);
+  S.atletas = a.data || []; S.sessoes = s.data || []; S.micros = m.data || []; S.historico = h.data || []; S.mapa = t.data || [];
   if (isAdmin()) { const p = await sb.from('perfis').select('*').order('nome'); S.perfis = p.data || []; }
 }
 
 /* ---------- estrutura ---------- */
 const PAGINAS = [
-  ['inicio', 'Início'], ['calendario', 'Calendário'], ['elenco', 'Elenco']
+  ['inicio', 'Início'], ['calendario', 'Calendário'], ['elenco', 'Elenco'], ['mapa', 'Mapa tático'], ['historico', 'Histórico']
 ];
 const EM_BREVE = ['Fisiologia', 'Fisioterapia / DM', 'Técnico individual', 'Amistosos'];
 
@@ -142,7 +150,7 @@ function shell() {
 function ir(p) {
   S.page = p;
   document.querySelectorAll('#nav button[data-p]').forEach(b => b.classList.toggle('on', b.dataset.p === p));
-  ({ inicio: pInicio, calendario: pCalendario, elenco: pElenco, comissao: pComissao }[p] || pInicio)();
+  ({ inicio: pInicio, calendario: pCalendario, elenco: pElenco, mapa: pMapa, historico: pHistorico, comissao: pComissao }[p] || pInicio)();
   window.scrollTo(0, 0);
 }
 
@@ -165,9 +173,19 @@ function pInicio() {
     <div class="card"><div class="l">Sessões nesta semana</div><div class="v">${semana.length}</div><div class="s">${fmt(ini)} a ${fmt(fim)}</div></div>
     <div class="card"><div class="l">Próximos amistosos</div><div class="v">${amistosos}</div><div class="s">agendados no calendário</div></div>
   </div>
+  <div class="grid2">
+    <div class="panel"><h2>Atletas por posição</h2>${barrasPosicao(ativos)}</div>
+    <div class="panel"><h2>Status do elenco</h2><div class="stat3">${['Titular', 'Ativo', 'Inativo'].map(st => `<div><b>${S.atletas.filter(a => a.status === st).length}</b><span>${st}</span></div>`).join('')}</div>
+      <div class="stat3" style="margin-top:10px"><div><b>${S.historico.filter(h => h.ativo_competicao).length}</b><span>Ativos em competição</span></div><div><b>${S.historico.filter(h => /voltando de les/i.test(h.observacao || '')).length}</b><span>Voltando de lesão</span></div><div><b>${S.atletas.filter(a => a.contrato_fim && a.contrato_fim >= h && a.contrato_fim <= addDays(h, 60)).length}</b><span>Contratos vencendo (60 dias)</span></div></div></div>
+  </div>
   <div class="panel"><h2>Hoje</h2>${hojeS.length ? hojeS.map(cardSessaoLinha).join('') : '<div class="empty">Nenhuma sessão registrada para hoje.</div>'}</div>
   <div class="panel"><h2>Próxima sessão</h2>${prox ? cardSessaoLinha(prox) : `<div class="empty">Nenhuma sessão futura no calendário.${podeSessoes() ? ' Cadastre a primeira em Calendário.' : ''}</div>`}</div>`;
   document.querySelectorAll('[data-ses]').forEach(el => el.onclick = () => verSessao(+el.dataset.ses));
+}
+function barrasPosicao(lista) {
+  const c = POSICOES.map(p => [p, lista.filter(a => a.posicao === p).length]).filter(x => x[1]);
+  const max = Math.max(1, ...c.map(x => x[1]));
+  return c.map(([p, n]) => `<div class="bar"><span>${esc(p)}</span><div><i style="width:${n / max * 100}%"></i></div><b>${n}</b></div>`).join('') || '<div class="empty">Sem atletas.</div>';
 }
 const cardSessaoLinha = s => `<div class="ses" data-ses="${s.id}" style="margin-bottom:8px"><div class="tt"><span>${esc(fmtLong(s.data))} · ${esc(s.turno)}${s.duracao_min ? ' · ' + s.duracao_min + ' min' : ''}</span><span class="badge t-${esc(s.tipo)}">${esc(s.tipo)}</span></div><div class="ti">${esc(s.titulo || s.objetivo || (s.tipo === 'Amistoso' && s.adversario ? 'x ' + s.adversario : s.tipo))}</div></div>`;
 
@@ -339,15 +357,34 @@ function pElenco() {
   $('#fpos').onchange = e => { F.pos = e.target.value; pElenco(); };
   $('#fst').onchange = e => { F.st = e.target.value; pElenco(); };
   if ($('#bnovoat')) $('#bnovoat').onclick = () => formAtleta({});
-  document.querySelectorAll('[data-at]').forEach(el => el.onclick = () => { const a = S.atletas.find(x => x.id === +el.dataset.at); isAdmin() ? formAtleta(a) : verAtleta(a); });
+  document.querySelectorAll('[data-at]').forEach(el => el.onclick = () => verAtleta(S.atletas.find(x => x.id === +el.dataset.at)));
 }
 
 function verAtleta(a) {
-  const c = (k, v) => v ? `<div><div class="k">${k}</div><p>${esc(v)}</p></div>` : '';
-  modal(`<div class="row" style="margin-bottom:14px">${foto(a)}<div><h2 style="margin:0">${esc(a.nome)}</h2><span class="m">${esc(a.posicao)}</span></div></div>
-  <div class="detail g2">${c('Pé', a.pe)}${c('Idade', a.idade && a.idade + ' anos')}${c('Altura', a.altura && String(a.altura).replace('.', ',') + ' m')}${c('Status', a.status)}${c('Nº', a.numero)}${c('Contrato até', a.contrato_fim && fmt(a.contrato_fim) + '/' + a.contrato_fim.slice(0, 4))}${c('Perfil', a.perfil)}${c('Observações', a.observacoes)}</div>
-  <div class="mfoot"><span></span><button class="btn" id="mf">Fechar</button></div>`);
+  const c = (k, v) => v ? `<div class="kv"><span>${k}</span><b>${esc(v)}</b></div>` : '';
+  const h = histDe(a), noXI = S.mapa.some(m => m.atleta_id === a.id);
+  const blocoH = h ? `<h3 class="sub">Histórico</h3>
+    <div class="metric-grid">
+      <div><b>${num(h.min_2026)}</b><span>Min 2026</span></div><div><b>${num(h.disp_2026)}/${num(h.rel_2026)}</b><span>Jogos 2026 (disp./rel.)</span></div>
+      <div><b>${num(h.min_2025)}</b><span>Min 2025</span></div><div><b>${num(h.disp_2025)}/${num(h.rel_2025)}</b><span>Jogos 2025 (disp./rel.)</span></div>
+    </div>
+    <div class="g2" style="margin-top:10px">${c('Último jogo atuando', h.ultimo_jogo && dataBR(h.ultimo_jogo))}${c('Ativo em competição', h.ativo_competicao ? 'Sim' : 'Não')}</div>
+    ${h.titulos ? `<div class="k">Títulos</div><p class="pre">${esc(h.titulos)}</p>` : ''}
+    ${h.rebaixamento ? `<div class="k">Rebaixamento</div><p class="pre">${esc(h.rebaixamento)}</p>` : ''}
+    ${h.observacao ? `<div class="k">Observação</div><p class="pre">${esc(h.observacao)}</p>` : ''}
+    <div class="row">${h.ogol ? `<a class="btn sm" href="${esc(h.ogol)}" target="_blank" rel="noopener">Ogol ↗</a>` : ''}${h.drive ? `<a class="btn sm" href="${esc(h.drive)}" target="_blank" rel="noopener">Últimos 10 jogos (Drive) ↗</a>` : ''}</div>`
+    : '<h3 class="sub">Histórico</h3><p class="empty">Sem histórico cadastrado.</p>';
+  modal(`<div class="row" style="margin-bottom:14px">${foto(a)}<div><h2 style="margin:0">${esc(a.nome)}</h2><span class="m">${esc(a.posicao)} · ${esc(a.pe || '—')}</span> <span class="badge s-${esc(a.status)}">${esc(a.status)}</span>${noXI ? ' <span class="badge t-Treino">11 inicial</span>' : ''}</div></div>
+  <div class="detail">
+    <h3 class="sub">Cadastro</h3>
+    <div class="g2">${c('Idade', a.idade && a.idade + ' anos')}${c('Altura', a.altura && String(a.altura).replace('.', ',') + ' m')}${c('Nº', a.numero)}${c('Contrato até', a.contrato_fim && dataBR(a.contrato_fim))}${c('Entrada', a.data_entrada && dataBR(a.data_entrada))}${c('Perfil', a.perfil)}</div>
+    ${a.observacoes ? `<div class="k">Observações</div><p class="pre">${esc(a.observacoes)}</p>` : ''}
+    ${blocoH}
+  </div>
+  <div class="mfoot"><div class="row">${isAdmin() ? '<button class="btn" id="medcad">Editar cadastro</button>' : ''}${podeHistorico() ? `<button class="btn" id="medhist">${h ? 'Editar histórico' : 'Adicionar histórico'}</button>` : ''}</div><button class="btn pri" id="mf">Fechar</button></div>`);
   $('#mf').onclick = fechar;
+  if ($('#medcad')) $('#medcad').onclick = () => formAtleta(a);
+  if ($('#medhist')) $('#medhist').onclick = () => formHistorico(h || { atleta_id: a.id, nome: a.nome, posicao: a.posicao });
 }
 
 function formAtleta(a) {
@@ -392,6 +429,121 @@ function formAtleta(a) {
     if (error) return toast(erroAmigavel(error), true);
     S.atletas = (novo ? [...S.atletas, data] : S.atletas.map(x => x.id === data.id ? data : x)).sort((x, y) => x.nome.localeCompare(y.nome));
     fechar(); toast('Atleta salvo.'); pElenco();
+  };
+}
+
+/* ---------- Mapa tático ---------- */
+function pMapa() {
+  const pode = podeMapa(), ed = S.editMapa && pode;
+  const at = id => S.atletas.find(a => a.id === id);
+  const noXI = new Set(S.mapa.map(m => m.atleta_id).filter(Boolean));
+  const banco = S.atletas.filter(a => a.ativo && a.status !== 'Inativo' && !noXI.has(a.id)).sort((a, b) => POSICOES.indexOf(a.posicao) - POSICOES.indexOf(b.posicao) || a.nome.localeCompare(b.nome));
+  const opcoes = S.atletas.filter(a => a.ativo).sort((a, b) => POSICOES.indexOf(a.posicao) - POSICOES.indexOf(b.posicao) || a.nome.localeCompare(b.nome)).map(a => [a.id, `${a.nome} · ${a.posicao}`]);
+  $('#main').innerHTML = topo('CINQ · Modelo de jogo', 'Mapa tático', '11 inicial de referência', pode ? (ed ? '<button class="btn" id="bmcanc">Concluir</button>' : '<button class="btn pri" id="bmed">Editar escalação</button>') : '') + `
+  <div class="tactical">
+    <div class="pitch"><div class="pl mid"></div><div class="pc"></div><div class="pg top"></div><div class="pg bot"></div><div class="pa top"></div><div class="pa bot"></div>
+      ${S.mapa.map(m => { const a = at(m.atleta_id); return `<div class="dot" style="left:${m.x}%;top:${m.y}%">${a ? foto(a) : '<div class="av">?</div>'}<span>${esc(a?.nome || '—')}</span></div>`; }).join('')}
+    </div>
+    <div class="panel"><h2>11 inicial</h2>
+      ${S.mapa.map(m => { const a = at(m.atleta_id); return ed
+        ? `<div class="kv"><span>${m.ordem}.</span><select class="in" data-slot="${m.ordem}" style="max-width:260px">${opts(opcoes, m.atleta_id, '— vazio —')}</select></div>`
+        : `<div class="kv"><span><b>${m.ordem}.</b> ${esc(a?.nome || '—')}</span><b>${esc(a?.posicao || '')}</b></div>`; }).join('')}
+      <h2 style="margin-top:16px">Banco / opções</h2>
+      ${banco.map(a => `<div class="kv small"><span>${esc(a.nome)}</span><span class="m">${esc(a.posicao)}</span></div>`).join('') || '<div class="empty">—</div>'}
+    </div>
+  </div>`;
+  if ($('#bmed')) $('#bmed').onclick = () => { S.editMapa = true; pMapa(); };
+  if ($('#bmcanc')) $('#bmcanc').onclick = () => { S.editMapa = false; pMapa(); };
+  document.querySelectorAll('[data-slot]').forEach(sel => sel.onchange = async () => {
+    const ordem = +sel.dataset.slot, id = sel.value ? +sel.value : null;
+    const dup = id && S.mapa.find(m => m.atleta_id === id && m.ordem !== ordem);
+    const ups = [{ ordem, atleta_id: id }]; if (dup) ups.push({ ordem: dup.ordem, atleta_id: S.mapa.find(m => m.ordem === ordem).atleta_id });
+    for (const u of ups) {
+      const { error } = await sb.from('mapa_tatico').update({ atleta_id: u.atleta_id }).eq('ordem', u.ordem);
+      if (error) { toast(erroAmigavel(error), true); return pMapa(); }
+      S.mapa.find(m => m.ordem === u.ordem).atleta_id = u.atleta_id;
+    }
+    toast(dup ? 'Posições trocadas.' : 'Escalação atualizada.'); pMapa();
+  });
+}
+
+/* ---------- Histórico ---------- */
+function pHistorico() {
+  const F = S.hf, H = S.historico;
+  let lista = H.filter(h => (!F.q || h.nome.toLowerCase().includes(F.q.toLowerCase())) && (!F.pos || h.posicao === F.pos));
+  if (F.ord) lista = [...lista].sort((a, b) => ((a.min_2026 ?? -1) - (b.min_2026 ?? -1)) * (F.ord === 'asc' ? 1 : -1));
+  const posicoes = [...new Set(H.map(h => h.posicao).filter(Boolean))];
+  $('#main').innerHTML = topo('CINQ · Elenco profissional', 'Histórico', 'Minutagem, jogos, títulos e links de cada atleta', podeHistorico() ? '<button class="btn pri" id="bnh">+ Histórico</button>' : '') + `
+  <div class="cards">
+    <div class="card"><div class="l">Atletas com histórico</div><div class="v">${H.length}</div></div>
+    <div class="card"><div class="l">Voltando de lesão</div><div class="v">${H.filter(h => /voltando de les/i.test(h.observacao || '')).length}</div></div>
+    <div class="card hl"><div class="l">Ativos em competição</div><div class="v">${H.filter(h => h.ativo_competicao).length}</div></div>
+    <div class="card"><div class="l">Atletas com títulos</div><div class="v">${H.filter(h => h.titulos && h.titulos !== '-').length}</div></div>
+  </div>
+  <div class="filters">
+    <input class="in" id="hq" placeholder="Buscar atleta…" value="${esc(F.q)}">
+    <select class="in" id="hpos">${opts(posicoes, F.pos, 'Todas as posições')}</select>
+    <select class="in" id="hord">${opts([['desc', 'Minutagem 2026: maior → menor'], ['asc', 'Minutagem 2026: menor → maior']], F.ord, 'Sem ordenação')}</select>
+  </div>
+  <div class="note">Nomes destacados em verde estão atuando em uma competição neste momento. Clique na linha para ver ${podeHistorico() ? 'ou editar ' : ''}os detalhes.</div>
+  <div class="panel tablewrap" style="padding:8px"><table class="tb hist"><tr><th></th><th>Atleta</th><th>Posição</th><th>Min 2026</th><th>Jogos 26<br><small>rel. / disp.</small></th><th>Último jogo</th><th>Min 2025</th><th>Jogos 25<br><small>rel. / disp.</small></th><th>Títulos</th><th>Observação</th><th>Links</th></tr>
+  ${lista.map(h => `<tr data-h="${h.id}" class="${h.ativo_competicao ? 'ativo' : ''}"><td>${fotoH(h)}</td><td><b>${esc(h.nome)}</b>${h.atleta_id ? '' : '<br><small class="m">fora do elenco atual</small>'}</td><td>${esc(h.posicao || '')}</td><td><b>${num(h.min_2026)}</b></td><td>${num(h.rel_2026)} / ${num(h.disp_2026)}</td><td>${dataBR(h.ultimo_jogo)}</td><td>${num(h.min_2025)}</td><td>${num(h.rel_2025)} / ${num(h.disp_2025)}</td><td class="pre sm">${esc(h.titulos || '—')}${h.rebaixamento ? `<br><span class="red">Rebaixamento: ${esc(h.rebaixamento)}</span>` : ''}</td><td class="pre sm">${esc(h.observacao || '')}</td><td class="links">${h.ogol ? `<a href="${esc(h.ogol)}" target="_blank" rel="noopener">Ogol ↗</a>` : ''}${h.drive ? `<a href="${esc(h.drive)}" target="_blank" rel="noopener">Drive ↗</a>` : ''}</td></tr>`).join('')}</table></div>`;
+  $('#hq').oninput = e => { F.q = e.target.value; const p = e.target.selectionStart; pHistorico(); const i = $('#hq'); i.focus(); i.setSelectionRange(p, p); };
+  $('#hpos').onchange = e => { F.pos = e.target.value; pHistorico(); };
+  $('#hord').onchange = e => { F.ord = e.target.value; pHistorico(); };
+  if ($('#bnh')) $('#bnh').onclick = () => formHistorico({});
+  document.querySelectorAll('[data-h]').forEach(tr => tr.onclick = e => {
+    if (e.target.closest('a')) return;
+    const h = S.historico.find(x => x.id === +tr.dataset.h), a = S.atletas.find(x => x.id === h.atleta_id);
+    a ? verAtleta(a) : (podeHistorico() ? formHistorico(h) : null);
+  });
+}
+
+function formHistorico(h) {
+  const novo = !h.id;
+  const semHist = S.atletas.filter(a => !S.historico.some(x => x.atleta_id === a.id) || a.id === h.atleta_id).map(a => [a.id, a.nome]);
+  const n = (nm, lb, v) => `<label class="f"><span>${lb}</span><input class="in" type="number" min="0" name="${nm}" value="${esc(v ?? '')}"></label>`;
+  modal(`<h2>${novo ? 'Novo histórico' : 'Editar histórico'} ${h.nome ? '· ' + esc(h.nome) : ''}</h2>
+  <form id="fh">
+    <div class="g2">
+      <label class="f"><span>Atleta do elenco</span><select class="in" name="atleta_id">${opts(semHist, h.atleta_id, '— fora do elenco —')}</select></label>
+      <label class="f"><span>Nome no histórico *</span><input class="in" name="nome" value="${esc(h.nome || '')}" required></label>
+    </div>
+    <div class="g2">
+      <label class="f"><span>Posição</span><select class="in" name="posicao">${opts(POSICOES, h.posicao, '—')}</select></label>
+      <label class="f"><span>Link Ogol</span><input class="in" name="ogol" value="${esc(h.ogol || '')}" placeholder="https://www.ogol.com.br/jogador/…"></label>
+    </div>
+    <div class="g3">${n('min_2026', 'Minutagem 2026', h.min_2026)}${n('rel_2026', 'Jogos relacionado 2026', h.rel_2026)}${n('disp_2026', 'Jogos disputado 2026', h.disp_2026)}
+      ${n('min_2025', 'Minutagem 2025', h.min_2025)}${n('rel_2025', 'Jogos relacionado 2025', h.rel_2025)}${n('disp_2025', 'Jogos disputado 2025', h.disp_2025)}</div>
+    <div class="g2">
+      <label class="f"><span>Último jogo (atuando)</span><input class="in" type="date" name="ultimo_jogo" value="${esc(h.ultimo_jogo || '')}"></label>
+      <label class="f"><span>Ativo em competição agora?</span><select class="in" name="ativo_competicao">${opts([['false', 'Não'], ['true', 'Sim']], String(!!h.ativo_competicao))}</select></label>
+    </div>
+    <label class="f"><span>Títulos (um por linha: COMPETIÇÃO (ano) - Clube)</span><textarea class="in" name="titulos">${esc(h.titulos || '')}</textarea></label>
+    <label class="f"><span>Rebaixamento</span><input class="in" name="rebaixamento" value="${esc(h.rebaixamento || '')}" placeholder="2023 - SÉRIE B (ABC)"></label>
+    <label class="f"><span>Observação (escreva "VOLTANDO DE LESÃO" para contar no card)</span><textarea class="in" name="observacao" style="min-height:60px">${esc(h.observacao || '')}</textarea></label>
+    <label class="f"><span>Link Drive (últimos 10 jogos)</span><input class="in" name="drive" value="${esc(h.drive || '')}"></label>
+    <div class="mfoot">${novo ? '<span></span>' : '<button type="button" class="btn dan" id="hdel">Excluir histórico</button>'}<div class="row"><button type="button" class="btn" id="hcanc">Cancelar</button><button class="btn pri" type="submit">Salvar</button></div></div>
+  </form>`);
+  $('#hcanc').onclick = fechar;
+  const selA = $('#fh [name=atleta_id]');
+  selA.onchange = () => { const a = S.atletas.find(x => x.id === +selA.value); if (a) { $('#fh [name=nome]').value ||= a.nome; $('#fh [name=posicao]').value ||= a.posicao; } };
+  if ($('#hdel')) $('#hdel').onclick = async () => {
+    if (!confirm(`Excluir o histórico de ${h.nome}?`)) return;
+    const { error } = await sb.from('historico').delete().eq('id', h.id);
+    if (error) return toast(erroAmigavel(error), true);
+    S.historico = S.historico.filter(x => x.id !== h.id); fechar(); toast('Histórico excluído.'); ir(S.page);
+  };
+  $('#fh').onsubmit = async e => {
+    e.preventDefault();
+    const f = formData(e.target), int = v => (v === '' ? null : +v);
+    const row = { atleta_id: f.atleta_id ? +f.atleta_id : null, nome: f.nome, posicao: nul(f.posicao), ogol: nul(f.ogol),
+      min_2026: int(f.min_2026), rel_2026: int(f.rel_2026), disp_2026: int(f.disp_2026), min_2025: int(f.min_2025), rel_2025: int(f.rel_2025), disp_2025: int(f.disp_2025),
+      ultimo_jogo: nul(f.ultimo_jogo), ativo_competicao: f.ativo_competicao === 'true', titulos: nul(f.titulos), rebaixamento: nul(f.rebaixamento), observacao: nul(f.observacao), drive: nul(f.drive) };
+    const { data, error } = novo ? await sb.from('historico').insert(row).select().single() : await sb.from('historico').update(row).eq('id', h.id).select().single();
+    if (error) return toast(/historico_atleta_unico/.test(error.message) ? 'Esse atleta já tem histórico.' : erroAmigavel(error), true);
+    S.historico = (novo ? [...S.historico, data] : S.historico.map(x => x.id === data.id ? data : x)).sort((a, b) => a.nome.localeCompare(b.nome));
+    fechar(); toast('Histórico salvo.'); ir(S.page);
   };
 }
 
