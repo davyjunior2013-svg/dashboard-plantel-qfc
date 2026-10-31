@@ -20,7 +20,7 @@ const FUNCOES = {
 const DIAS = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-const S = { user: null, perfil: null, page: 'inicio', atletas: [], sessoes: [], micros: [], perfis: [], historico: [], mapa: [], semana: null, filtro: { q: '', pos: '', st: '' }, hf: { q: '', pos: '', ord: '' }, editMapa: false };
+const S = { user: null, perfil: null, page: 'inicio', atletas: [], sessoes: [], micros: [], perfis: [], historico: [], mapa: [], exercicios: [], urls: {}, semana: null, filtro: { q: '', pos: '', st: '' }, hf: { q: '', pos: '', ord: '' }, editMapa: false };
 
 /* ---------- utilidades ---------- */
 const $ = (s, el = document) => el.querySelector(s);
@@ -41,6 +41,17 @@ const podeMapa = () => isAdmin() || ['tecnico', 'analise'].includes(S.perfil?.fu
 const num = v => (v === null || v === undefined || v === '' ? '—' : Number(v).toLocaleString('pt-BR'));
 const dataBR = s => s ? parse(s).toLocaleDateString('pt-BR') : '—';
 const histDe = a => S.historico.find(h => h.atleta_id === a.id);
+const horaTxt = s => (s.hora ? String(s.hora).slice(0, 5).replace(':', 'h') : s.turno);
+const ordSes = (a, b) => a.data.localeCompare(b.data) || String(a.hora || '99').localeCompare(String(b.hora || '99')) || turnoOrd(a.turno) - turnoOrd(b.turno);
+const exDe = id => S.exercicios.filter(e => e.sessao_id === id).sort((a, b) => a.ordem - b.ordem || a.id - b.id);
+const turnoDaHora = h => { const n = parseInt(h, 10); return isNaN(n) ? 'Manhã' : n < 12 ? 'Manhã' : n < 18 ? 'Tarde' : 'Noite'; };
+const ytId = u => { const m = String(u || '').match(/(?:youtu\.be\/|v=|\/embed\/|\/live\/|\/shorts\/)([A-Za-z0-9_-]{11})/); return m ? m[1] : null; };
+const segs = t => { if (!t) return null; const p = String(t).trim().split(':').map(Number); if (p.some(isNaN)) return null; return p.reduce((a, v) => a * 60 + v, 0); };
+async function urlsAssinadas(paths) {
+  const falta = [...new Set(paths.filter(p => p && !S.urls[p]))];
+  if (falta.length) { const { data } = await sb.storage.from('planos').createSignedUrls(falta, 3600); (data || []).forEach(d => { if (d.signedUrl) S.urls[d.path] = d.signedUrl; }); }
+  return S.urls;
+}
 const fotoH = h => { const a = S.atletas.find(x => x.id === h.atleta_id); return foto({ nome: h.nome, foto_url: h.foto_url || a?.foto_url }); };
 const iniciais = n => String(n || '?').trim().slice(0, 1).toUpperCase();
 const foto = a => a.foto_url ? `<img class="av" src="${esc(a.foto_url)}" alt="">` : `<div class="av">${esc(iniciais(a.nome))}</div>`;
@@ -52,13 +63,14 @@ function toast(msg, bad = false) {
 function erroAmigavel(e) {
   const m = e?.message || String(e);
   if (/Invalid login credentials/i.test(m)) return 'E-mail ou senha incorretos.';
-  if (/duplicate key.*sessoes_data_turno/i.test(m)) return 'Já existe uma sessão nesse dia e turno.';
+  if (/Bucket not found/i.test(m)) return 'Armazenamento de planos não encontrado.';
+  if (/mime type|file size/i.test(m)) return 'Arquivo não aceito (envie o PDF do plano, até 10 MB).';
   if (/duplicate key.*atletas_nome/i.test(m)) return 'Já existe um atleta com esse nome.';
   if (/row-level security|permission denied/i.test(m)) return 'Seu perfil não tem permissão para essa alteração.';
   if (/Failed to fetch|NetworkError/i.test(m)) return 'Sem conexão com o servidor. Verifique a internet.';
   return m;
 }
-function modal(html) { const m = $('#modal'); m.innerHTML = `<div class="mbox">${html}</div>`; m.hidden = false; }
+function modal(html, largo = false) { const m = $('#modal'); m.innerHTML = `<div class="mbox${largo ? ' wide' : ''}">${html}</div>`; m.hidden = false; m.scrollTop = 0; }
 function fechar() { const m = $('#modal'); m.hidden = true; m.innerHTML = ''; }
 $('#modal').addEventListener('click', e => { if (e.target.id === 'modal') fechar(); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') fechar(); });
@@ -108,14 +120,16 @@ async function iniciar() {
 
 /* ---------- dados ---------- */
 async function carregar() {
-  const [a, s, m, h, t] = await Promise.all([
+  const [a, s, m, h, t, ex] = await Promise.all([
     sb.from('atletas').select('*').order('nome'),
     sb.from('sessoes').select('*').order('data').order('turno'),
     sb.from('microciclos').select('*').order('inicio'),
     sb.from('historico').select('*').order('nome'),
-    sb.from('mapa_tatico').select('*').order('ordem')
+    sb.from('mapa_tatico').select('*').order('ordem'),
+    sb.from('exercicios').select('*').order('ordem')
   ]);
-  for (const r of [a, s, m, h, t]) if (r.error) toast(erroAmigavel(r.error), true);
+  for (const r of [a, s, m, h, t, ex]) if (r.error) toast(erroAmigavel(r.error), true);
+  S.exercicios = ex.data || [];
   S.atletas = a.data || []; S.sessoes = s.data || []; S.micros = m.data || []; S.historico = h.data || []; S.mapa = t.data || [];
   if (isAdmin()) { const p = await sb.from('perfis').select('*').order('nome'); S.perfis = p.data || []; }
 }
@@ -161,8 +175,8 @@ function pInicio() {
   const h = hoje(), ini = segunda(h), fim = addDays(ini, 6);
   const ativos = S.atletas.filter(a => a.ativo && a.status !== 'Inativo');
   const semana = S.sessoes.filter(s => s.data >= ini && s.data <= fim && s.tipo !== 'Folga');
-  const prox = S.sessoes.filter(s => s.data >= h).sort((a, b) => a.data.localeCompare(b.data) || turnoOrd(a.turno) - turnoOrd(b.turno))[0];
-  const hojeS = S.sessoes.filter(s => s.data === h).sort((a, b) => turnoOrd(a.turno) - turnoOrd(b.turno));
+  const prox = S.sessoes.filter(s => s.data >= h).sort(ordSes)[0];
+  const hojeS = S.sessoes.filter(s => s.data === h).sort(ordSes);
   const diasPre = Math.round((parse(INICIO_PRETEMPORADA) - parse(h)) / 864e5);
   const micro = S.micros.find(m => m.inicio <= h && m.fim >= h);
   const amistosos = S.sessoes.filter(s => s.tipo === 'Amistoso' && s.data >= h).length;
@@ -187,7 +201,7 @@ function barrasPosicao(lista) {
   const max = Math.max(1, ...c.map(x => x[1]));
   return c.map(([p, n]) => `<div class="bar"><span>${esc(p)}</span><div><i style="width:${n / max * 100}%"></i></div><b>${n}</b></div>`).join('') || '<div class="empty">Sem atletas.</div>';
 }
-const cardSessaoLinha = s => `<div class="ses" data-ses="${s.id}" style="margin-bottom:8px"><div class="tt"><span>${esc(fmtLong(s.data))} · ${esc(s.turno)}${s.duracao_min ? ' · ' + s.duracao_min + ' min' : ''}</span><span class="badge t-${esc(s.tipo)}">${esc(s.tipo)}</span></div><div class="ti">${esc(s.titulo || s.objetivo || (s.tipo === 'Amistoso' && s.adversario ? 'x ' + s.adversario : s.tipo))}</div></div>`;
+const cardSessaoLinha = s => `<div class="ses" data-ses="${s.id}" style="margin-bottom:8px"><div class="tt"><span>${esc(fmtLong(s.data))} · ${esc(horaTxt(s))}${exDe(s.id).length ? ' · ' + exDe(s.id).length + ' exercícios' : ''}</span><span class="badge t-${esc(s.tipo)}">${esc(s.tipo)}</span></div><div class="ti">${esc(s.titulo || (s.tipo === 'Amistoso' && s.adversario ? 'x ' + s.adversario : '') || exDe(s.id).map(e => e.nome).join(' · ') || s.objetivo || s.tipo)}</div></div>`;
 
 /* ---------- Calendário ---------- */
 function pCalendario() {
@@ -196,41 +210,199 @@ function pCalendario() {
   const micro = S.micros.find(m => m.inicio <= fim && m.fim >= ini);
   const dias = [...Array(7)].map((_, i) => addDays(ini, i));
   $('#main').innerHTML = topo('CINQ · Organização de treino', 'Calendário', 'Semanas, sessões e planejamento',
-    `<button class="btn" id="bmicros">Microciclos</button>${podeSessoes() ? '<button class="btn pri" id="bnova">+ Sessão</button>' : ''}`) + `
+    `<button class="btn" id="bmicros">Microciclos</button>${podeSessoes() ? '<button class="btn" id="bimport">Importar planos de treino</button><button class="btn pri" id="bnova">+ Sessão</button>' : ''}`) + `
   <div class="weekbar">
     <button class="btn sm" id="bprev">◀</button><b>${fmt(ini)} a ${fmt(fim)}</b><button class="btn sm" id="bnext">▶</button>
     <button class="btn sm" id="bhoje">Semana atual</button>
     ${micro ? `<span class="micro">${esc(micro.nome)} · ${esc(micro.fase)}${micro.objetivo ? ' · ' + esc(micro.objetivo) : ''}</span>` : ''}
   </div>
   <div class="week">${dias.map((d, i) => {
-    const ss = S.sessoes.filter(s => s.data === d).sort((a, b) => turnoOrd(a.turno) - turnoOrd(b.turno));
+    const ss = S.sessoes.filter(s => s.data === d).sort(ordSes);
     return `<div class="day${d === h ? ' today' : ''}"><h3>${DIAS[i]} <em>${fmt(d)}</em></h3>
-      ${ss.map(s => `<div class="ses" data-ses="${s.id}"><div class="tt"><span>${esc(s.turno)}${s.duracao_min ? ' · ' + s.duracao_min + "'" : ''}</span><span class="badge t-${esc(s.tipo)}">${esc(s.tipo)}</span></div><div class="ti">${esc(s.titulo || s.objetivo || (s.adversario ? 'x ' + s.adversario : ''))}</div></div>`).join('')}
+      ${ss.map(s => { const ex = exDe(s.id); return `<div class="ses" data-ses="${s.id}"><div class="tt"><span>${esc(horaTxt(s))}</span><span class="badge t-${esc(s.tipo)}">${esc(s.tipo)}</span></div><div class="ti">${esc(s.titulo || (s.adversario ? 'x ' + s.adversario : '') || (ex[0] ? ex.map(e => e.nome).join(' · ') : s.objetivo || ''))}</div>${ex.length || s.video_url ? `<div class="sesmeta">${ex.length ? ex.length + ' exercício' + (ex.length > 1 ? 's' : '') : ''}${ex.length && s.video_url ? ' · ' : ''}${s.video_url ? 'vídeo' : ''}</div>` : ''}</div>`; }).join('')}
       ${podeSessoes() ? `<button class="addses" data-add="${d}">+ adicionar</button>` : ''}</div>`;
   }).join('')}</div>`;
   $('#bprev').onclick = () => { S.semana = addDays(S.semana, -7); pCalendario(); };
   $('#bnext').onclick = () => { S.semana = addDays(S.semana, 7); pCalendario(); };
   $('#bhoje').onclick = () => { S.semana = segunda(hoje()); pCalendario(); };
   $('#bmicros').onclick = verMicros;
+  if ($('#bimport')) $('#bimport').onclick = () => escolherPlanos(null);
   if ($('#bnova')) $('#bnova').onclick = () => formSessao({ data: ini < h && fim >= h ? h : ini });
   document.querySelectorAll('[data-add]').forEach(b => b.onclick = () => formSessao({ data: b.dataset.add }));
   document.querySelectorAll('[data-ses]').forEach(el => el.onclick = () => verSessao(+el.dataset.ses));
 }
 
-function verSessao(id) {
+function verSessao(id, foco) {
   const s = S.sessoes.find(x => x.id === id); if (!s) return;
-  const micro = S.micros.find(m => m.id === s.microciclo_id);
-  const campo = (k, v) => v ? `<div class="k">${k}</div><p>${esc(v)}</p>` : '';
-  modal(`<h2>${esc(s.tipo)} · ${esc(fmtLong(s.data))} · ${esc(s.turno)}</h2>
-  <div class="detail">
-    ${campo('Título', s.titulo)}${campo('Adversário', s.adversario)}${campo('Microciclo', micro?.nome)}
-    ${campo('Objetivo', s.objetivo)}${campo('Conteúdo / exercícios', s.conteudo)}
-    ${campo('Duração', s.duracao_min ? s.duracao_min + ' minutos' : '')}${campo('Local', s.local)}${campo('Observações', s.observacoes)}
-    ${!s.titulo && !s.objetivo && !s.conteudo ? '<p class="empty">Sessão sem planejamento detalhado ainda.</p>' : ''}
-  </div>
-  <div class="mfoot"><span></span><div class="row"><button class="btn" id="mfechar">Fechar</button>${podeSessoes() ? '<button class="btn pri" id="meditar">Editar</button>' : ''}</div></div>`);
-  $('#mfechar').onclick = fechar;
-  if ($('#meditar')) $('#meditar').onclick = () => formSessao(s);
+  const micro = S.micros.find(m => m.id === s.microciclo_id), ex = exDe(id), pode = podeSessoes(), yt = ytId(s.video_url);
+  const total = ex.reduce((a, e) => a + (e.duracao_min || 0), 0), jog = Math.max(0, ...ex.map(e => e.jogadores || 0));
+  const campo = (k, v) => v ? `<div class="k">${k}</div><p class="pre">${esc(v)}</p>` : '';
+  modal(`<div class="sh"><div><div class="eyebrow">${esc(s.tipo)}${micro ? ' · ' + esc(micro.nome) : ''}</div><h2>${esc(fmtLong(s.data)).replace(/^./, c => c.toUpperCase())} · ${esc(horaTxt(s))}${s.local ? ' · ' + esc(s.local) : ''}</h2>
+    ${s.titulo || s.adversario ? `<p class="m" style="margin:0">${esc(s.titulo || '')}${s.adversario ? ' x ' + esc(s.adversario) : ''}</p>` : ''}</div>
+    <div class="row">${pode ? '<button class="btn sm" id="sedit">Editar sessão</button>' : ''}<button class="btn sm" id="sfechar">Fechar</button></div></div>
+  ${micro?.objetivo ? `<div class="note"><b>Objetivo da semana:</b> ${esc(micro.objetivo)}</div>` : ''}
+  <div class="panel video">${yt ? `<div class="yt"><iframe id="ytf" src="https://www.youtube-nocookie.com/embed/${yt}" title="Vídeo do treino" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe></div><div class="row" style="margin-top:8px"><a class="btn sm" href="${esc(s.video_url)}" target="_blank" rel="noopener">Abrir no YouTube ↗</a>${pode ? '<button class="btn sm" id="svid">Trocar vídeo</button>' : ''}</div>`
+    : `<div class="vazio-video"><b>Vídeo do treino</b><span>${pode ? 'Depois de gravar, suba no YouTube como <b>Não listado</b> e cole o link aqui.' : 'O vídeo ainda não foi adicionado.'}</span>${pode ? '<button class="btn sm pri" id="svid">Adicionar link do vídeo</button>' : ''}</div>`}</div>
+  ${ex.length ? `<div class="panel"><h2>Resumo do treino</h2>
+    <div class="metric-grid"><div><b>${ex.length}</b><span>Exercícios</span></div><div><b>${total ? total + "'" : '—'}</b><span>Tempo total</span></div><div><b>${jog || '—'}</b><span>Jogadores (máx.)</span></div><div><b>${esc(ex[0].periodo || '—')}</b><span>Período</span></div></div>
+    <div class="k" style="margin-top:12px">Sequência de comportamentos-chave</div>
+    <ol class="seq">${ex.map(e => `<li><b>${esc(e.nome)}</b><br><span>${esc(e.comportamento || '—')}</span></li>`).join('')}</ol>
+    <div class="k">Material</div><ul class="mat">${ex.map(e => e.material ? `<li><b>${e.ordem}.</b> ${esc(e.material)}</li>` : '').join('')}</ul></div>` : ''}
+  <div class="exhead"><h2>Exercícios</h2>${pode ? '<button class="btn pri sm" id="splanos">+ Adicionar planos de treino (PDF)</button>' : ''}</div>
+  <div id="exlist">${ex.length ? ex.map((e, i) => cardExercicio(e, i, ex.length, pode, !!yt)).join('') : `<div class="panel empty">Nenhum plano de treino nesta sessão.${pode ? ' Clique em <b>Adicionar planos de treino</b> e selecione os PDFs do Dossier do Treinador.' : ''}</div>`}</div>
+  ${s.objetivo || s.conteudo || s.observacoes ? `<div class="panel detail">${campo('Objetivo (manual)', s.objetivo)}${campo('Conteúdo (manual)', s.conteudo)}${campo('Observações', s.observacoes)}</div>` : ''}`, true);
+  $('#sfechar').onclick = fechar;
+  if ($('#sedit')) $('#sedit').onclick = () => formSessao(s);
+  if ($('#svid')) $('#svid').onclick = async () => {
+    const u = prompt('Cole o link do vídeo no YouTube (de preferência "Não listado"):', s.video_url || '');
+    if (u === null) return;
+    if (u && !ytId(u)) return toast('Não reconheci esse link do YouTube.', true);
+    const { data, error } = await sb.from('sessoes').update({ video_url: u || null }).eq('id', s.id).select().single();
+    if (error) return toast(erroAmigavel(error), true);
+    S.sessoes = S.sessoes.map(x => x.id === data.id ? data : x); toast(u ? 'Vídeo adicionado.' : 'Vídeo removido.'); verSessao(id);
+  };
+  if ($('#splanos')) $('#splanos').onclick = () => escolherPlanos(s);
+  urlsAssinadas(ex.map(e => e.img_path)).then(u => document.querySelectorAll('img[data-img]').forEach(im => { if (u[im.dataset.img]) im.src = u[im.dataset.img]; }));
+  const box = $('#exlist');
+  box.onclick = async e => {
+    const b = e.target.closest('[data-act]'); if (!b) return;
+    const ex1 = S.exercicios.find(x => x.id === +b.dataset.ex), act = b.dataset.act;
+    if (act === 'desc') { const d = $(`#desc${ex1.id}`); d.hidden = !d.hidden; b.textContent = d.hidden ? 'Descrição completa' : 'Ocultar descrição'; }
+    if (act === 'pdf') { const u = await urlsAssinadas([ex1.pdf_path]); u[ex1.pdf_path] ? window.open(u[ex1.pdf_path], '_blank') : toast('PDF não encontrado.', true); }
+    if (act === 'img') { const u = await urlsAssinadas([ex1.img_path]); if (u[ex1.img_path]) window.open(u[ex1.img_path], '_blank'); }
+    if (act === 'play') { const f = $('#ytf'); if (f) { f.src = `https://www.youtube-nocookie.com/embed/${yt}?start=${segs(ex1.video_inicio) || 0}&autoplay=1`; $('#modal').scrollTop = 0; } }
+    if (act === 'edit') formExercicio(ex1);
+    if (act === 'up' || act === 'down') {
+      const lst = exDe(id), k = lst.findIndex(x => x.id === ex1.id), o = lst[act === 'up' ? k - 1 : k + 1]; if (!o) return;
+      const a1 = ex1.ordem, a2 = o.ordem === a1 ? a1 + (act === 'up' ? -1 : 1) : o.ordem;
+      const r1 = await sb.from('exercicios').update({ ordem: a2 }).eq('id', ex1.id), r2 = await sb.from('exercicios').update({ ordem: a1 }).eq('id', o.id);
+      if (r1.error || r2.error) return toast(erroAmigavel(r1.error || r2.error), true);
+      ex1.ordem = a2; o.ordem = a1; verSessao(id);
+    }
+    if (act === 'del') {
+      if (!confirm(`Remover "${ex1.nome}" desta sessão? O PDF também será apagado.`)) return;
+      const { error } = await sb.from('exercicios').delete().eq('id', ex1.id);
+      if (error) return toast(erroAmigavel(error), true);
+      await sb.storage.from('planos').remove([ex1.pdf_path, ex1.img_path].filter(Boolean));
+      S.exercicios = S.exercicios.filter(x => x.id !== ex1.id); toast('Exercício removido.'); verSessao(id); if (S.page === 'calendario') pCalendario();
+    }
+  };
+  if (foco) { const el = document.getElementById('ex' + foco); if (el) el.scrollIntoView({ block: 'center' }); }
+}
+
+function cardExercicio(e, i, n, pode, temVideo) {
+  const lista = t => (t || '').split('\n').filter(Boolean).map(l => `<li>${esc(l)}</li>`).join('');
+  return `<div class="panel exc" id="ex${e.id}">
+    <div class="exc-top"><div class="exn">${e.ordem}</div><div style="flex:1;min-width:0"><h3>${esc(e.nome)}</h3>
+      <div class="row tags">${e.numero_plano ? `<span class="badge">Plano ${e.numero_plano}</span>` : ''}${e.jogadores ? `<span class="badge">${e.jogadores} jogadores</span>` : ''}${e.duracao_min ? `<span class="badge t-Treino">${e.duracao_min} min</span>` : (pode ? '<span class="badge s-Inativo">sem tempo</span>' : '')}${e.video_inicio ? `<span class="badge t-Amistoso">vídeo ${esc(e.video_inicio)}</span>` : ''}${e.nome_gerado ? `<span class="m" title="Nome criado a partir do objetivo">no plano: “${esc(e.titulo_original || '')}”</span>` : ''}</div></div>
+      ${pode ? `<div class="row"><button class="btn sm" data-act="up" data-ex="${e.id}" ${i === 0 ? 'disabled' : ''} title="Subir">↑</button><button class="btn sm" data-act="down" data-ex="${e.id}" ${i === n - 1 ? 'disabled' : ''} title="Descer">↓</button></div>` : ''}</div>
+    <div class="exc-body">
+      ${e.img_path ? `<img class="diag" data-img="${esc(e.img_path)}" data-act="img" data-ex="${e.id}" alt="Desenho do exercício" title="Abrir desenho em tamanho maior">` : ''}
+      <div class="exc-txt">
+        ${e.comportamento ? `<div class="comp"><span>Comportamento-chave</span>${esc(e.comportamento).replace(/\n/g, '<br>')}</div>` : ''}
+        ${e.objetivo ? `<div class="k">Objetivo</div><p class="pre">${esc(e.objetivo)}</p>` : ''}
+        ${e.indicadores ? `<div class="k">Indicadores de êxito</div><ul class="ind">${lista(e.indicadores)}</ul>` : ''}
+        ${e.material ? `<div class="k">Material e espaço</div><p class="pre">${esc(e.material)}</p>` : ''}
+      </div>
+    </div>
+    <div id="desc${e.id}" hidden><div class="k">Descrição e organização metodológica</div><p class="pre">${esc(e.descricao || '—')}</p></div>
+    ${e.balanco ? `<div class="balanco"><span>Observações / balanço</span><p class="pre">${esc(e.balanco)}</p></div>` : ''}
+    <div class="row exc-act"><button class="btn sm" data-act="desc" data-ex="${e.id}">Descrição completa</button>${e.pdf_path ? `<button class="btn sm" data-act="pdf" data-ex="${e.id}">PDF original ↗</button>` : ''}${temVideo && e.video_inicio ? `<button class="btn sm" data-act="play" data-ex="${e.id}">▶ Ver no vídeo</button>` : ''}${pode ? `<button class="btn sm pri" data-act="edit" data-ex="${e.id}">Tempo, vídeo e balanço</button><button class="btn sm dan" data-act="del" data-ex="${e.id}">Remover</button>` : ''}</div>
+  </div>`;
+}
+
+function formExercicio(e) {
+  modal(`<h2>${esc(e.nome)}</h2>
+  <form id="fex">
+    <label class="f"><span>Nome do exercício</span><input class="in" name="nome" value="${esc(e.nome)}" required></label>
+    <div class="g2">
+      <label class="f"><span>Tempo do exercício (min)</span><input class="in" type="number" min="0" max="300" name="duracao_min" value="${esc(e.duracao_min ?? '')}" placeholder="Ex.: 20"></label>
+      <label class="f"><span>Início no vídeo (mm:ss)</span><input class="in" name="video_inicio" value="${esc(e.video_inicio || '')}" placeholder="Ex.: 12:30 ou 1:05:10"></label>
+    </div>
+    <label class="f"><span>Observações / balanço</span><textarea class="in" name="balanco" placeholder="Como o exercício funcionou, ajustes, comportamentos que apareceram ou não…">${esc(e.balanco || '')}</textarea></label>
+    <div class="mfoot"><span></span><div class="row"><button type="button" class="btn" id="exvolta">Voltar</button><button class="btn pri" type="submit">Salvar</button></div></div>
+  </form>`, true);
+  $('#exvolta').onclick = () => verSessao(e.sessao_id, e.id);
+  $('#fex').onsubmit = async ev => {
+    ev.preventDefault();
+    const f = formData(ev.target);
+    if (f.video_inicio && segs(f.video_inicio) === null) return toast('Use o formato mm:ss, por exemplo 12:30.', true);
+    const row = { nome: f.nome, duracao_min: f.duracao_min ? +f.duracao_min : null, video_inicio: nul(f.video_inicio), balanco: nul(f.balanco) };
+    if (row.nome !== e.nome) row.nome_gerado = false;
+    const { data, error } = await sb.from('exercicios').update(row).eq('id', e.id).select().single();
+    if (error) return toast(erroAmigavel(error), true);
+    S.exercicios = S.exercicios.map(x => x.id === data.id ? data : x); toast('Exercício salvo.'); verSessao(e.sessao_id, e.id);
+  };
+}
+
+/* ---------- Importação dos planos de treino (PDF do Dossier do Treinador) ---------- */
+function escolherPlanos(sessao) {
+  if (!window.pdfjsLib) return toast('O leitor de PDF não carregou. Recarregue a página.', true);
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'application/pdf'; inp.multiple = true;
+  inp.onchange = () => inp.files.length && importarPlanos([...inp.files], sessao);
+  inp.click();
+}
+
+async function lerPdf(file) {
+  const buf = await file.arrayBuffer();
+  const doc = await pdfjsLib.getDocument({ data: new Uint8Array(buf.slice(0)) }).promise;
+  const page = await doc.getPage(1), vp1 = page.getViewport({ scale: 1 });
+  const tc = await page.getTextContent();
+  const r = lerPlanoDT(tc.items, vp1.width, vp1.height);
+  if (!r.objetivo && !r.titulo_original) throw new Error('Esse PDF não parece um plano de treino do Dossier do Treinador.');
+  const esc2 = 2.2, vp = page.getViewport({ scale: esc2 }), cv = document.createElement('canvas');
+  cv.width = vp.width; cv.height = vp.height;
+  await page.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+  const k = r.recorte, sx = k.x0 * esc2, sy = (vp1.height - k.yTopo) * esc2, sw = (k.x1 - k.x0) * esc2, sh = (k.yTopo - k.yBase) * esc2;
+  const out = document.createElement('canvas'), w = Math.min(1100, sw); out.width = w; out.height = Math.round(sh * w / sw);
+  out.getContext('2d').drawImage(cv, sx, sy, sw, sh, 0, 0, out.width, out.height);
+  const img = await new Promise(res => out.toBlob(res, 'image/jpeg', 0.82));
+  return { r, img };
+}
+
+async function importarPlanos(files, sessaoFixa) {
+  const ordemArq = f => { const m = f.name.match(/(\d+)\s*\.pdf$/i); return m ? +m[1] : 999; };
+  files.sort((a, b) => ordemArq(a) - ordemArq(b) || a.name.localeCompare(b.name));
+  const linhas = files.map((f, i) => `<li id="imp${i}"><b>${esc(f.name)}</b> <span class="m">aguardando…</span></li>`).join('');
+  modal(`<h2>Lendo os planos de treino</h2><div class="note">O CINQ lê cada PDF, separa objetivo, comportamento-chave, indicadores, material e descrição, recorta o desenho do exercício e coloca tudo na sessão, na ordem dos arquivos.</div><ol class="imp">${linhas}</ol><div class="mfoot"><span></span><button class="btn" id="impfim" disabled>Aguarde…</button></div>`, true);
+  const st = (i, t, ok) => { const li = $('#imp' + i); if (li) li.querySelector('span').outerHTML = `<span class="${ok === false ? 'red' : ok ? 'ok' : 'm'}">${t}</span>`; };
+  let ultima = sessaoFixa?.id || null, nOk = 0;
+  for (let i = 0; i < files.length; i++) {
+    try {
+      st(i, 'lendo o PDF…');
+      const { r, img } = await lerPdf(files[i]);
+      const nm = nomeDoExercicio(r.titulo_original, r.objetivo);
+      let ses = sessaoFixa ? S.sessoes.find(x => x.id === sessaoFixa.id) : null;
+      if (!ses) {
+        if (!r.data) throw new Error('o PDF não tem data. Abra a sessão no calendário e adicione por lá.');
+        const hr = r.hora ? r.hora.padStart(5, '0') : null;
+        ses = S.sessoes.find(x => x.data === r.data && hr && String(x.hora || '').slice(0, 5) === hr)
+          || S.sessoes.find(x => x.data === r.data && x.tipo === 'Treino' && !x.hora);
+        if (ses && !ses.hora && hr) { const u = await sb.from('sessoes').update({ hora: hr }).eq('id', ses.id).select().single(); if (!u.error) { ses = u.data; S.sessoes = S.sessoes.map(x => x.id === ses.id ? ses : x); } }
+        if (!ses) {
+          const c = await sb.from('sessoes').insert({ data: r.data, hora: hr, turno: turnoDaHora(hr), tipo: 'Treino', microciclo_id: microDaData(r.data) || null }).select().single();
+          if (c.error) throw c.error;
+          ses = c.data; S.sessoes = [...S.sessoes, ses];
+        }
+      } else if (r.data && r.data !== ses.data) st(i, `atenção: o PDF é de ${fmt(r.data)}, mas foi adicionado nesta sessão…`);
+      st(i, 'guardando o PDF e o desenho…');
+      const base = `${ses.id}/${Date.now()}_${r.numero_plano || i + 1}`;
+      const up1 = await sb.storage.from('planos').upload(base + '.pdf', files[i], { contentType: 'application/pdf' });
+      if (up1.error) throw up1.error;
+      const up2 = img ? await sb.storage.from('planos').upload(base + '.jpg', img, { contentType: 'image/jpeg' }) : { error: null };
+      const ordem = Math.max(0, ...exDe(ses.id).map(e => e.ordem)) + 1;
+      const ins = await sb.from('exercicios').insert({ sessao_id: ses.id, ordem, nome: nm.nome, titulo_original: r.titulo_original, nome_gerado: nm.gerado,
+        numero_plano: r.numero_plano, jogadores: r.jogadores, microciclo: r.microciclo, mesociclo: r.mesociclo, periodo: r.periodo || null,
+        material: r.material || null, objetivo: r.objetivo || null, comportamento: r.comportamento || null, indicadores: r.indicadores || null, descricao: r.descricao || null,
+        pdf_path: base + '.pdf', img_path: up2.error ? null : base + '.jpg' }).select().single();
+      if (ins.error) throw ins.error;
+      S.exercicios = [...S.exercicios, ins.data]; ultima = ses.id; nOk++;
+      st(i, `✓ ${esc(nm.nome)}${nm.gerado ? ' (nome criado a partir do objetivo)' : ''} · ${fmt(ses.data)} ${esc(horaTxt(ses))}`, true);
+    } catch (err) { st(i, 'erro: ' + esc(erroAmigavel(err)), false); }
+  }
+  const b = $('#impfim'); b.disabled = false; b.textContent = nOk ? 'Ver a sessão' : 'Fechar'; b.classList.add('pri');
+  b.onclick = () => { if (nOk && ultima) { const s1 = S.sessoes.find(x => x.id === ultima); S.semana = segunda(s1.data); if (S.page === 'calendario') pCalendario(); verSessao(ultima); } else fechar(); };
+  if (S.page === 'calendario') pCalendario();
 }
 
 function microDaData(d) { return S.micros.find(m => m.inicio <= d && m.fim >= d)?.id || ''; }
@@ -242,19 +414,19 @@ function formSessao(s) {
   <form id="fses">
     <div class="g3">
       <label class="f"><span>Data *</span><input class="in" type="date" name="data" value="${esc(s.data || '')}" required></label>
-      <label class="f"><span>Turno *</span><select class="in" name="turno" required>${opts(TURNOS, s.turno || 'Manhã')}</select></label>
+      <label class="f"><span>Horário</span><input class="in" type="time" name="hora" value="${esc(s.hora ? String(s.hora).slice(0, 5) : '')}"></label>
       <label class="f"><span>Tipo *</span><select class="in" name="tipo" id="ftipo" required>${opts(TIPOS, s.tipo || 'Treino')}</select></label>
     </div>
     <label class="f" id="fadv"><span>Adversário</span><input class="in" name="adversario" value="${esc(s.adversario || '')}" placeholder="Ex.: América-RN"></label>
-    <label class="f"><span>Título</span><input class="in" name="titulo" value="${esc(s.titulo || '')}" placeholder="Ex.: Organização defensiva em bloco médio"></label>
-    <label class="f"><span>Objetivo</span><textarea class="in" name="objetivo" style="min-height:60px">${esc(s.objetivo || '')}</textarea></label>
-    <label class="f"><span>Conteúdo / exercícios</span><textarea class="in" name="conteudo" placeholder="Aquecimento, exercícios, jogos reduzidos…">${esc(s.conteudo || '')}</textarea></label>
     <div class="g3">
-      <label class="f"><span>Duração (min)</span><input class="in" type="number" min="0" max="600" name="duracao_min" value="${esc(s.duracao_min ?? '')}"></label>
-      <label class="f"><span>Local</span><input class="in" name="local" value="${esc(s.local || '')}"></label>
+      <label class="f"><span>Local</span><input class="in" name="local" value="${esc(s.local || '')}" placeholder="Ex.: Campo 1"></label>
       <label class="f"><span>Microciclo</span><select class="in" name="microciclo_id">${opts(S.micros.map(m => [m.id, m.nome]), microSel, '—')}</select></label>
+      <label class="f"><span>Turno</span><select class="in" name="turno">${opts(TURNOS, s.turno || 'Manhã')}</select></label>
     </div>
+    <label class="f"><span>Título (opcional)</span><input class="in" name="titulo" value="${esc(s.titulo || '')}" placeholder="Se vazio, a sessão mostra os nomes dos exercícios"></label>
+    <label class="f"><span>Vídeo do treino (link do YouTube, de preferência "Não listado")</span><input class="in" name="video_url" value="${esc(s.video_url || '')}" placeholder="https://youtu.be/…"></label>
     <label class="f"><span>Observações</span><textarea class="in" name="observacoes" style="min-height:60px">${esc(s.observacoes || '')}</textarea></label>
+    <div class="note" style="margin-bottom:0">O conteúdo do treino vem dos planos de treino: depois de salvar, abra a sessão e clique em <b>Adicionar planos de treino</b>.</div>
     <div class="mfoot">${novo ? '<span></span>' : '<button type="button" class="btn dan" id="fdel">Excluir sessão</button>'}
       <div class="row"><button type="button" class="btn" id="fcanc">Cancelar</button><button class="btn pri" type="submit">Salvar</button></div></div>
   </form>`);
@@ -271,8 +443,9 @@ function formSessao(s) {
   $('#fses').onsubmit = async e => {
     e.preventDefault();
     const f = formData(e.target), b = e.target.querySelector('[type=submit]');
-    const row = { data: f.data, turno: f.turno, tipo: f.tipo, titulo: nul(f.titulo), objetivo: nul(f.objetivo), conteudo: nul(f.conteudo),
-      duracao_min: f.duracao_min ? +f.duracao_min : null, local: nul(f.local), microciclo_id: f.microciclo_id ? +f.microciclo_id : null,
+    if (f.video_url && !ytId(f.video_url)) return toast('Não reconheci esse link do YouTube.', true);
+    const row = { data: f.data, hora: nul(f.hora), turno: f.hora ? turnoDaHora(f.hora) : f.turno, tipo: f.tipo, titulo: nul(f.titulo), video_url: nul(f.video_url),
+      local: nul(f.local), microciclo_id: f.microciclo_id ? +f.microciclo_id : null,
       adversario: f.tipo === 'Amistoso' ? nul(f.adversario) : null, observacoes: nul(f.observacoes) };
     b.disabled = true;
     const q = novo ? sb.from('sessoes').insert(row).select().single() : sb.from('sessoes').update(row).eq('id', s.id).select().single();
@@ -280,7 +453,7 @@ function formSessao(s) {
     b.disabled = false;
     if (error) return toast(erroAmigavel(error), true);
     S.sessoes = novo ? [...S.sessoes, data] : S.sessoes.map(x => x.id === data.id ? data : x);
-    fechar(); toast('Sessão salva.'); if (S.page === 'calendario') S.semana = segunda(data.data); ir(S.page);
+    toast('Sessão salva.'); if (S.page === 'calendario') S.semana = segunda(data.data); ir(S.page); verSessao(data.id);
   };
 }
 
@@ -585,6 +758,88 @@ function formMembro(p) {
     fechar(); toast(novo ? `Acesso liberado para ${d.nome}.` : 'Acesso atualizado.'); pComissao();
   };
 }
+
+/* ---------- leitura do PDF do Dossier do Treinador ---------- */
+// Leitura dos PDFs de Plano de Treino do Dossier do Treinador (DT).
+// Recebe os itens de texto do pdf.js (página 1) e devolve os campos do exercício.
+function lerPlanoDT(items, pageW, pageH) {
+  const it = items.filter(i => i.str && i.str.trim()).map(i => ({ s: i.str.trim(), x: i.transform[4], y: i.transform[5], h: i.height }));
+  const achar = re => it.find(i => re.test(i.s));
+  const valorAoLado = label => {
+    const l = achar(label); if (!l) return '';
+    const v = it.filter(i => Math.abs(i.y - l.y) < 3 && i.x > l.x + 2).sort((a, b) => a.x - b.x)[0];
+    // o valor precisa estar antes do próximo rótulo da mesma linha
+    const prox = it.filter(i => Math.abs(i.y - l.y) < 3 && i.x > l.x + 2 && i.h > (v ? v.h : 0) + 0.5).sort((a, b) => a.x - b.x)[0];
+    if (!v || (prox && prox.x <= v.x)) return '';
+    return v.s;
+  };
+  const linhas = (lista) => {
+    const ord = [...lista].sort((a, b) => b.y - a.y || a.x - b.x), out = [];
+    for (const i of ord) { const l = out[out.length - 1]; if (l && Math.abs(l.y - i.y) < 3) l.parts.push(i); else out.push({ y: i.y, parts: [i] }); }
+    return out.map(l => ({ y: l.y, t: l.parts.sort((a, b) => a.x - b.x).map(p => p.s).join(' ').replace(/\s+/g, ' ').trim() }));
+  };
+  const juntar = (ls) => {
+    let txt = '', prevY = null;
+    for (const l of ls) {
+      if (!txt) txt = l.t;
+      else if (prevY - l.y > 14) txt += '\n\n' + l.t;
+      else if (/[.:;]$/.test(txt) || /^(Com posse|Sem posse|Com bola|Sem bola|Espa[cç]o)\b/i.test(l.t)) txt += '\n' + l.t;
+      else txt += ' ' + l.t;
+      prevY = l.y;
+    }
+    return txt.replace(/\s*→\s*/g, ' → ').trim();
+  };
+
+  const lMat = achar(/^Material$/), lObjG = achar(/^Objetivos Gerais$/);
+  const lObj = achar(/^Objetivo\(s\) espec/i), lDesc = achar(/^Descri[cç][aã]o e Organiza/i), lObs = achar(/^Observa[cç][oõ]es/i);
+  const yMat = lMat ? lMat.y : pageH * 0.86, yObj = lObj ? lObj.y : pageH * 0.33, yObs = lObs ? lObs.y : 0;
+  const xCol = lDesc ? lDesc.x - 5 : pageW / 2, xMatFim = lObjG ? lObjG.x - 5 : pageW / 3;
+
+  // título: maior fonte entre o material e o bloco de objetivos
+  const candTit = it.filter(i => i.y < yMat - 2 && i.y > yObj + 5 && i.h >= 11 && !/^(gk|\d+)$/i.test(i.s)).sort((a, b) => b.y - a.y);
+  const titulo = candTit.length ? linhas(candTit.filter(i => Math.abs(i.y - candTit[0].y) < 3))[0].t : '';
+  const yTit = candTit.length ? candTit[0].y : yMat - 40;
+
+  const material = juntar(linhas(it.filter(i => i.y < yMat - 2 && i.y > yTit + 5 && i.x < xMatFim)));
+  const esq = linhas(it.filter(i => i.y < yObj - 2 && i.y > yObs + 2 && i.x < xCol));
+  const dir = linhas(it.filter(i => i.y < yObj - 2 && i.y > yObs + 2 && i.x >= xCol));
+  const iComp = esq.findIndex(l => /^Comportamento-chave/i.test(l.t)), iInd = esq.findIndex(l => /^Indicadores de [eê]xito/i.test(l.t));
+  const fatia = (a, b) => esq.slice(a < 0 ? 0 : a, b < 0 ? esq.length : b);
+  const objetivo = juntar(fatia(0, iComp >= 0 ? iComp : iInd));
+  const comportamento = iComp >= 0 ? juntar(fatia(iComp + 1, iInd)) : '';
+  const indicadores = iInd >= 0 ? juntar(esq.slice(iInd + 1)) : '';
+  const descricao = juntar(dir);
+
+  const numPlano = (it.find(i => i.x > pageW * 0.85 && i.y > pageH * 0.92 && /^\d+$/.test(i.s)) || {}).s || '';
+  const dataTxt = valorAoLado(/^Data$/), m = dataTxt.match(/(\d{2})-(\d{2})-(\d{4})/);
+  const hora = (valorAoLado(/^Hora$/).match(/\d{1,2}:\d{2}/) || [''])[0];
+  const int = v => (/^\d+$/.test(v) ? +v : null);
+
+  return {
+    numero_plano: int(numPlano), titulo_original: titulo,
+    jogadores: int(valorAoLado(/^N[ºo°] Jogadores$/)), microciclo: int(valorAoLado(/^Microciclo$/)), mesociclo: int(valorAoLado(/^Mesociclo$/)),
+    periodo: valorAoLado(/^Per[ií]odo$/), data: m ? `${m[3]}-${m[2]}-${m[1]}` : null, hora: hora || null,
+    material, objetivo, comportamento, indicadores, descricao,
+    recorte: { // área do desenho, em coordenadas do PDF (origem embaixo)
+      x0: 10, x1: pageW * 0.895, yTopo: yTit - 9, yBase: yObj + 11
+    }
+  };
+}
+
+// Nome do exercício: mantém o título do plano; se for genérico ("Exercício 1"), cria a partir do objetivo.
+function nomeDoExercicio(titulo, objetivo) {
+  const t = (titulo || '').trim();
+  if (t && !/^exerc[ií]cio\s*\d*\s*$/i.test(t)) return { nome: t, gerado: false };
+  let o = (objetivo || '').replace(/^(com posse|com bola)\s*:\s*/i, '').split(/\n/)[0];
+  o = o.split(/[,.;]| para /)[0].trim();
+  o = o.replace(/^(desenvolver|trabalhar|melhorar|aprimorar|refinar|treinar|explorar|identificar|criar|promover|potencializar|estimular|consolidar|implementar|aperfeiçoar)\s+/i, '');
+  o = o.replace(/^(a|o|as|os)\s+/i, '');
+  if (!o) return { nome: t || 'Exercício', gerado: false };
+  o = o.charAt(0).toUpperCase() + o.slice(1);
+  if (o.length > 60) o = o.slice(0, 57).replace(/\s+\S*$/, '') + '…';
+  return { nome: o, gerado: true };
+}
+if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 /* ---------- start ---------- */
 sb.auth.onAuthStateChange((ev) => { if (ev === 'SIGNED_OUT') telaLogin(); });
