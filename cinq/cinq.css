@@ -246,3 +246,14 @@ ul.modelo{padding-left:18px;margin:6px 0}
   @page{size:A4;margin:14mm}
 }
 @media (max-width:900px){.ciclo-grid{grid-template-columns:1fr}.ciclo .bar{grid-template-columns:120px 1fr 36px}}
+/* v5: programação da semana */
+.prog{display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.prog-txt{flex:1 1 320px;min-width:0}
+.prog-txt h2{margin:4px 0 6px}
+.prog-txt p{margin:0 0 10px;color:#33414b;font-size:13.5px}
+.prog-mini{width:280px;max-width:100%;height:150px;object-fit:cover;object-position:top;border-radius:10px;border:1px solid var(--line);cursor:zoom-in}
+.prog.vazio{border-style:dashed}.prog.vazio span{display:block;color:var(--muted);font-size:13px}
+#lightbox.prog-lb{cursor:default;justify-content:flex-start}
+#lightbox .lb-scroll{overflow:auto;max-height:calc(100vh - 80px);width:100%;max-width:1400px}
+#lightbox .lb-scroll img{max-width:none;width:100%;min-width:900px;max-height:none}
+@media (max-width:900px){.prog-mini{width:100%;height:120px}}
