@@ -48,9 +48,15 @@ const turnoDaHora = h => { const n = parseInt(h, 10); return isNaN(n) ? 'Manhã'
 const ytId = u => { const m = String(u || '').match(/(?:youtu\.be\/|v=|\/embed\/|\/live\/|\/shorts\/)([A-Za-z0-9_-]{11})/); return m ? m[1] : null; };
 const segs = t => { if (!t) return null; const p = String(t).trim().split(':').map(Number); if (p.some(isNaN)) return null; return p.reduce((a, v) => a * 60 + v, 0); };
 async function urlsAssinadas(paths) {
+  if (!S.urlsEm || Date.now() - S.urlsEm > 45 * 60e3) { S.urls = {}; S.urlsEm = Date.now(); }
   const falta = [...new Set(paths.filter(p => p && !S.urls[p]))];
   if (falta.length) { const { data } = await sb.storage.from('planos').createSignedUrls(falta, 3600); (data || []).forEach(d => { if (d.signedUrl) S.urls[d.path] = d.signedUrl; }); }
   return S.urls;
+}
+function abrirDesenho(src, titulo) {
+  let lb = document.getElementById('lightbox');
+  if (!lb) { lb = document.createElement('div'); lb.id = 'lightbox'; document.body.appendChild(lb); lb.onclick = () => lb.remove(); }
+  lb.innerHTML = `<div class="lb-top"><b>${esc(titulo || '')}</b><button class="btn sm">Fechar ✕</button></div><img src="${esc(src)}" alt="Desenho do exercício">`;
 }
 const fotoH = h => { const a = S.atletas.find(x => x.id === h.atleta_id); return foto({ nome: h.nome, foto_url: h.foto_url || a?.foto_url }); };
 const iniciais = n => String(n || '?').trim().slice(0, 1).toUpperCase();
@@ -73,7 +79,7 @@ function erroAmigavel(e) {
 function modal(html, largo = false) { const m = $('#modal'); m.innerHTML = `<div class="mbox${largo ? ' wide' : ''}">${html}</div>`; m.hidden = false; m.scrollTop = 0; }
 function fechar() { const m = $('#modal'); m.hidden = true; m.innerHTML = ''; }
 $('#modal').addEventListener('click', e => { if (e.target.id === 'modal') fechar(); });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') fechar(); });
+document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; const lb = document.getElementById('lightbox'); lb ? lb.remove() : fechar(); });
 const formData = form => Object.fromEntries([...new FormData(form).entries()].map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v]));
 const nul = v => (v === '' || v === undefined ? null : v);
 
@@ -262,14 +268,17 @@ function verSessao(id, foco) {
     S.sessoes = S.sessoes.map(x => x.id === data.id ? data : x); toast(u ? 'Vídeo adicionado.' : 'Vídeo removido.'); verSessao(id);
   };
   if ($('#splanos')) $('#splanos').onclick = () => escolherPlanos(s);
-  urlsAssinadas(ex.map(e => e.img_path)).then(u => document.querySelectorAll('img[data-img]').forEach(im => { if (u[im.dataset.img]) im.src = u[im.dataset.img]; }));
+  urlsAssinadas(ex.flatMap(e => [e.img_path, e.pdf_path])).then(u => {
+    document.querySelectorAll('img[data-img]').forEach(im => { if (u[im.dataset.img]) im.src = u[im.dataset.img]; });
+    document.querySelectorAll('a[data-pdf]').forEach(a => { if (u[a.dataset.pdf]) a.href = u[a.dataset.pdf]; });
+  });
   const box = $('#exlist');
   box.onclick = async e => {
     const b = e.target.closest('[data-act]'); if (!b) return;
     const ex1 = S.exercicios.find(x => x.id === +b.dataset.ex), act = b.dataset.act;
     if (act === 'desc') { const d = $(`#desc${ex1.id}`); d.hidden = !d.hidden; b.textContent = d.hidden ? 'Descrição completa' : 'Ocultar descrição'; }
-    if (act === 'pdf') { const u = await urlsAssinadas([ex1.pdf_path]); u[ex1.pdf_path] ? window.open(u[ex1.pdf_path], '_blank') : toast('PDF não encontrado.', true); }
-    if (act === 'img') { const u = await urlsAssinadas([ex1.img_path]); if (u[ex1.img_path]) window.open(u[ex1.img_path], '_blank'); }
+    if (act === 'pdf') { if (!b.getAttribute('href') || b.getAttribute('href') === '#') { e.preventDefault(); toast('O PDF ainda está carregando, tente de novo.'); } return; }
+    if (act === 'img') { if (b.src) abrirDesenho(b.src, ex1.nome); else toast('O desenho ainda está carregando.'); return; }
     if (act === 'play') { const f = $('#ytf'); if (f) { f.src = `https://www.youtube-nocookie.com/embed/${yt}?start=${segs(ex1.video_inicio) || 0}&autoplay=1`; $('#modal').scrollTop = 0; } }
     if (act === 'edit') formExercicio(ex1);
     if (act === 'up' || act === 'down') {
@@ -307,7 +316,7 @@ function cardExercicio(e, i, n, pode, temVideo) {
     </div>
     <div id="desc${e.id}" hidden><div class="k">Descrição e organização metodológica</div><p class="pre">${esc(e.descricao || '—')}</p></div>
     ${e.balanco ? `<div class="balanco"><span>Observações / balanço</span><p class="pre">${esc(e.balanco)}</p></div>` : ''}
-    <div class="row exc-act"><button class="btn sm" data-act="desc" data-ex="${e.id}">Descrição completa</button>${e.pdf_path ? `<button class="btn sm" data-act="pdf" data-ex="${e.id}">PDF original ↗</button>` : ''}${temVideo && e.video_inicio ? `<button class="btn sm" data-act="play" data-ex="${e.id}">▶ Ver no vídeo</button>` : ''}${pode ? `<button class="btn sm pri" data-act="edit" data-ex="${e.id}">Tempo, vídeo e balanço</button><button class="btn sm dan" data-act="del" data-ex="${e.id}">Remover</button>` : ''}</div>
+    <div class="row exc-act"><button class="btn sm" data-act="desc" data-ex="${e.id}">Descrição completa</button>${e.pdf_path ? `<a class="btn sm" href="#" target="_blank" rel="noopener" data-act="pdf" data-pdf="${esc(e.pdf_path)}" data-ex="${e.id}">PDF original ↗</a>` : ''}${temVideo && e.video_inicio ? `<button class="btn sm" data-act="play" data-ex="${e.id}">▶ Ver no vídeo</button>` : ''}${pode ? `<button class="btn sm pri" data-act="edit" data-ex="${e.id}">Tempo, vídeo e balanço</button><button class="btn sm dan" data-act="del" data-ex="${e.id}">Remover</button>` : ''}</div>
   </div>`;
 }
 
