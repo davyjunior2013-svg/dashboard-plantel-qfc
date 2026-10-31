@@ -4,7 +4,7 @@
 const SUPABASE_URL = 'https://xucaymymsctgbllwplbm.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_UGBRJf6WSRv29tnCoYXatA_kH44SE85';
 const INICIO_PRETEMPORADA = '2026-11-02';
-const LOGO = '../fotos/logo_qfc.png';
+const LOGO = 'logo_cinq.png';
 
 const POSICOES = ['Goleiro','Lateral Direito','Lateral Esquerdo','Zagueiro','Volante','Meia','Ponta Direito','Ponta Esquerda','Atacante'];
 const TURNOS = ['Manhã','Tarde','Noite'];
