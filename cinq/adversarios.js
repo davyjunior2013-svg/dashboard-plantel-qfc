@@ -252,9 +252,9 @@ function sumEditor(r) {
   return `<div class="sed">
     <div class="sed-pl">Placar final <input class="in" data-pl="ft0" value="${r.ft?.[0] ?? ''}"> x <input class="in" data-pl="ft1" value="${r.ft?.[1] ?? ''}">
       · 1º tempo <input class="in" data-pl="ht0" value="${r.ht?.[0] ?? ''}"> x <input class="in" data-pl="ht1" value="${r.ht?.[1] ?? ''}"></div>
-    <div class="conf-grid">${r.equipes.map((e, lado) => `<div><h4>${esc(sumNomeCurto(e.nome_sumula))}</h4><table class="tb sed-tb"><thead><tr><th>Nº</th><th>Atleta</th><th>Situação</th><th>Gol.</th></tr></thead><tbody>
-      ${e.jogadores.map((j, k) => `<tr data-jog="${lado}:${k}"><td><input class="in" data-k="numero" value="${j.numero}"></td><td><input class="in" data-k="apelido" value="${esc(j.apelido)}"></td><td><select class="in" data-k="titular">${opts([['1', 'Titular'], ['0', 'Reserva']], j.titular ? '1' : '0')}</select></td><td><input type="checkbox" data-k="goleiro"${j.goleiro ? ' checked' : ''}></td></tr>`).join('')}
-    </tbody></table></div>`).join('')}</div>
+    <div class="conf-grid">${r.equipes.map((e, lado) => `<div><h4>${esc(sumNomeCurto(e.nome_sumula))} <small>${e.jogadores.filter(j => j.titular).length} titulares · ${e.jogadores.length} relacionados</small></h4><table class="tb sed-tb"><thead><tr><th>Nº</th><th>Atleta</th><th>Situação</th><th>Gol.</th><th></th></tr></thead><tbody data-jogs="${lado}">
+      ${e.jogadores.map((j, k) => `<tr data-jog="${lado}:${k}"><td><input class="in" data-k="numero" value="${j.numero ?? ''}"></td><td><input class="in" data-k="apelido" value="${esc(j.apelido)}"></td><td><select class="in" data-k="titular">${opts([['1', 'Titular'], ['0', 'Reserva']], j.titular ? '1' : '0')}</select></td><td><input type="checkbox" data-k="goleiro"${j.goleiro ? ' checked' : ''}></td><td><button type="button" class="btn sm" data-rmjog title="Tirar da relação">✕</button></td></tr>`).join('')}
+    </tbody></table><button type="button" class="btn sm" data-addjog="${lado}">+ Jogador que faltou</button></div>`).join('')}</div>
     <p class="m">Minuto como na súmula, dentro do tempo: 45+3 no 2º tempo = 2T e 48.</p>
     <h4>Gols</h4><table class="tb sed-tb"><thead><tr><th>Equipe</th><th>Tempo</th><th>Min.</th><th>Nº</th><th>Tipo</th><th></th></tr></thead><tbody data-lista="gol">${r.gols.map(linhaGol).join('')}</tbody></table>
     <button type="button" class="btn sm" data-add="gol">+ Gol</button>
@@ -269,12 +269,25 @@ function sumAplicarEdicao(r, box) {
   const n = v => (v === '' || v == null || isNaN(+v)) ? null : +v;
   const pl = k => n(box.querySelector(`[data-pl="${k}"]`).value);
   r.ft = [pl('ft0'), pl('ft1')]; r.ht = (pl('ht0') != null && pl('ht1') != null) ? [pl('ht0'), pl('ht1')] : r.ht;
-  box.querySelectorAll('[data-jog]').forEach(tr => {
-    const [lado, k] = tr.dataset.jog.split(':').map(Number), j = r.equipes[lado].jogadores[k];
-    j.numero = n(tr.querySelector('[data-k=numero]').value) ?? j.numero;
-    j.apelido = tr.querySelector('[data-k=apelido]').value.trim() || j.apelido;
-    j.titular = tr.querySelector('[data-k=titular]').value === '1';
-    j.goleiro = tr.querySelector('[data-k=goleiro]').checked;
+  r.equipes.forEach((e, lado) => {
+    const lista = [];
+    box.querySelectorAll(`[data-jogs="${lado}"] tr`).forEach(tr => {
+      const v = k => tr.querySelector(`[data-k=${k}]`);
+      if (tr.dataset.jog) {
+        const j = e.jogadores[+tr.dataset.jog.split(':')[1]];
+        j.numero = n(v('numero').value) ?? j.numero;
+        j.apelido = v('apelido').value.trim() || j.apelido;
+        j.titular = v('titular').value === '1'; j.goleiro = v('goleiro').checked;
+        lista.push(j);
+      } else {
+        const apelido = v('apelido').value.trim(), nome = v('nome').value.trim(), cbf = v('cbf').value.replace(/\D/g, '');
+        if (!apelido && !nome) return;
+        lista.push({ numero: n(v('numero').value), apelido: apelido || nome.split(' ')[0], nome: nome || apelido,
+          cbf: cbf || `sem-cbf-${sumNomeCurto(e.nome_sumula)}-${v('numero').value || apelido}`, titular: v('titular').value === '1', goleiro: v('goleiro').checked });
+      }
+    });
+    // titulares primeiro, na ordem da tabela
+    e.jogadores = [...lista.filter(j => j.titular), ...lista.filter(j => !j.titular)].map((j, i) => ({ ...j, ordem: i + 1 }));
   });
   const ler = tr => Object.fromEntries([...tr.querySelectorAll('[data-k]')].map(x => [x.dataset.k, x.value.trim()]));
   r.gols = [...box.querySelectorAll('[data-lista=gol] tr')].map(tr => { const v = ler(tr); return { equipe: +v.equipe, tempo: v.tempo, minuto: n(v.minuto) ?? 0, numero: v.numero, tipo: v.tipo, nome: '' }; });
@@ -306,6 +319,11 @@ function conferirSumulas(lidas) {
     corpo.onclick = e => {
       const rm = e.target.closest('[data-rm]'); if (rm) return rm.closest('tr').remove();
       const add = e.target.closest('[data-add]'); if (add) return linhaVazia(add.dataset.add);
+      if (e.target.closest('[data-rmjog]')) return e.target.closest('tr').remove();
+      const aj = e.target.closest('[data-addjog]');
+      if (aj) { const tr = document.createElement('tr'); tr.dataset.novo = aj.dataset.addjog;
+        tr.innerHTML = `<td><input class="in" data-k="numero" placeholder="nº"></td><td><input class="in" data-k="apelido" placeholder="Apelido"><input class="in" data-k="nome" placeholder="Nome completo"><input class="in" data-k="cbf" placeholder="Registro CBF" inputmode="numeric"></td><td><select class="in" data-k="titular">${opts([['1', 'Titular'], ['0', 'Reserva']], '1')}</select></td><td><input type="checkbox" data-k="goleiro"></td><td><button type="button" class="btn sm" data-rmjog>✕</button></td>`;
+        corpo.querySelector(`[data-jogs="${aj.dataset.addjog}"]`).appendChild(tr); tr.querySelector('input').focus(); return; }
       if (e.target.closest('[data-cancela]')) { corpo.innerHTML = sumCorpo(r); b.hidden = false; return; }
       if (e.target.closest('[data-aplicar]')) { sumAplicarEdicao(r, corpo); corpo.innerHTML = sumCorpo(r); b.hidden = false; det.querySelector('summary').innerHTML = sumResumo(r, jaExiste(r)); toast('Correções aplicadas. Confira e salve.'); }
     };

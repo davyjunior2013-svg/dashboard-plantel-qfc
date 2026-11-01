@@ -446,3 +446,5 @@ b.gol{font-size:11px;margin-left:3px;font-weight:600}
 .sed-pl{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:13px;margin-bottom:6px}.sed-pl .in{width:52px;padding:4px 6px}
 .sed-tb td,.sed-tb th{padding:3px 4px}.sed-tb .in{padding:3px 6px;font-size:12.5px;min-width:0}
 .sed-tb td:first-child .in,.sed-tb [data-k=minuto],.sed-tb [data-k=numero],.sed-tb [data-k=entrou],.sed-tb [data-k=saiu]{width:58px}
+.sed-tb tr[data-novo] td:nth-child(2) .in{display:block;width:100%;margin:2px 0}.sed-tb tr[data-novo]{background:var(--soft,rgba(0,0,0,.03))}
+.sed h4 small{font-weight:400;color:var(--mut,#777);font-size:12px}

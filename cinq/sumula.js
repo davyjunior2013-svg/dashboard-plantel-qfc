@@ -156,16 +156,40 @@ function lerSumula(paginas) {
   const cab = jog.find(l => !/Apelido|Nome Completo/i.test(l.t) && !/^\d/.test(l.t));
   const nomesEq = cab ? [cab.c.filter(c => c.x < meio).map(c => c.s).join(' '), cab.c.filter(c => c.x >= meio).map(c => c.s).join(' ')] : [r.mandante, r.visitante];
   r.equipes = nomesEq.map((n, i) => ({ nome_sumula: n || (i ? r.visitante : r.mandante), jogadores: [], comissao: {} }));
+  // leitura por imagem pode trocar caracteres no nº (7 → /, 2 → Z...) ou na coluna T/R (T → 1, I, 7)
+  const SUM_DIG = { '/': '7', '?': '7', 'T': '7', 'Z': '2', 'z': '2', 'I': '1', 'l': '1', '|': '1', 'i': '1', 'O': '0', 'o': '0', 'Q': '0', 'D': '0', 'S': '5', 's': '5', 'B': '8', 'g': '9', 'q': '9', 'A': '4', 'G': '6', 'b': '6' };
+  const numDe = t => { const v = String(t || '').replace(/[\s.,'"`´]/g, ''); if (!v || v.length > 3) return null; const d = [...v].map(ch => /\d/.test(ch) ? ch : SUM_DIG[ch]).join(''); return /^\d{1,3}$/.test(d) && d.length === v.length ? d : null; };
+  const ehCbf = x => /^[\d\s\/.,]{5,}$/.test(x) && x.replace(/\D/g, '').length >= 4;
   jog.forEach(l => {
     [0, 1].forEach(lado => {
-      const c = l.c.filter(x => lado ? x.x >= meio : x.x < meio).map(x => x.s);
-      if (!c.length || !/^\d+$/.test(c[0])) return;
-      const iTR = c.findIndex((x, k) => k > 0 && /^[TR]\s*(\(?[gq9]\)?)?$/i.test(x)); if (iTR < 0) return;
+      let c = l.c.filter(x => lado ? x.x >= meio : x.x < meio).map(x => x.s);
+      if (!c.length || /Apelido|Nome Completo/i.test(c.join(' '))) return;
+      let iTR = c.findIndex((x, k) => k > 0 && /^[TR]\s*(\(?[gq9]\)?)?$/i.test(x));
+      const iCbf = c.findIndex((x, k) => k > 0 && ehCbf(x));
+      // sem T/R reconhecido: usa a célula curta antes da coluna da CBF
+      if (iTR < 0 && iCbf > 1) { const k = [iCbf - 2, iCbf - 1].find(k => k > 0 && c[k].length <= 5 && /^[T1Il7|fRrKk]/.test(c[k])); if (k != null) { iTR = k; c = c.slice(); c[k] = (/^[RrKk]/.test(c[k]) ? 'R' : 'T') + (/[gq9]/i.test(c[k].slice(1)) ? '(g)' : ''); } }
+      // célula T/R em branco: a súmula lista os titulares primeiro, então completa pela ordem
+      let trDeduzido = false;
+      if (iTR < 0 && iCbf > 1 && (numDe(c[0]) != null || /^[A-Za-zÀ-ú]/.test(c[0]))) {
+        const eqv = r.equipes[lado].jogadores, ult = eqv[eqv.length - 1], nTit = eqv.filter(j => j.titular).length;
+        const tit = (!ult || ult.titular) && nTit < 11;
+        let k = iCbf; if (k - 1 > 1 && c[k - 1].length <= 3) k--;
+        c = [...c.slice(0, k), tit ? 'T' : 'R', ...c.slice(k)]; iTR = k; trDeduzido = true;
+      }
+      if (iTR < 0) return;
+      let numero = numDe(c[0]);
+      if (numero == null) {
+        // nº ilegível ou célula vazia: mantém o atleta se a linha tem nome e CBF (o nº vem dos eventos ou da correção manual)
+        if (iCbf < 0) return;
+        if (/^[A-Za-zÀ-ú]/.test(c[0]) && c[0].length > 3) c = ['', ...c], iTR++;
+      }
       const nomes = c.slice(1, iTR);
       let [apelido, nome] = nomes.length >= 2 ? [nomes[0], nomes.slice(1).join(' ')] : sumSeparaNome(nomes[0] || '');
       const cbf = c.slice(iTR + 1).map(x => /^[\d\s\/.,]{5,}$/.test(x) ? x.replace(/\D/g, '') : x).find(x => /^\d{4,}$/.test(x)) || `sem-cbf-${SUM_SA(r.equipes[lado].nome_sumula)}-${c[0]}`;
       const eq = r.equipes[lado];
-      eq.jogadores.push({ numero: +c[0], apelido: sumNomeExib(apelido, nome), nome: nome.replace(/\s*\.\.\.$/, ''), cbf,
+      if (trDeduzido) r.alertas.push(`${eq.nome_sumula}: titular/reserva de ${sumNomeExib(apelido, nome)} não foi lido; considerado ${/^T/.test(c[iTR]) ? 'titular' : 'reserva'} pela ordem da súmula — confira.`);
+      if (numero == null) r.alertas.push(`${eq.nome_sumula}: nº de ${sumNomeExib(apelido, nome)} não foi lido na súmula — confira em "Corrigir dados".`);
+      eq.jogadores.push({ numero: numero == null ? null : +numero, apelido: sumNomeExib(apelido, nome), nome: nome.replace(/\s*\.\.\.$/, ''), cbf,
         titular: /^T/i.test(c[iTR]), goleiro: /[gq9]/i.test(c[iTR]), ordem: eq.jogadores.length + 1 });
     });
   });
@@ -257,7 +281,10 @@ function lerSumula(paginas) {
   const corrigeNum = (lado, num, nome) => {
     if (jogadorDe(lado, num)) return;
     const j = porNome(lado, nome); if (!j) return;
-    if (!r.equipes[lado].jogadores.some(x => x !== j && String(x.numero) === String(num))) { r.alertas.push(`${r.equipes[lado].nome_sumula}: nº de ${j.apelido} corrigido de ${j.numero} para ${num} (conferido pelo nome).`); j.numero = +num; }
+    if (r.equipes[lado].jogadores.some(x => x !== j && String(x.numero) === String(num))) return;
+    if (j.numero == null) { r.alertas = r.alertas.filter(a => !a.includes(`nº de ${j.apelido} não foi lido`)); r.alertas.push(`${r.equipes[lado].nome_sumula}: nº de ${j.apelido} não foi lido na relação; usado o ${num}, conferido pelo nome nos lances.`); }
+    else r.alertas.push(`${r.equipes[lado].nome_sumula}: nº de ${j.apelido} corrigido de ${j.numero} para ${num} (conferido pelo nome).`);
+    j.numero = +num;
   };
   r.subs.forEach(sb => {
     corrigeNum(sb.equipe, sb.entrou, sb.nomeCompleto1); corrigeNum(sb.equipe, sb.saiu, sb.nomeCompleto2);
