@@ -550,3 +550,5 @@ b.gol{font-size:11px;margin-left:3px;font-weight:600}
 @media print{#print-area.rel-print{font-size:12px}#print-area.rel-print .rel-res{grid-template-columns:repeat(7,1fr)}#print-area.rel-print *{-webkit-print-color-adjust:exact;print-color-adjust:exact}#print-area.rel-print tr{page-break-inside:avoid}}
 .grid2>*,.dm-grid>*{min-width:0}.dc-col span{overflow:visible}
 @media (max-width:760px){.dc-svg text{font-size:16px}}
+.mod-box{border:1px solid var(--line);border-radius:10px;padding:10px 12px}.mod-box .row{gap:8px;margin:4px 0;font-size:13.5px}.mod-lista{margin:4px 0 6px 22px}
+#nav [hidden]{display:none!important}

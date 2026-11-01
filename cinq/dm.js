@@ -850,3 +850,53 @@ verAtleta = function (a) {
 const _pFisioDM = pFisio;
 pFisio = function () { if (S.fisio.aba && S.fisio.aba !== 'avaliacoes') { S.page = 'fisio'; return pFisioDM(S.fisio.aba); } return _pFisioDM(); };
 if (document.getElementById('main') && S.perfil && podeLerFisio()) carregarDM().then(() => { if (S.page === 'fisio' || S.page === 'inicio') ir(S.page); }).catch(() => {});
+
+/* ============ acesso restrito por módulo (perfis.modulos: vazio = todo o CINQ) ============
+   Usado para liberar alguém só no próprio módulo (ex.: fisio em teste vê Painel Geral + Fisioterapia/DM).
+   O menu esconde o resto e a navegação volta ao Painel Geral se tentar abrir outra página. */
+const modulosPerm = () => !isAdmin() && Array.isArray(S.perfil?.modulos) && S.perfil.modulos.length ? S.perfil.modulos : null;
+const pagPermitida = p => { const m = modulosPerm(); return !m || p === 'inicio' || m.includes(p); };
+function aplicarModulos() {
+  if (!modulosPerm()) return;
+  document.querySelectorAll('#nav button').forEach(b => { b.hidden = !b.dataset.p || !pagPermitida(b.dataset.p); });
+  document.querySelectorAll('#nav .sec').forEach(s => { let n = s.nextElementSibling, vis = false;
+    while (n && !n.classList.contains('sec')) { if (n.tagName === 'BUTTON' && !n.hidden) vis = true; n = n.nextElementSibling; } s.hidden = !vis; });
+}
+const _irMod = ir;
+ir = function (p) { if (!pagPermitida(p)) p = 'inicio'; _irMod(p); aplicarModulos(); };
+const _shellMod = shell;
+shell = function () { _shellMod(); aplicarModulos(); };
+const paginasNav = () => [...document.querySelectorAll('#nav button[data-p]')].filter(b => !['inicio', 'comissao'].includes(b.dataset.p)).map(b => [b.dataset.p, b.textContent.trim()]);
+const _formMembroMod = formMembro;
+formMembro = function (p) {
+  _formMembroMod(p);
+  const f = $('#fmem'); if (!f) return;
+  const mods = Array.isArray(p.modulos) && p.modulos.length ? p.modulos : null;
+  f.querySelector('.mfoot').insertAdjacentHTML('beforebegin', `<div class="f mod-box"><span>O que pode ver</span>
+    <label class="row"><input type="radio" name="modo" value="todo"${mods ? '' : ' checked'}> <span style="margin:0">Todo o CINQ</span></label>
+    <label class="row"><input type="radio" name="modo" value="restrito"${mods ? ' checked' : ''}> <span style="margin:0">Só o Painel Geral e os módulos marcados</span></label>
+    <div class="mod-lista"${mods ? '' : ' hidden'}>${paginasNav().map(([k, l]) => `<label class="row"><input type="checkbox" data-mod="${esc(k)}"${mods?.includes(k) ? ' checked' : ''}> <span style="margin:0">${esc(l)}</span></label>`).join('')}</div>
+    <small class="m">O que a pessoa pode editar continua definido pela função.</small></div>`);
+  f.querySelectorAll('[name=modo]').forEach(r => r.onchange = () => { f.querySelector('.mod-lista').hidden = f.querySelector('[name=modo]:checked').value !== 'restrito'; });
+  const salvarOrig = f.onsubmit;
+  f.onsubmit = async e => {
+    e.preventDefault();
+    const restrito = f.querySelector('[name=modo]:checked').value === 'restrito';
+    const lista = restrito ? [...f.querySelectorAll('[data-mod]:checked')].map(c => c.dataset.mod) : null;
+    if (restrito && !lista.length) return toast('Marque pelo menos um módulo, ou escolha “Todo o CINQ”.', true);
+    const email = (f.querySelector('[name=email]').value || '').trim().toLowerCase();
+    await salvarOrig(e);
+    const alvo = S.perfis.find(x => (x.email || '').toLowerCase() === email); if (!alvo) return;
+    if (JSON.stringify(alvo.modulos || null) === JSON.stringify(lista)) return;
+    const { data, error } = await sb.from('perfis').update({ modulos: lista }).eq('id', alvo.id).select().single();
+    if (error) return toast(erroAmigavel(error), true);
+    S.perfis = S.perfis.map(x => x.id === data.id ? data : x); if (S.page === 'comissao') pComissao();
+  };
+};
+const _pComissaoMod = pComissao;
+pComissao = function () {
+  _pComissaoMod(); const nomes = Object.fromEntries(paginasNav());
+  document.querySelectorAll('#main [data-pf]').forEach(b => { const p = S.perfis.find(x => x.id === b.dataset.pf);
+    if (p && Array.isArray(p.modulos) && p.modulos.length) b.closest('tr').children[2].insertAdjacentHTML('beforeend', `<br><small class="m">só Painel Geral + ${esc(p.modulos.map(k => nomes[k] || k).join(', '))}</small>`); });
+};
+if (document.getElementById('nav')) aplicarModulos();
