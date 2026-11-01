@@ -245,12 +245,13 @@ async function pFisio() {
     ${kpi('Foco mais comum', focos[0] ? esc(focos[0][0]) : '—', focos[0] ? `${focos[0][1]} atleta${focos[0][1] > 1 ? 's' : ''}` : 'aparece após as avaliações')}
   </div>
   ${vencidas.length ? `<div class="note fs-venc"><b>Reavaliação vencida:</b> ${vencidas.map(a => `<button class="lnk" data-fa="${a.id}">${esc(a.nome)}</button> (${dataBR(ult[a.id].proxima_reavaliacao)})`).join(' · ')}</div>` : ''}
-  <div class="panel"><h2>Mapa do elenco <small class="m">última avaliação de cada atleta · clique no atleta para abrir a ficha</small></h2>
-    ${avaliados.length ? `<div class="tablewrap"><table class="tb fs-mapa"><thead><tr><th>Atleta</th><th>Avaliação</th>${cols.map(c => `<th title="${esc(c)}">${esc(curtoTeste(c))}</th>`).join('')}<th>Focos</th></tr></thead><tbody>
+  <div class="panel"><h2>Mapa do elenco <small class="m">${avaliados.length} avaliado${avaliados.length === 1 ? '' : 's'} · última avaliação de cada atleta · clique para abrir a ficha</small></h2>
+    ${avaliados.length > 4 ? '<input class="in fs-busca" id="fsbusca" placeholder="Buscar atleta ou posição...">' : ''}
+    ${avaliados.length ? `<div class="tablewrap fs-mapa-wrap"><table class="tb fs-mapa"><thead><tr><th>Atleta</th><th>Avaliação</th>${cols.map(c => `<th title="${esc(c)}">${esc(curtoTeste(c))}</th>`).join('')}<th>Focos</th></tr></thead><tbody>
       ${avaliados.map(a => { const v = ult[a.id]; const fo = focosDe(v.achados, v.revisao || {});
-        return `<tr data-fa="${a.id}"><td><b>${esc(a.nome)}</b><div class="m">${esc(a.posicao)}</div></td><td>${dataBR(v.data)}${v.proxima_reavaliacao && v.proxima_reavaliacao <= h ? ' <span class="badge s-Inativo">reavaliar</span>' : ''}</td>
+        return `<tr data-fa="${a.id}" data-busca="${esc(fNorm(a.nome + ' ' + a.posicao))}"><td class="fs-at"><b>${esc(a.nome)}</b><div class="m">${esc(a.posicao)}</div></td><td>${dataBR(v.data)}${v.proxima_reavaliacao && v.proxima_reavaliacao <= h ? ' <span class="badge s-Inativo">reavaliar</span>' : ''}</td>
         ${cols.map(c => { const t = v.T.find(x => x.nome === c); return `<td class="c">${t ? dotF(t.cor, `${c}: ${COR_TXT[t.cor]}`) : '<span class="m">—</span>'}</td>`; }).join('')}
-        <td class="sm">${fo.slice(0, 3).map(esc).join(' · ') || '<span class="m">—</span>'}</td></tr>`; }).join('')}
+        <td class="sm fs-fo" title="${esc(fo.join(' · '))}">${fo.slice(0, 2).map(esc).join(' · ') || '<span class="m">—</span>'}</td></tr>`; }).join('')}
     </tbody></table></div>
     <div class="legenda fs-leg">${dotF('ok')} dentro da referência ${dotF('at')} atenção ${dotF('al')} alerta ${dotF('na')} não realizado ${dotF('')} sem referência</div>` : '<p class="empty">Nenhuma avaliação ainda. Use “Importar avaliações (Phast)”.</p>'}
   </div>
@@ -260,6 +261,7 @@ async function pFisio() {
   </div>`;
   if ($('#fimp')) $('#fimp').onclick = escolherPhast;
   ligarAbasFs();
+  if ($('#fsbusca')) $('#fsbusca').oninput = e => { const q = fNorm(e.target.value); document.querySelectorAll('.fs-mapa tr[data-fa]').forEach(tr => { tr.hidden = !!q && !tr.dataset.busca.includes(q); }); };
   $('#main').querySelectorAll('[data-fa]').forEach(el => el.onclick = () => fichaFisio(+el.dataset.fa));
 }
 
