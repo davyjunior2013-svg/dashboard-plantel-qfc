@@ -6,7 +6,10 @@
 
 S.fisio = { ok: false, av: [], vinc: [], aba: 'avaliacoes' };
 const podeLerFisio = () => !!S.perfil && S.perfil.funcao !== 'visualizacao';
-const podeFisio = () => isAdmin() || ['fisio', 'analise'].includes(S.perfil?.funcao);
+const podeFisio = () => isAdmin() || ['fisio', 'medico', 'analise'].includes(S.perfil?.funcao);
+const FS_ABAS = [['avaliacoes', 'Avaliações'], ['atendimento', 'Atendimento'], ['lesoes', 'Lesões'], ['prevencao', 'Prevenção']];
+const fsTabs = ab => `<div class="ind-tabs fs-tabs">${FS_ABAS.map(([k, l]) => `<button data-fsaba="${k}" class="${k === ab ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+const ligarAbasFs = () => document.querySelectorAll('[data-fsaba]').forEach(b => b.onclick = () => { S.fisio.aba = b.dataset.fsaba; pFisio(); window.scrollTo(0, 0); });
 const MOTIVOS_FISIO = ['Pré-temporada', 'Reavaliação', 'Retorno de lesão', 'Outro'];
 const FISIO_ASS_ISQ = [10, 15]; // isquiossurais: diferença entre os lados (%) — amarelo a partir de 10, vermelho a partir de 15
 const fNorm = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -234,7 +237,7 @@ async function pFisio() {
   const kpi = (l, v, s) => `<div class="card"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
   $('#main').innerHTML = topo('Fisioterapia', 'Avaliações', 'Relatórios do Phast lidos automaticamente: testes, evolução e focos de cada atleta.',
     podeFisio() ? '<button class="btn pri" id="fimp">+ Importar avaliações (Phast)</button>' : '') + `
-  <div class="ind-tabs fs-tabs"><button class="on">Avaliações</button><button disabled>Atendimento <small>em breve</small></button><button disabled>Lesões <small>em breve</small></button><button disabled>Prevenção <small>em breve</small></button></div>
+  ${fsTabs('avaliacoes')}
   <div class="cards fs-kpis">
     ${kpi('Avaliados', `${avaliados.length}/${ativos.length}`, 'atletas ativos com avaliação')}
     ${kpi('Sem avaliação', sem.length, sem.length ? 'ver lista abaixo' : 'elenco completo')}
@@ -256,6 +259,7 @@ async function pFisio() {
     <div class="panel"><h2>Sem avaliação <small class="m">${sem.length}</small></h2>${sem.length ? `<div class="fs-sem">${sem.map(a => `<span class="chip">${esc(a.nome)}</span>`).join('')}</div>` : '<p class="empty">Todos os atletas ativos já foram avaliados.</p>'}</div>
   </div>`;
   if ($('#fimp')) $('#fimp').onclick = escolherPhast;
+  ligarAbasFs();
   $('#main').querySelectorAll('[data-fa]').forEach(el => el.onclick = () => fichaFisio(+el.dataset.fa));
 }
 
