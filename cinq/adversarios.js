@@ -209,7 +209,11 @@ async function lerSumulas(files) {
   for (let i = 0; i < files.length; i++) {
     const f = files[i];
     if ($('#lprog')) $('#lprog').textContent = `${i + 1} de ${files.length}: ${f.name}`;
-    try { const r = lerSumula(await extrairPaginas(f)); r.arquivo = f; lidas.push(r); }
+    try {
+      const r = lerSumula(await extrairPaginas(f)); r.arquivo = f; r.info = sumInfoArquivo(f.name);
+      if (r.info.placar && r.ft && (r.info.placar[0] !== r.ft[0] || r.info.placar[1] !== r.ft[1])) r.alertas.push(`O nome do arquivo diz ${r.info.placar[0]} x ${r.info.placar[1]}, a súmula diz ${r.ft[0]} x ${r.ft[1]}.`);
+      lidas.push(r);
+    }
     catch (e) { lidas.push({ erro: e.message || String(e), arquivo: f }); }
   }
   conferirSumulas(lidas);
@@ -232,18 +236,20 @@ function conferirSumulas(lidas) {
   const jaExiste = r => S.adv.jogos.some(j => j.competicao === r.competicao && j.jogo_num === r.jogo_num);
   modal(`<h2>Conferir súmulas</h2>
     <div class="g2"><label class="f"><span>Competição</span><input class="in" id="ccomp" value="${esc(comp0)}"></label>
-    <label class="f"><span>Fase</span><select class="in" id="cfase">${opts(FASES_ADV, faseUlt)}</select></label></div>
-    <p class="m" style="margin-top:-4px">A súmula não diz a fase (a federação recomeça a contagem de rodadas em cada fase). Confira antes de salvar.</p>
+    <label class="f"><span>Fase (aplicar a todos)</span><select class="in" id="cfase">${opts(FASES_ADV, faseUlt)}</select></label></div>
+    <p class="m" style="margin-top:-4px">A súmula não diz a fase (a federação recomeça a contagem de rodadas em cada fase). O CINQ usa o nome do arquivo quando ele indica a fase (ex.: "Semifinal"); confira em cada jogo antes de salvar.</p>
     ${ruins.map(r => `<div class="note bad">${esc(r.arquivo.name)}: ${esc(r.erro)}</div>`).join('')}
     ${ok.map((r, i) => `<details class="conf"${ok.length === 1 ? ' open' : ''}><summary>
         <b>Jogo ${r.jogo_num}</b> · Rodada ${r.rodada ?? '—'} · ${r.data ? dataBR(r.data) : '—'} · <b>${esc(sumNomeCurto(r.equipes[0].nome_sumula))} ${r.ft?.[0] ?? '?'} x ${r.ft?.[1] ?? '?'} ${esc(sumNomeCurto(r.equipes[1].nome_sumula))}</b>
         ${jaExiste(r) ? '<span class="badge s-Ativo">já lançado · será atualizado</span>' : '<span class="badge t-Treino">novo</span>'}
         ${r.alertas.length ? `<span class="badge s-Inativo">${r.alertas.length} alerta${r.alertas.length > 1 ? 's' : ''}</span>` : ''}</summary>
+      <div class="conf-fase"><label>Fase deste jogo <select class="in" data-fase="${i}">${opts(FASES_ADV, r.info?.fase || faseUlt)}</select></label>${r.info?.fase ? `<span class="m">pelo nome do arquivo${r.info.volta ? ' · jogo de volta' : r.info.ida ? ' · jogo de ida' : ''}</span>` : ''}</div>
       ${r.alertas.length ? `<ul class="conf-al">${r.alertas.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
       <div class="conf-grid">${resumoEquipe(r, 0)}${resumoEquipe(r, 1)}</div>
       <p class="m">${esc(r.estadio || '')}${r.ht ? ` · 1º tempo ${r.ht[0]} x ${r.ht[1]}` : ''} · ${r.equipes.map(e => e.jogadores.length).join(' e ')} relacionados</p></details>`).join('')}
     <div class="mfoot"><span class="m">${ok.length} súmula${ok.length === 1 ? '' : 's'} pronta${ok.length === 1 ? '' : 's'}</span><div class="row"><button class="btn" id="ccan">Cancelar</button>${ok.length ? `<button class="btn pri" id="csal">Salvar ${ok.length} jogo${ok.length === 1 ? '' : 's'}</button>` : ''}</div></div>`, true);
   $('#ccan').onclick = fechar;
+  if ($('#cfase')) $('#cfase').onchange = e => document.querySelectorAll('#modal [data-fase]').forEach(x => { x.value = e.target.value; });
   if (!$('#csal')) return;
   $('#csal').onclick = async () => {
     const comp = $('#ccomp').value.trim(), fase = $('#cfase').value, b = $('#csal');
@@ -251,13 +257,14 @@ function conferirSumulas(lidas) {
     advSet('fase', fase); b.disabled = true;
     let feitos = 0;
     try {
-      for (const r of ok) {
+      for (const [i, r] of ok.entries()) {
+        const faseJ = document.querySelector(`#modal [data-fase="${i}"]`)?.value || fase;
         b.textContent = `Salvando ${feitos + 1} de ${ok.length}…`;
         const path = `sumulas/j${r.jogo_num}_${Date.now()}.pdf`;
         const up = await sb.storage.from('planos').upload(path, r.arquivo, { contentType: 'application/pdf' });
         const antigo = S.adv.jogos.find(j => j.competicao === comp && j.jogo_num === r.jogo_num)?.arquivo_path;
         const payload = {
-          competicao: comp, fase, jogo_num: r.jogo_num, rodada: r.rodada, data: r.data, hora: r.hora, estadio: r.estadio,
+          competicao: comp, fase: faseJ, jogo_num: r.jogo_num, rodada: r.rodada, data: r.data, hora: r.hora, estadio: r.estadio,
           gols_m: r.ft?.[0], gols_v: r.ft?.[1], ht_m: r.ht?.[0], ht_v: r.ht?.[1], arquivo_path: up.error ? null : path,
           equipes: r.equipes.map(e => ({ nome_sumula: e.nome_sumula, nome_curto: sumNomeCurto(e.nome_sumula), qfc: /\bqfc\b/i.test(e.nome_sumula), tecnico: e.tecnico, comissao: e.comissao,
             jogadores: e.jogadores.map(j => ({ cbf: j.cbf, apelido: j.apelido, nome: j.nome, numero: j.numero, titular: j.titular, goleiro: j.goleiro, ordem: j.ordem, entrou: j.entrou, saiu: j.saiu, minutos: j.minutos })) })),
@@ -390,6 +397,14 @@ function abaAtletasAdv(A) {
 
 const barrasAdv = (itens, max) => itens.map(([l, v, extra]) => `<div class="bar"><span>${esc(l)}</span><div><i style="width:${max ? Math.round(v / max * 100) : 0}%"></i></div><b>${v}</b>${extra ? `<small>${extra}</small>` : ''}</div>`).join('');
 const FAIXAS = [['0-15', 0, 15], ['16-30', 16, 30], ['31-45', 31, 45], ['Intervalo', 45, 45], ['46-60', 46, 60], ['61-75', 61, 75], ['76-90', 76, 90]];
+// faixa de um gol/cartão, separando os acréscimos de cada tempo
+const FAIXAS_EV = ['0-15', '16-30', '31-45', '45+', '46-60', '61-75', '76-90', '90+'];
+function faixaEv(e) {
+  if (e.tempo === 'INT') return null;
+  if (e.minuto > 45) return e.tempo === '2T' ? '90+' : '45+';
+  const m = e.tempo === '2T' ? 45 + e.minuto : e.minuto;
+  return m <= 15 ? '0-15' : m <= 30 ? '16-30' : m <= 45 ? (e.tempo === '2T' ? '46-60' : '31-45') : m <= 60 ? '46-60' : m <= 75 ? '61-75' : '76-90';
+}
 
 function abaSubsAdv(A) {
   const subs = A.J.flatMap(j => j.subs);
@@ -414,7 +429,22 @@ function abaDiscAdv(A) {
   cart.forEach(e => { const m = String(e.detalhe || '').replace(/^2º amarelo · /, '').split(' - POR ')[0].replace(/^\d+\s*-\s*/, '').trim() || 'Sem motivo'; motivos[m] = (motivos[m] || 0) + 1; });
   const mot = Object.entries(motivos).sort((a, b) => b[1] - a[1]).slice(0, 8);
   const porAt = A.atletas.filter(p => p.ca || p.cv).sort((a, b) => b.ca + b.cv * 3 - (a.ca + a.cv * 3));
-  $('#acorpo').innerHTML = `<div class="grid2">
+  const ctA = cart.filter(e => e.atleta_id);
+  const fxC = FAIXAS_EV.map(n => { const l = ctA.filter(e => faixaEv(e) === n), am = l.filter(e => e.tipo === 'amarelo').length, vm = l.length - am; return [n, l.length, [am && `${am} amarelo${am === 1 ? '' : 's'}`, vm && `${vm} vermelho${vm === 1 ? '' : 's'}`].filter(Boolean).join(' · ')]; });
+  const maxC = Math.max(1, ...fxC.map(x => x[1]));
+  const t1 = ctA.filter(e => e.tempo !== '2T').length, t2 = ctA.length - t1;
+  const prim = A.J.map(j => j.cart.filter(e => e.atleta_id).sort((a, b) => a.minuto_abs - b.minuto_abs)[0]).filter(Boolean);
+  const fimJogo = ctA.filter(e => ['76-90', '90+'].includes(faixaEv(e))).length;
+  $('#acorpo').innerHTML = `<div class="panel"><h2>Cartões por tempo de jogo</h2>
+    <div class="adv-ct"><div class="bars-cart">${barrasAdv(fxC, maxC)}</div>
+    <div class="adv-ct-r">
+      <div class="kv"><span>1º tempo</span><b>${t1} (${ctA.length ? Math.round(t1 / ctA.length * 100) : 0}%)</b></div>
+      <div class="kv"><span>2º tempo</span><b>${t2} (${ctA.length ? Math.round(t2 / ctA.length * 100) : 0}%)</b></div>
+      <div class="kv"><span>Últimos 15 min + acréscimos</span><b>${fimJogo} (${ctA.length ? Math.round(fimJogo / ctA.length * 100) : 0}%)</b></div>
+      <div class="kv"><span>Minuto médio do 1º cartão</span><b>${prim.length ? Math.round(prim.reduce((s, e) => s + e.minuto_abs, 0) / prim.length) + "'" : '—'}</b></div>
+      <div class="kv"><span>Cartões por jogo</span><b>${A.n ? (ctA.length / A.n).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : '—'}</b></div>
+      <p class="m">Só atletas (cartões da comissão ficam no quadro abaixo). 45+ e 90+ = acréscimos.</p></div></div></div>
+  <div class="grid2">
     <div class="panel"><h2>Próximo jogo</h2>
       <h3 class="sub">Suspensos</h3>${A.suspensos.length ? A.suspensos.map(p => `<div class="kv"><span>${esc(nomeAtl(p.id))}</span><b class="tag vm">${p.cv && A.J[A.n - 1].cart.some(e => e.atleta_id === p.id && e.tipo === 'vermelho') ? 'vermelho' : LIMITE_AMARELOS + 'º amarelo'}</b></div>`).join('') : '<p class="m">Nenhum.</p>'}
       <h3 class="sub">Pendurados (${LIMITE_AMARELOS - 1} amarelos)</h3>${A.pendurados.length ? A.pendurados.map(p => `<div class="kv"><span>${esc(nomeAtl(p.id))}</span><b class="tag am">pendurado</b></div>`).join('') : '<p class="m">Nenhum.</p>'}
@@ -427,12 +457,12 @@ function abaDiscAdv(A) {
 
 function abaGolsAdv(A) {
   const pro = A.J.flatMap(j => j.golsPro), contra = A.J.flatMap(j => j.golsContra);
-  const fx = l => FAIXAS.filter(f => f[0] !== 'Intervalo').map(([n, a, b]) => [n, l.filter(g => g.minuto_abs >= a && g.minuto_abs <= b).length]);
+  const fx = l => FAIXAS_EV.map(n => [n, l.filter(g => faixaEv(g) === n).length]);
   const fp = fx(pro), fc = fx(contra), max = Math.max(1, ...fp.map(x => x[1]), ...fc.map(x => x[1]));
   const art = A.atletas.filter(p => p.gols).sort((a, b) => b.gols - a.gols);
   const banco = A.J.flatMap(j => j.golsPro.filter(g => g.atleta_id && j.banco.some(b => b.atleta_id === g.atleta_id)).map(g => ({ g, j })));
   $('#acorpo').innerHTML = `<div class="grid2">
-    <div class="panel"><h2>Gols marcados por faixa</h2>${barrasAdv(fp, max)}<p class="m">${pro.length} gols · 1º tempo ${pro.filter(g => g.minuto_abs <= 45 && g.tempo !== '2T').length} · 2º tempo ${pro.filter(g => g.tempo === '2T').length}</p></div>
+    <div class="panel"><h2>Gols marcados por faixa</h2>${barrasAdv(fp, max)}<p class="m">${pro.length} gols · 1º tempo ${pro.filter(g => g.tempo !== '2T').length} · 2º tempo ${pro.filter(g => g.tempo === '2T').length}</p></div>
     <div class="panel"><h2>Gols sofridos por faixa</h2>${barrasAdv(fc, max)}<p class="m">${contra.length} gols · 1º tempo ${contra.filter(g => g.tempo !== '2T').length} · 2º tempo ${contra.filter(g => g.tempo === '2T').length}</p></div>
     <div class="panel"><h2>Artilheiros</h2>${art.length ? art.map(p => `<div class="kv"><span>${esc(nomeAtl(p.id))}</span><b>${p.gols}</b></div>`).join('') : '<p class="empty">—</p>'}</div>
     <div class="panel"><h2>Gols de quem saiu do banco</h2>${banco.length ? banco.map(({ g, j }) => `<div class="kv"><span>${esc(nomeAtl(g.atleta_id))} <small class="m">vs ${esc(nomeClube(j.adv))}</small></span><b>${minTxt(g)}</b></div>`).join('') : '<p class="m">Nenhum.</p>'}</div>
