@@ -474,3 +474,4 @@ b.gol{font-size:11px;margin-left:3px;font-weight:600}
 .fs-cf{margin-top:10px}.fs-cf-t{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;margin:8px 0}.fs-cf-t span{display:flex;gap:5px;align-items:center}.fs-cf-a{font-size:12.5px;color:#3d4a54}
 .fs-tabs button[disabled]{cursor:default;opacity:.6}
 @media (max-width:760px){.fs-kpis{grid-template-columns:1fr 1fr}.fs-resumo{grid-template-columns:repeat(3,1fr)}.fs-a{flex-direction:column}.fs-a-act{justify-content:flex-start}.fs-sel{margin-left:0}}
+.fs-senha{margin:4px 0 10px;padding-left:18px;font-size:13px}

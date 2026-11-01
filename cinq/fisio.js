@@ -356,23 +356,47 @@ function sugerirAtleta(nome) {
   if (!cands.length) return { id: null };
   return { id: cands[0].a.id, certo: false, empate: cands.length > 1 && cands[1].sc === cands[0].sc, opcoes: cands.slice(0, 4).map(x => x.a.id) };
 }
-async function lerPhasts(files) {
+// abre o PDF; se tiver senha, tenta as senhas já usadas nesta sessão (ficam só na memória do navegador, nunca são salvas)
+async function abrirPdfSenha(buf, candidatas) {
+  let ult;
+  for (const senha of [undefined, ...candidatas]) {
+    try { return { doc: await pdfjsLib.getDocument({ data: new Uint8Array(buf.slice(0)), password: senha }).promise, senha }; }
+    catch (e) { if (e?.name !== 'PasswordException') throw e; ult = e; }
+  }
+  const err = new Error(candidatas.length ? 'Senha incorreta.' : 'Relatório protegido por senha.'); err.senha = true; throw err;
+}
+S.fisio.senhas = [];
+async function lerPhasts(files, extra = [], jaLidas = []) {
   try { await carregarFisio(); } catch (e) { return toast(erroAmigavel(e), true); }
   modal(`<h2>Lendo avaliações…</h2><div class="lbar"><i id="flbar"></i></div><p class="m" id="flmsg"></p>`);
-  const lidas = [];
+  const lidas = [...jaLidas], comSenha = [];
   for (const [k, f] of files.entries()) {
     $('#flmsg').textContent = f.name; $('#flbar').style.width = Math.round(k / files.length * 100) + '%';
     try {
       if (!window.pdfjsLib) throw new Error('O leitor de PDF não carregou. Recarregue a página.');
-      const doc = await pdfjsLib.getDocument({ data: new Uint8Array(await f.arrayBuffer()) }).promise;
+      const { doc, senha } = await abrirPdfSenha(await f.arrayBuffer(), [...new Set([...extra, ...S.fisio.senhas])]);
+      if (senha && !S.fisio.senhas.includes(senha)) S.fisio.senhas.push(senha);
       const pags = [];
       for (let p = 1; p <= doc.numPages; p++) { const pg = await doc.getPage(p), vp = pg.getViewport({ scale: 1 }), tc = await pg.getTextContent();
         pags.push({ w: vp.width, items: tc.items.filter(i => i.str.trim()).map(i => [i.str, Math.round(i.transform[4]), Math.round(i.transform[5])]) }); }
-      const r = lerPhast(pags); r.arquivo = f; r.T = fisioPreparar(r.testes); r.achados = fisioAchados(r.T); r.sug = sugerirAtleta(r.nome || '');
+      const r = lerPhast(pags); r.arquivo = f; r.comSenha = !!senha; r.T = fisioPreparar(r.testes); r.achados = fisioAchados(r.T); r.sug = sugerirAtleta(r.nome || '');
       lidas.push(r);
-    } catch (e) { lidas.push({ arquivo: f, erro: e.message }); }
+    } catch (e) { if (e.senha) comSenha.push(f); else lidas.push({ arquivo: f, erro: e.message }); }
   }
+  if (comSenha.length) return pedirSenhaPhast(comSenha, lidas, extra.length > 0);
   conferirPhast(lidas);
+}
+function pedirSenhaPhast(files, lidas, errou) {
+  modal(`<h2>Relatório${files.length > 1 ? 's' : ''} com senha</h2>
+    ${errou ? '<div class="note bad">A senha não abriu ' + (files.length > 1 ? 'estes arquivos' : 'este arquivo') + '. Confira e tente de novo.</div>' : ''}
+    <p class="m">${files.length > 1 ? 'Estes arquivos pedem' : 'Este arquivo pede'} senha para abrir:</p>
+    <ul class="fs-senha">${files.map(f => `<li>${esc(f.name)}</li>`).join('')}</ul>
+    <label class="f"><span>Senha do relatório</span><input class="in" type="password" id="fsenha" autocomplete="off" placeholder="Digite a senha"></label>
+    <p class="m">A senha é usada só para abrir o arquivo aqui no navegador e vale para os próximos relatórios desta sessão. Ela não é salva no CINQ. O PDF guardado continua protegido (o "Ver PDF" vai pedir a mesma senha).</p>
+    <div class="mfoot"><span class="m">${lidas.filter(r => !r.erro).length} relatório(s) já lido(s)</span><div class="row"><button class="btn" id="fspul">Pular ${files.length > 1 ? 'estes' : 'este'}</button><button class="btn pri" id="fsabre">Abrir</button></div></div>`);
+  const ir2 = () => { const v = $('#fsenha').value; if (!v) return $('#fsenha').focus(); lerPhasts(files, [v], lidas); };
+  $('#fsabre').onclick = ir2; $('#fsenha').onkeydown = e => { if (e.key === 'Enter') ir2(); }; $('#fsenha').focus();
+  $('#fspul').onclick = () => conferirPhast([...lidas, ...files.map(f => ({ arquivo: f, erro: 'Pulado: relatório com senha.' }))]);
 }
 function conferirPhast(lidas) {
   const ok = lidas.filter(r => !r.erro), ruins = lidas.filter(r => r.erro);
@@ -382,7 +406,7 @@ function conferirPhast(lidas) {
     ${ruins.map(r => `<div class="note bad">${esc(r.arquivo.name)}: ${esc(r.erro)}</div>`).join('')}
     ${ok.map((r, i) => { const ja = r.sug.id && S.fisio.av.some(x => x.atleta_id === r.sug.id && x.data === r.data);
       return `<details class="conf" data-i="${i}"${ok.length === 1 ? ' open' : ''}><summary><b>${esc(r.nome || '?')}</b> · ${dataBR(r.data)} · ${r.T.length} testes · ${r.T.filter(t => t.cor === 'al').length} em alerta
-        ${r.sug.certo ? '<span class="badge s-Titular">atleta vinculado</span>' : r.sug.id && !r.sug.empate ? '<span class="badge t-Treino">confira o atleta</span>' : '<span class="badge s-Inativo">escolha o atleta</span>'}${ja ? ' <span class="badge s-Ativo">já existe · será atualizada</span>' : ''}</summary>
+        ${r.sug.certo ? '<span class="badge s-Titular">atleta vinculado</span>' : r.sug.id && !r.sug.empate ? '<span class="badge t-Treino">confira o atleta</span>' : '<span class="badge s-Inativo">escolha o atleta</span>'}${ja ? ' <span class="badge s-Ativo">já existe · será atualizada</span>' : ''}${r.comSenha ? ' <span class="badge">com senha</span>' : ''}</summary>
         <div class="g2 fs-cf"><label class="f"><span>Atleta do elenco</span><select class="in" data-atl="${i}">${atlOpts(r.sug.empate ? '' : r.sug.id)}</select></label>
           <label class="f"><span>Motivo</span><select class="in" data-mot="${i}">${opts(MOTIVOS_FISIO, S.atletas.length && r.data >= INICIO_PRETEMPORADA ? 'Pré-temporada' : 'Pré-temporada')}</select></label></div>
         ${r.alertas.length ? `<ul class="conf-al">${r.alertas.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
