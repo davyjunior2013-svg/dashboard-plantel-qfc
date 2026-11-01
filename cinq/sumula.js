@@ -2,9 +2,28 @@
    Entrada: páginas com itens de texto [texto, x, y]. Saída: jogo, equipes, jogadores, gols, cartões, substituições. */
 'use strict';
 
-const SUM_SA = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '');
+const SUM_SA = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 const SUM_SECOES = ['Arbitragem', 'Cronologia', 'Relação de Jogadores', 'Comissão Técnica', 'Gols', 'Cartões Amarelos',
   'Cartões Vermelhos', 'Ocorrências / Observações', 'Observações Eventuais', 'Substituições'];
+
+// título de seção, tolerando pequenas variações de leitura por imagem
+function sumSecaoDe(l) {
+  if (SUM_SECOES.includes(l.t)) return l.t;
+  if (l.c.length > 2 || /\.\s*$/.test(l.t) || l.t === l.t.toUpperCase()) return null;
+  const n = SUM_SA(l.t).toLowerCase().replace(/[^a-z]/g, '');
+  if (n.length > 28) return null;
+  if (/relacao.*jogador/.test(n)) return 'Relação de Jogadores';
+  if (/^comissaotec/.test(n)) return 'Comissão Técnica';
+  if (/^gols?$/.test(n)) return 'Gols';
+  if (/^cartoesamarel/.test(n)) return 'Cartões Amarelos';
+  if (/^cartoesvermelh/.test(n)) return 'Cartões Vermelhos';
+  if (/^substitui/.test(n)) return 'Substituições';
+  if (/^arbitragem$/.test(n)) return 'Arbitragem';
+  if (/^cronologia$/.test(n)) return 'Cronologia';
+  if (/^ocorrencias/.test(n)) return 'Ocorrências / Observações';
+  if (/^observacoeseventuais/.test(n)) return 'Observações Eventuais';
+  return null;
+}
 
 function sumLinhas(paginas) {
   const out = [];
@@ -63,7 +82,7 @@ function sumTempo(c) {
   const a = String(c[0] || '').replace(/\s+/g, ''), b = String(c[1] || '').replace(/\s+/g, '');
   let m;
   if ((m = a.match(/^(\d{1,3})(?::\d{2})?\+(\d{1,2})(?::\d{2})?$/))) return { minuto: +m[1] + +m[2], k: 1 };
-  if ((m = a.match(/^\+(\d{1,2})(?::\d{2})?$/))) return { minuto: 45 + +m[1], k: 1 };
+  if ((m = a.match(/^\+(\d{1,2})(?::\d{2})?$/))) { let n = +m[1]; if (n > 20) n = Math.floor(n / 10); return { minuto: 45 + n, k: 1 }; } // acréscimo > 20 = leitura com dígito a mais
   if ((m = a.match(/^(\d{1,3}):\d{2}$/))) {
     const x = b.match(/^\+(\d{1,2})(?::\d{2})?$/);
     return x ? { minuto: +m[1] + +x[1], k: 2 } : { minuto: +m[1], k: 1 };
@@ -79,47 +98,75 @@ function sumInfoArquivo(nome) {
   return { placar: pl ? [+pl[1], +pl[2]] : null, fase, rodada: rd ? +(rd[1] || rd[2]) : null, volta: /\bvolta\b/.test(t), ida: /\bida\b/.test(t) };
 }
 
+// minutos de cada atleta e alertas de consistência; aposEdicao = depois de correção manual na conferência
+function sumRecalcular(r, aposEdicao) {
+  const jogadorDe = (lado, num) => r.equipes[lado]?.jogadores.find(j => String(j.numero) === String(num));
+  if (aposEdicao) {
+    r.alertas = [];
+    [...r.gols, ...r.cartoes].forEach(ev => { const j = jogadorDe(ev.equipe, ev.numero); ev.cbf = j?.cbf || null; if (j) ev.nome = j.apelido; });
+    r.subs.forEach(sb => { const je = jogadorDe(sb.equipe, sb.entrou), js = jogadorDe(sb.equipe, sb.saiu); sb.cbf = je?.cbf || null; sb.cbf2 = js?.cbf || null; sb.nome = je?.apelido || `nº ${sb.entrou}`; sb.nome2 = js?.apelido || `nº ${sb.saiu}`; });
+    r.subs.forEach(sb => { if (!jogadorDe(sb.equipe, sb.entrou) || !jogadorDe(sb.equipe, sb.saiu)) r.alertas.push(`Substituição com número fora da relação: ${sumMinTxt(sb.tempo, sb.minuto)} ${sb.entrou} ↔ ${sb.saiu}`); });
+    [...r.gols, ...r.cartoes].forEach(ev => { if (/^\d+$/.test(String(ev.numero)) && !jogadorDe(ev.equipe, ev.numero)) r.alertas.push(`Nº ${ev.numero} (${ev.cor ? 'cartão' : 'gol'}) não está na relação de jogadores.`); });
+  } else r.alertas = r.alertas.filter(a => !/titulares na súmula|gol\(s\) listados/.test(a));
+  r.equipes.forEach((e, lado) => {
+    e.jogadores.forEach(j => { j.entrou = j.titular ? 0 : null; j.saiu = j.titular ? 90 : null; });
+    r.subs.filter(s => s.equipe === lado).sort((a, b) => sumMinAbs(a.tempo, a.minuto) - sumMinAbs(b.tempo, b.minuto)).forEach(s => {
+      const m = sumMinAbs(s.tempo, s.minuto), je = jogadorDe(lado, s.entrou), js = jogadorDe(lado, s.saiu);
+      if (js && js.entrou != null) js.saiu = m;
+      if (je) { je.entrou = m; je.saiu = 90; }
+    });
+    r.cartoes.filter(c => c.equipe === lado && c.cor === 'vermelho').forEach(c => { const j = jogadorDe(lado, c.numero); if (j && j.entrou != null) j.saiu = Math.min(j.saiu ?? 90, sumMinAbs(c.tempo, c.minuto)); });
+    e.jogadores.forEach(j => { j.minutos = j.entrou != null ? Math.max(0, (j.saiu ?? 90) - j.entrou) : 0; });
+    const tit = e.jogadores.filter(j => j.titular).length;
+    if (tit !== 11) r.alertas.push(`${e.nome_sumula}: ${tit} titulares na súmula (esperado 11).`);
+  });
+  if (r.ft) [0, 1].forEach(lado => {
+    const g = r.gols.filter(x => (x.tipo === 'CT' ? x.equipe !== lado : x.equipe === lado)).length;
+    if (g !== r.ft[lado]) r.alertas.push(`${r.equipes[lado].nome_sumula}: ${g} gol(s) listados, placar diz ${r.ft[lado]}.`);
+  });
+}
+
 function lerSumula(paginas) {
   const L = sumLinhas(paginas), r = { alertas: [], equipes: [], gols: [], cartoes: [], subs: [] };
   let sec = '';
   const secao = {};
   L.forEach(l => {
-    const h = SUM_SECOES.find(s => l.t === s);
+    const h = sumSecaoDe(l);
     if (h) { sec = h; secao[sec] = []; return; }
     (secao[sec || 'Cabeçalho'] = secao[sec || 'Cabeçalho'] || []).push(l);
   });
   // cabeçalho
   (secao['Cabeçalho'] || []).forEach(l => {
     let m;
-    if ((m = l.t.match(/^Jogo:\s*(\d+)$/))) r.jogo_num = +m[1];
+    if (!r.jogo_num && (m = l.t.match(/Jogo:\s*(\d{1,4})(?:\s|$)/))) r.jogo_num = +m[1];
     else if ((m = l.t.match(/^Jogo:\s*(.+?)\s+X\s+(.+)$/))) { r.mandante = m[1].trim(); r.visitante = m[2].trim(); }
     if ((m = l.t.match(/Campeonato:\s*(.+?)\s+Rodada:\s*(\d+)/))) { r.competicao = m[1].trim(); r.rodada = +m[2]; }
     if ((m = l.t.match(/Data:\s*(\d{2})\/(\d{2})\/(\d{4})(?:\s+Hor[aá]rio:\s*(\S+))?(?:\s+Est[aá]dio:\s*(.+))?/))) { r.data = `${m[3]}-${m[2]}-${m[1]}`; r.hora = m[4] || null; r.estadio = (m[5] || '').trim() || null; }
   });
   (secao['Cronologia'] || []).forEach(l => {
-    let m;
-    if ((m = l.t.match(/Resultado do 1º Tempo:\s*(\d+)\s*X\s*(\d+)/i))) r.ht = [+m[1], +m[2]];
-    if ((m = l.t.match(/Resultado Final:\s*(\d+)\s*X\s*(\d+)/i))) r.ft = [+m[1], +m[2]];
+    let m; l = { ...l, t: l.t.replace(/X\s*[Oo]\b/g, 'X 0').replace(/\b[Oo]\s*X/g, '0 X') };
+    if ((m = l.t.match(/Resultado do 1\S*\s*Tempo:?\s*(\d+)\s*X\s*(\d+)/i))) r.ht = [+m[1], +m[2]];
+    if ((m = l.t.match(/Resultado Final:?\s*(\d+)\s*X\s*(\d+)/i))) r.ft = [+m[1], +m[2]];
   });
   if (!r.jogo_num || !r.mandante) throw new Error('Não parece uma súmula da federação (não achei o número do jogo e os clubes).');
 
   // relação de jogadores (duas colunas: mandante à esquerda, visitante à direita)
   const jog = secao['Relação de Jogadores'] || [];
   const meio = (jog[0]?.w || 595) / 2;
-  const cab = jog.find(l => !/^N[ºo°]\s/.test(l.t) && !/^\d/.test(l.t));
+  const cab = jog.find(l => !/Apelido|Nome Completo/i.test(l.t) && !/^\d/.test(l.t));
   const nomesEq = cab ? [cab.c.filter(c => c.x < meio).map(c => c.s).join(' '), cab.c.filter(c => c.x >= meio).map(c => c.s).join(' ')] : [r.mandante, r.visitante];
   r.equipes = nomesEq.map((n, i) => ({ nome_sumula: n || (i ? r.visitante : r.mandante), jogadores: [], comissao: {} }));
   jog.forEach(l => {
     [0, 1].forEach(lado => {
       const c = l.c.filter(x => lado ? x.x >= meio : x.x < meio).map(x => x.s);
       if (!c.length || !/^\d+$/.test(c[0])) return;
-      const iTR = c.findIndex(x => /^[TR](\(g\))?$/i.test(x)); if (iTR < 0) return;
+      const iTR = c.findIndex((x, k) => k > 0 && /^[TR]\s*(\(?[gq9]\)?)?$/i.test(x)); if (iTR < 0) return;
       const nomes = c.slice(1, iTR);
       let [apelido, nome] = nomes.length >= 2 ? [nomes[0], nomes.slice(1).join(' ')] : sumSeparaNome(nomes[0] || '');
-      const cbf = c.slice(iTR + 1).find(x => /^\d{4,}$/.test(x)) || `sem-cbf-${SUM_SA(r.equipes[lado].nome_sumula)}-${c[0]}`;
+      const cbf = c.slice(iTR + 1).map(x => /^[\d\s\/.,]{5,}$/.test(x) ? x.replace(/\D/g, '') : x).find(x => /^\d{4,}$/.test(x)) || `sem-cbf-${SUM_SA(r.equipes[lado].nome_sumula)}-${c[0]}`;
       const eq = r.equipes[lado];
       eq.jogadores.push({ numero: +c[0], apelido: sumNomeExib(apelido, nome), nome: nome.replace(/\s*\.\.\.$/, ''), cbf,
-        titular: /^T/i.test(c[iTR]), goleiro: /\(g\)/i.test(c[iTR]), ordem: eq.jogadores.length + 1 });
+        titular: /^T/i.test(c[iTR]), goleiro: /[gq9]/i.test(c[iTR]), ordem: eq.jogadores.length + 1 });
     });
   });
   // comissão técnica
@@ -149,6 +196,7 @@ function lerSumula(paginas) {
     const c = l.c.map(x => x.s); let k = tm.k;
     let tempo = '1T';
     if (/^(1|2)T?$|^INT$/i.test(c[k] || '')) { tempo = /2/.test(c[k]) ? '2T' : /INT/i.test(c[k]) ? 'INT' : '1T'; k++; }
+    else if (/^2[7TI1]{1,2}$|^1?[TI]{1,2}$|^1[1I]$/i.test(c[k] || '')) { tempo = /^2/.test(c[k]) ? '2T' : '1T'; k++; } // leitura por imagem: "271" = 2T, "TT" = 1T
     const numero = c[k++] || '';
     let tipo = null;
     if (comTipo && /^[A-Z]{2,3}$/.test(c[k] || '')) tipo = c[k++];
@@ -163,7 +211,7 @@ function lerSumula(paginas) {
   (secao['Gols'] || []).forEach(l => {
     const e = lerLinhaEvento(l, true); if (!e) return;
     const j = jogadorDe(e.lado, e.numero);
-    r.gols.push({ equipe: e.lado, tempo: e.tempo, minuto: e.minuto, numero: e.numero, tipo: e.tipo || 'NR', nome: j?.apelido || e.nomeTxt, cbf: j?.cbf || null });
+    r.gols.push({ equipe: e.lado, tempo: e.tempo, minuto: e.minuto, numero: e.numero, tipo: e.tipo || 'NR', nome: j?.apelido || e.nomeTxt, nomeCompleto: e.nomeTxt, cbf: j?.cbf || null });
     if (e.lado < 0) r.alertas.push(`Gol sem equipe identificada: ${l.t}`);
   });
   const cartoes = (lista, cor) => {
@@ -172,7 +220,7 @@ function lerSumula(paginas) {
       const e = lerLinhaEvento(l, false);
       if (e) {
         const j = /^\d+$/.test(e.numero) ? jogadorDe(e.lado, e.numero) : null;
-        ult = { cor, equipe: e.lado, tempo: e.tempo, minuto: e.minuto, numero: e.numero, nome: j?.apelido || e.nomeTxt, cbf: j?.cbf || null, motivo: '' };
+        ult = { cor, equipe: e.lado, tempo: e.tempo, minuto: e.minuto, numero: e.numero, nome: j?.apelido || e.nomeTxt, nomeCompleto: e.nomeTxt, cbf: j?.cbf || null, motivo: '' };
         r.cartoes.push(ult);
         if (e.lado < 0) r.alertas.push(`Cartão sem equipe identificada: ${l.t}`);
         else if (/^\d+$/.test(e.numero) && !j) r.alertas.push(`Cartão para o nº ${e.numero}, que não está na relação de jogadores.`);
@@ -189,33 +237,42 @@ function lerSumula(paginas) {
     const c = l.c.map(x => x.s); const tm = sumTempo(c); if (!tm) return;
     const ent = l.c.find(x => /^\d+\s*-\s*/.test(x.s) && x.x < 380), sai = l.c.find(x => /^\d+\s*-\s*/.test(x.s) && x.x >= 380);
     const eqTxt = l.c.filter(x => x !== ent && x !== sai && x.x > 100 && !/^(1T|2T|INT|\d)/.test(x.s)).map(x => x.s).join(' ');
-    const lado = equipeDe(eqTxt), tempo = (c[tm.k] || '').toUpperCase();
+    const tk = (c[tm.k] || '').toUpperCase(), lado = equipeDe(eqTxt), tempo = /^INT/.test(tk) ? 'INT' : /^2/.test(tk) ? '2T' : '1T';
     const nEnt = ent?.s.match(/^(\d+)/)?.[1], nSai = sai?.s.match(/^(\d+)/)?.[1];
     const je = jogadorDe(lado, nEnt), js = jogadorDe(lado, nSai);
     r.subs.push({ equipe: lado, tempo, minuto: tm.minuto, entrou: nEnt, saiu: nSai, cbf: je?.cbf || null, cbf2: js?.cbf || null,
-      nome: je?.apelido || ent?.s.replace(/^\d+\s*-\s*/, ''), nome2: js?.apelido || sai?.s.replace(/^\d+\s*-\s*/, '') });
+      nome: je?.apelido || ent?.s.replace(/^\d+\s*-\s*/, ''), nome2: js?.apelido || sai?.s.replace(/^\d+\s*-\s*/, ''),
+      nomeCompleto1: ent?.s.replace(/^\d+\s*-\s*/, ''), nomeCompleto2: sai?.s.replace(/^\d+\s*-\s*/, '') });
     if (lado < 0) r.alertas.push(`Substituição sem equipe identificada: ${l.t}`);
     else if (!je || !js) r.alertas.push(`Substituição com número fora da relação: ${l.t}`);
   });
 
-  // minutos de cada atleta
-  r.equipes.forEach((e, lado) => {
-    e.jogadores.forEach(j => { j.entrou = j.titular ? 0 : null; j.saiu = j.titular ? 90 : null; });
-    r.subs.filter(s => s.equipe === lado).sort((a, b) => sumMinAbs(a.tempo, a.minuto) - sumMinAbs(b.tempo, b.minuto)).forEach(s => {
-      const m = sumMinAbs(s.tempo, s.minuto), je = jogadorDe(lado, s.entrou), js = jogadorDe(lado, s.saiu);
-      if (js && js.entrou != null) js.saiu = m;
-      if (je) { je.entrou = m; je.saiu = 90; }
-    });
-    r.cartoes.filter(c => c.equipe === lado && c.cor === 'vermelho').forEach(c => { const j = jogadorDe(lado, c.numero); if (j && j.entrou != null) j.saiu = Math.min(j.saiu ?? 90, sumMinAbs(c.tempo, c.minuto)); });
-    e.jogadores.forEach(j => { j.minutos = j.entrou != null ? Math.max(0, (j.saiu ?? 90) - j.entrou) : 0; });
-    const tit = e.jogadores.filter(j => j.titular).length;
-    if (tit !== 11) r.alertas.push(`${e.nome_sumula}: ${tit} titulares na súmula (esperado 11).`);
+  // conferência cruzada por nome: se o nº de um evento não está na relação (leitura por imagem), procura o atleta pelo nome
+  const chaveNome = t => SUM_SA(String(t || '')).toLowerCase().replace(/\.\.\.$/, '').replace(/[^a-z ]/g, '').replace(/\s+/g, ' ').trim();
+  const porNome = (lado, nome) => {
+    const k = chaveNome(nome); if (lado < 0 || k.length < 5) return null;
+    const c = r.equipes[lado].jogadores.filter(j => { const n = chaveNome(j.nome); return n.length >= 5 && (k.startsWith(n) || n.startsWith(k)); });
+    return c.length === 1 ? c[0] : null;
+  };
+  const corrigeNum = (lado, num, nome) => {
+    if (jogadorDe(lado, num)) return;
+    const j = porNome(lado, nome); if (!j) return;
+    if (!r.equipes[lado].jogadores.some(x => x !== j && String(x.numero) === String(num))) { r.alertas.push(`${r.equipes[lado].nome_sumula}: nº de ${j.apelido} corrigido de ${j.numero} para ${num} (conferido pelo nome).`); j.numero = +num; }
+  };
+  r.subs.forEach(sb => {
+    corrigeNum(sb.equipe, sb.entrou, sb.nomeCompleto1); corrigeNum(sb.equipe, sb.saiu, sb.nomeCompleto2);
+    const je = jogadorDe(sb.equipe, sb.entrou), js = jogadorDe(sb.equipe, sb.saiu);
+    if (je) { sb.cbf = je.cbf; sb.nome = je.apelido; } if (js) { sb.cbf2 = js.cbf; sb.nome2 = js.apelido; }
   });
-  if (r.ft) [0, 1].forEach(lado => {
-    const g = r.gols.filter(x => (x.tipo === 'CT' ? x.equipe !== lado : x.equipe === lado)).length;
-    if (g !== r.ft[lado]) r.alertas.push(`${r.equipes[lado].nome_sumula}: ${g} gol(s) listados, placar diz ${r.ft[lado]}.`);
-  });
+  r.cartoes.forEach(c => { if (/^\d+$/.test(c.numero) && c.equipe >= 0) { corrigeNum(c.equipe, c.numero, c.nomeCompleto); const j = jogadorDe(c.equipe, c.numero); if (j) { c.cbf = j.cbf; c.nome = j.apelido; } } });
+  r.gols.forEach(g => { if (g.equipe >= 0) { corrigeNum(g.equipe, g.numero, g.nomeCompleto); const j = jogadorDe(g.equipe, g.numero); if (j) { g.cbf = j.cbf; g.nome = j.apelido; } } });
+  // alertas de número fora da relação, depois da conferência
+  r.alertas = r.alertas.filter(a => !/fora da relação|não está na relação/.test(a));
+  r.subs.forEach(sb => { if (sb.equipe >= 0 && (!jogadorDe(sb.equipe, sb.entrou) || !jogadorDe(sb.equipe, sb.saiu))) r.alertas.push(`Substituição com número fora da relação: ${sb.tempo} ${sb.minuto}' ${sb.entrou} ↔ ${sb.saiu}`); });
+  r.cartoes.forEach(c => { if (/^\d+$/.test(c.numero) && c.equipe >= 0 && !jogadorDe(c.equipe, c.numero)) r.alertas.push(`Cartão para o nº ${c.numero}, que não está na relação de jogadores.`); });
+
+  sumRecalcular(r);
   return r;
 }
 
-if (typeof module !== 'undefined') module.exports = { lerSumula, sumNomeCurto, sumMinAbs, sumMinTxt, sumTempo, sumInfoArquivo };
+if (typeof module !== 'undefined') module.exports = { lerSumula, sumRecalcular, sumNomeCurto, sumMinAbs, sumMinTxt, sumTempo, sumInfoArquivo };

@@ -185,15 +185,18 @@ async function pSumulas() {
 }
 
 /* ---------- envio de súmulas ---------- */
-async function extrairPaginas(file) {
+async function extrairPaginas(file, prog) {
   if (!window.pdfjsLib) throw new Error('O leitor de PDF não carregou. Recarregue a página.');
   const doc = await pdfjsLib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
-  const pags = [];
+  const pags = []; let nTxt = 0;
   for (let p = 1; p <= doc.numPages; p++) {
     const pg = await doc.getPage(p), vp = pg.getViewport({ scale: 1 }), tc = await pg.getTextContent();
-    pags.push({ w: vp.width, items: tc.items.map(i => [i.str, Math.round(i.transform[4]), Math.round(i.transform[5])]) });
+    const items = tc.items.filter(i => i.str.trim()).map(i => [i.str, Math.round(i.transform[4]), Math.round(i.transform[5])]);
+    nTxt += items.length; pags.push({ w: vp.width, items });
   }
-  return pags;
+  // PDF "impresso" (sem texto, só desenho): lê por imagem
+  if (nTxt < 40) return { pags: await lerSumulaImagem(doc, prog), ocr: true };
+  return { pags, ocr: false };
 }
 
 function escolherSumulas() {
@@ -203,14 +206,16 @@ function escolherSumulas() {
 }
 
 async function lerSumulas(files) {
-  modal(`<h2>Lendo súmulas…</h2><p class="m" id="lprog">0 de ${files.length}</p>`);
+  modal(`<h2>Lendo súmulas…</h2><p class="m" id="lprog">0 de ${files.length}</p><div class="lbar"><i id="lbar"></i></div><p class="m" id="lnota"></p>`);
   try { await carregarAdv(); } catch (e) { /* segue: só não marca "já lançado" */ }
   const lidas = [];
   for (let i = 0; i < files.length; i++) {
     const f = files[i];
-    if ($('#lprog')) $('#lprog').textContent = `${i + 1} de ${files.length}: ${f.name}`;
+    const passo = (txt, frac) => { if ($('#lprog')) $('#lprog').textContent = `${i + 1} de ${files.length}: ${f.name}${txt ? ' · ' + txt : ''}`; if ($('#lbar')) $('#lbar').style.width = Math.round(((i + (frac || 0)) / files.length) * 100) + '%'; };
+    passo('', 0);
     try {
-      const r = lerSumula(await extrairPaginas(f)); r.arquivo = f; r.info = sumInfoArquivo(f.name);
+      const { pags, ocr } = await extrairPaginas(f, frac => { passo(`PDF impresso, lendo por imagem ${Math.round(frac * 100)}%`, frac); if ($('#lnota')) $('#lnota').textContent = 'Este PDF não tem texto (foi "impresso" em PDF). A leitura por imagem leva alguns segundos por página.'; });
+      const r = lerSumula(pags); r.arquivo = f; r.ocr = ocr; r.info = sumInfoArquivo(f.name);
       if (r.info.placar && r.ft && (r.info.placar[0] !== r.ft[0] || r.info.placar[1] !== r.ft[1])) r.alertas.push(`O nome do arquivo diz ${r.info.placar[0]} x ${r.info.placar[1]}, a súmula diz ${r.ft[0]} x ${r.ft[1]}.`);
       lidas.push(r);
     }
@@ -229,6 +234,55 @@ function resumoEquipe(r, lado) {
     ${cart.length ? `<b>Cartões</b>${cart.map(c => `<div><i class="cq ${c.cor === 'amarelo' ? 'am' : 'vm'}"></i>${sumMinTxt(c.tempo, c.minuto)} ${esc(c.nome)}${/^\d+$/.test(c.numero) ? '' : ' (' + esc(c.numero) + ')'}</div>`).join('')}` : ''}</div></div>`;
 }
 
+const sumResumo = (r, jaExiste) => `<b>Jogo ${r.jogo_num}</b> · Rodada ${r.rodada ?? '—'} · ${r.data ? dataBR(r.data) : '—'} · <b>${esc(sumNomeCurto(r.equipes[0].nome_sumula))} ${r.ft?.[0] ?? '?'} x ${r.ft?.[1] ?? '?'} ${esc(sumNomeCurto(r.equipes[1].nome_sumula))}</b>
+  ${jaExiste ? '<span class="badge s-Ativo">já lançado · será atualizado</span>' : '<span class="badge t-Treino">novo</span>'}
+  ${r.ocr ? '<span class="badge s-Titular">lida por imagem · confira</span>' : ''}
+  ${r.alertas.length ? `<span class="badge s-Inativo">${r.alertas.length} alerta${r.alertas.length > 1 ? 's' : ''}</span>` : ''}`;
+const sumCorpo = r => `${r.alertas.length ? `<ul class="conf-al">${r.alertas.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
+  <div class="conf-grid">${resumoEquipe(r, 0)}${resumoEquipe(r, 1)}</div>
+  <p class="m">${esc(r.estadio || '')}${r.ht ? ` · 1º tempo ${r.ht[0]} x ${r.ht[1]}` : ''} · ${r.equipes.map(e => e.jogadores.length).join(' e ')} relacionados</p>`;
+
+// editor da súmula lida (corrigir antes de salvar)
+function sumEditor(r) {
+  const eqOpts = v => opts([[0, sumNomeCurto(r.equipes[0].nome_sumula)], [1, sumNomeCurto(r.equipes[1].nome_sumula)]], v);
+  const tOpts = (v, comInt) => opts(comInt ? ['1T', 'INT', '2T'] : ['1T', '2T'], v);
+  const linhaGol = g => `<tr data-ev="gol"><td><select class="in" data-k="equipe">${eqOpts(g.equipe)}</select></td><td><select class="in" data-k="tempo">${tOpts(g.tempo)}</select></td><td><input class="in" data-k="minuto" value="${g.minuto ?? ''}"></td><td><input class="in" data-k="numero" value="${esc(g.numero ?? '')}"></td><td><select class="in" data-k="tipo">${opts([['NR', 'normal'], ['PN', 'pênalti'], ['CT', 'contra'], ['FA', 'falta']], g.tipo || 'NR')}</select></td><td><button type="button" class="btn sm" data-rm>✕</button></td></tr>`;
+  const linhaCar = c => `<tr data-ev="cartao"><td><select class="in" data-k="equipe">${eqOpts(c.equipe)}</select></td><td><select class="in" data-k="cor">${opts([['amarelo', 'amarelo'], ['vermelho', 'vermelho']], c.cor)}</select></td><td><select class="in" data-k="tempo">${tOpts(c.tempo)}</select></td><td><input class="in" data-k="minuto" value="${c.minuto ?? ''}"></td><td><input class="in" data-k="numero" value="${esc(c.numero ?? '')}"></td><td><button type="button" class="btn sm" data-rm>✕</button></td></tr>`;
+  const linhaSub = x => `<tr data-ev="sub"><td><select class="in" data-k="equipe">${eqOpts(x.equipe)}</select></td><td><select class="in" data-k="tempo">${tOpts(x.tempo, true)}</select></td><td><input class="in" data-k="minuto" value="${x.minuto ?? ''}"></td><td><input class="in" data-k="entrou" value="${esc(x.entrou ?? '')}"></td><td><input class="in" data-k="saiu" value="${esc(x.saiu ?? '')}"></td><td><button type="button" class="btn sm" data-rm>✕</button></td></tr>`;
+  return `<div class="sed">
+    <div class="sed-pl">Placar final <input class="in" data-pl="ft0" value="${r.ft?.[0] ?? ''}"> x <input class="in" data-pl="ft1" value="${r.ft?.[1] ?? ''}">
+      · 1º tempo <input class="in" data-pl="ht0" value="${r.ht?.[0] ?? ''}"> x <input class="in" data-pl="ht1" value="${r.ht?.[1] ?? ''}"></div>
+    <div class="conf-grid">${r.equipes.map((e, lado) => `<div><h4>${esc(sumNomeCurto(e.nome_sumula))}</h4><table class="tb sed-tb"><thead><tr><th>Nº</th><th>Atleta</th><th>Situação</th><th>Gol.</th></tr></thead><tbody>
+      ${e.jogadores.map((j, k) => `<tr data-jog="${lado}:${k}"><td><input class="in" data-k="numero" value="${j.numero}"></td><td><input class="in" data-k="apelido" value="${esc(j.apelido)}"></td><td><select class="in" data-k="titular">${opts([['1', 'Titular'], ['0', 'Reserva']], j.titular ? '1' : '0')}</select></td><td><input type="checkbox" data-k="goleiro"${j.goleiro ? ' checked' : ''}></td></tr>`).join('')}
+    </tbody></table></div>`).join('')}</div>
+    <p class="m">Minuto como na súmula, dentro do tempo: 45+3 no 2º tempo = 2T e 48.</p>
+    <h4>Gols</h4><table class="tb sed-tb"><thead><tr><th>Equipe</th><th>Tempo</th><th>Min.</th><th>Nº</th><th>Tipo</th><th></th></tr></thead><tbody data-lista="gol">${r.gols.map(linhaGol).join('')}</tbody></table>
+    <button type="button" class="btn sm" data-add="gol">+ Gol</button>
+    <h4>Cartões</h4><table class="tb sed-tb"><thead><tr><th>Equipe</th><th>Cor</th><th>Tempo</th><th>Min.</th><th>Nº</th><th></th></tr></thead><tbody data-lista="cartao">${r.cartoes.map(linhaCar).join('')}</tbody></table>
+    <button type="button" class="btn sm" data-add="cartao">+ Cartão</button>
+    <h4>Substituições</h4><table class="tb sed-tb"><thead><tr><th>Equipe</th><th>Tempo</th><th>Min.</th><th>Entrou nº</th><th>Saiu nº</th><th></th></tr></thead><tbody data-lista="sub">${r.subs.map(linhaSub).join('')}</tbody></table>
+    <button type="button" class="btn sm" data-add="sub">+ Substituição</button>
+    <div class="row" style="margin-top:12px"><button type="button" class="btn pri" data-aplicar>Aplicar correções</button><button type="button" class="btn" data-cancela>Cancelar edição</button></div>
+  </div>`;
+}
+function sumAplicarEdicao(r, box) {
+  const n = v => (v === '' || v == null || isNaN(+v)) ? null : +v;
+  const pl = k => n(box.querySelector(`[data-pl="${k}"]`).value);
+  r.ft = [pl('ft0'), pl('ft1')]; r.ht = (pl('ht0') != null && pl('ht1') != null) ? [pl('ht0'), pl('ht1')] : r.ht;
+  box.querySelectorAll('[data-jog]').forEach(tr => {
+    const [lado, k] = tr.dataset.jog.split(':').map(Number), j = r.equipes[lado].jogadores[k];
+    j.numero = n(tr.querySelector('[data-k=numero]').value) ?? j.numero;
+    j.apelido = tr.querySelector('[data-k=apelido]').value.trim() || j.apelido;
+    j.titular = tr.querySelector('[data-k=titular]').value === '1';
+    j.goleiro = tr.querySelector('[data-k=goleiro]').checked;
+  });
+  const ler = tr => Object.fromEntries([...tr.querySelectorAll('[data-k]')].map(x => [x.dataset.k, x.value.trim()]));
+  r.gols = [...box.querySelectorAll('[data-lista=gol] tr')].map(tr => { const v = ler(tr); return { equipe: +v.equipe, tempo: v.tempo, minuto: n(v.minuto) ?? 0, numero: v.numero, tipo: v.tipo, nome: '' }; });
+  r.cartoes = [...box.querySelectorAll('[data-lista=cartao] tr')].map(tr => { const v = ler(tr), velho = r.cartoes.find(c => c.equipe === +v.equipe && String(c.numero) === v.numero && c.cor === v.cor); return { equipe: +v.equipe, cor: v.cor, tempo: v.tempo, minuto: n(v.minuto) ?? 0, numero: v.numero, nome: velho?.nome || '', motivo: velho?.motivo || '' }; });
+  r.subs = [...box.querySelectorAll('[data-lista=sub] tr')].map(tr => { const v = ler(tr); return { equipe: +v.equipe, tempo: v.tempo, minuto: n(v.minuto) ?? 0, entrou: v.entrou, saiu: v.saiu }; });
+  sumRecalcular(r, true);
+}
+
 function conferirSumulas(lidas) {
   const ok = lidas.filter(r => !r.erro), ruins = lidas.filter(r => r.erro);
   const comp0 = ok[0]?.competicao || '';
@@ -239,15 +293,23 @@ function conferirSumulas(lidas) {
     <label class="f"><span>Fase (aplicar a todos)</span><select class="in" id="cfase">${opts(FASES_ADV, faseUlt)}</select></label></div>
     <p class="m" style="margin-top:-4px">A súmula não diz a fase (a federação recomeça a contagem de rodadas em cada fase). O CINQ usa o nome do arquivo quando ele indica a fase (ex.: "Semifinal"); confira em cada jogo antes de salvar.</p>
     ${ruins.map(r => `<div class="note bad">${esc(r.arquivo.name)}: ${esc(r.erro)}</div>`).join('')}
-    ${ok.map((r, i) => `<details class="conf"${ok.length === 1 ? ' open' : ''}><summary>
-        <b>Jogo ${r.jogo_num}</b> · Rodada ${r.rodada ?? '—'} · ${r.data ? dataBR(r.data) : '—'} · <b>${esc(sumNomeCurto(r.equipes[0].nome_sumula))} ${r.ft?.[0] ?? '?'} x ${r.ft?.[1] ?? '?'} ${esc(sumNomeCurto(r.equipes[1].nome_sumula))}</b>
-        ${jaExiste(r) ? '<span class="badge s-Ativo">já lançado · será atualizado</span>' : '<span class="badge t-Treino">novo</span>'}
-        ${r.alertas.length ? `<span class="badge s-Inativo">${r.alertas.length} alerta${r.alertas.length > 1 ? 's' : ''}</span>` : ''}</summary>
-      <div class="conf-fase"><label>Fase deste jogo <select class="in" data-fase="${i}">${opts(FASES_ADV, r.info?.fase || faseUlt)}</select></label>${r.info?.fase ? `<span class="m">pelo nome do arquivo${r.info.volta ? ' · jogo de volta' : r.info.ida ? ' · jogo de ida' : ''}</span>` : ''}</div>
-      ${r.alertas.length ? `<ul class="conf-al">${r.alertas.map(a => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
-      <div class="conf-grid">${resumoEquipe(r, 0)}${resumoEquipe(r, 1)}</div>
-      <p class="m">${esc(r.estadio || '')}${r.ht ? ` · 1º tempo ${r.ht[0]} x ${r.ht[1]}` : ''} · ${r.equipes.map(e => e.jogadores.length).join(' e ')} relacionados</p></details>`).join('')}
+    ${ok.map((r, i) => `<details class="conf" data-j="${i}"${ok.length === 1 || r.ocr || r.alertas.length ? ' open' : ''}><summary>${sumResumo(r, jaExiste(r))}</summary>
+      <div class="conf-fase"><label>Fase deste jogo <select class="in" data-fase="${i}">${opts(FASES_ADV, r.info?.fase || faseUlt)}</select></label>${r.info?.fase ? `<span class="m">pelo nome do arquivo${r.info.volta ? ' · jogo de volta' : r.info.ida ? ' · jogo de ida' : ''}</span>` : ''}
+        <button type="button" class="btn sm" data-editar="${i}">Corrigir dados</button></div>
+      <div class="conf-corpo">${sumCorpo(r)}</div></details>`).join('')}
     <div class="mfoot"><span class="m">${ok.length} súmula${ok.length === 1 ? '' : 's'} pronta${ok.length === 1 ? '' : 's'}</span><div class="row"><button class="btn" id="ccan">Cancelar</button>${ok.length ? `<button class="btn pri" id="csal">Salvar ${ok.length} jogo${ok.length === 1 ? '' : 's'}</button>` : ''}</div></div>`, true);
+  document.querySelectorAll('#modal [data-editar]').forEach(b => b.onclick = () => {
+    const i = +b.dataset.editar, r = ok[i], det = document.querySelector(`#modal details[data-j="${i}"]`), corpo = det.querySelector('.conf-corpo');
+    corpo.innerHTML = sumEditor(r); b.hidden = true;
+    const linhaVazia = tipo => { const tb = corpo.querySelector(`[data-lista=${tipo}]`), mod = { gol: { equipe: 0, tempo: '1T', tipo: 'NR' }, cartao: { equipe: 0, cor: 'amarelo', tempo: '1T' }, sub: { equipe: 0, tempo: '2T' } }[tipo];
+      const tmp = document.createElement('tbody'); tmp.innerHTML = sumEditor({ ...r, gols: tipo === 'gol' ? [mod] : [], cartoes: tipo === 'cartao' ? [mod] : [], subs: tipo === 'sub' ? [mod] : [] }).match(new RegExp(`<tbody data-lista="${tipo}">([\\s\\S]*?)</tbody>`))[1]; tb.appendChild(tmp.firstElementChild); };
+    corpo.onclick = e => {
+      const rm = e.target.closest('[data-rm]'); if (rm) return rm.closest('tr').remove();
+      const add = e.target.closest('[data-add]'); if (add) return linhaVazia(add.dataset.add);
+      if (e.target.closest('[data-cancela]')) { corpo.innerHTML = sumCorpo(r); b.hidden = false; return; }
+      if (e.target.closest('[data-aplicar]')) { sumAplicarEdicao(r, corpo); corpo.innerHTML = sumCorpo(r); b.hidden = false; det.querySelector('summary').innerHTML = sumResumo(r, jaExiste(r)); toast('Correções aplicadas. Confira e salve.'); }
+    };
+  });
   $('#ccan').onclick = fechar;
   if ($('#cfase')) $('#cfase').onchange = e => document.querySelectorAll('#modal [data-fase]').forEach(x => { x.value = e.target.value; });
   if (!$('#csal')) return;

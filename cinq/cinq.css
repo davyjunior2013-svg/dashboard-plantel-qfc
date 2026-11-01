@@ -439,3 +439,10 @@ b.gol{font-size:11px;margin-left:3px;font-weight:600}
 .adv-ct{display:grid;grid-template-columns:1.4fr 1fr;gap:24px;align-items:start}
 @media (max-width:900px){.adv-ct{grid-template-columns:1fr}}
 .bars-cart .bar i{background:#e0a800}
+/* v7.2: súmula impressa */
+.lbar{height:8px;background:#eef1f3;border-radius:6px;overflow:hidden;margin:6px 0}.lbar i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+.conf-fase .btn{margin-left:auto}
+.sed h4{margin:14px 0 6px;font-size:13px}
+.sed-pl{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:13px;margin-bottom:6px}.sed-pl .in{width:52px;padding:4px 6px}
+.sed-tb td,.sed-tb th{padding:3px 4px}.sed-tb .in{padding:3px 6px;font-size:12.5px;min-width:0}
+.sed-tb td:first-child .in,.sed-tb [data-k=minuto],.sed-tb [data-k=numero],.sed-tb [data-k=entrou],.sed-tb [data-k=saiu]{width:58px}
