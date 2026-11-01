@@ -1,12 +1,13 @@
-/* CINQ · Fisioterapia / DM — Atendimento, Lesões e Prevenção
-   Atendimento: relatório diário do fisio (classificação do treino pela PSE dos atletas, condutas com botões criados por ele,
-   atenção especial) e o texto pronto para o WhatsApp. Lesões: registro (padrão UEFA/COI), etapas até a liberação médica,
-   linha do tempo, dias fora. Prevenção: preventivos de cada atleta com adesão automática pelos atendimentos.
+/* CINQ · Fisioterapia / DM — Central, Atendimento, Lesões e Prevenção
+   Central: indicadores do departamento (hoje, período, temporada), alertas e acompanhamento por atleta.
+   Atendimento: registro diário do fisio (condutas com botões criados por ele, PSE só de quem passou no DM, atenção especial)
+   e o relatório geral do dia em PDF/texto. Lesões: registro (padrão UEFA/COI), etapas até a liberação médica,
+   linha do tempo, dias fora. Prevenção: preventivos de cada atleta (ciclo de até 45 dias) com adesão automática pelos atendimentos.
    A situação do atleta (DM, Restrito/Transição, Liberado) aparece no Painel Geral, Elenco, Calendário e Mapa tático. */
 'use strict';
 
 FUNCOES.medico = 'Médico';
-S.dm = { ok: false, condutas: [], dias: {}, pse: [], lesoes: [], notas: [], prev: [], atend: [], cfg: {}, data: null, semana: null };
+S.dm = { ok: false, condutas: [], dias: {}, pse: [], lesoes: [], notas: [], prev: [], atend: [], cfg: {}, data: null, semana: null, periodo: 7 };
 const ETAPAS = ['DM', 'Reabilitação', 'Transição em campo', 'Treino com restrição', 'Liberado'];
 const ETAPA_SIT = { 'DM': 'DM', 'Reabilitação': 'DM', 'Transição em campo': 'Restrito/Transição', 'Treino com restrição': 'Restrito/Transição', 'Liberado': 'Liberado' };
 const FINALIDADES = ['Tratamento', 'Prevenção', 'Recuperação'];
@@ -14,7 +15,7 @@ const MOMENTOS_AT = ['Antes do treino', 'Depois do treino', 'Outro'];
 const CONTEXTOS = ['Treino', 'Jogo', 'Fora do clube', 'Anterior ao clube'];
 const MECANISMOS = ['Sem contato', 'Contato', 'Sobrecarga', 'Não informado'];
 const TIPOS_LESAO = ['Muscular', 'Ligamentar', 'Tendínea', 'Articular', 'Contusão', 'Fratura', 'Outra'];
-const ORIGENS_PREV = ['Avaliação', 'Lesão anterior', 'Posição', 'Pedido do atleta', 'Protocolo do grupo'];
+const CICLO_PREV = 45; // dias: cada atleta fica no máximo 1 mês e meio com o preventivo, depois reavalia e atualiza os exercícios
 const REGIOES = ['Posterior de coxa', 'Anterior de coxa', 'Adutores', 'Panturrilha', 'Joelho', 'Tornozelo', 'Pé', 'Quadril', 'Virilha', 'Lombar', 'Tronco', 'Ombro', 'Cervical', 'MMII', 'MMSS'];
 const podeDM = () => isAdmin() || ['fisio', 'medico', 'analise'].includes(S.perfil?.funcao);
 const podeLiberar = () => isAdmin() || S.perfil?.funcao === 'medico';
@@ -23,6 +24,8 @@ const ladoTxtDM = l => ({ D: 'direito', E: 'esquerdo', Bilateral: 'bilateral' }[
 const nomeA = id => S.atletas.find(a => a.id === id)?.nome || '?';
 const diasEntre = (a, b) => Math.round((parse(b) - parse(a)) / 864e5);
 const dmLista = (arr, sel) => opts(arr, sel, '—');
+const pseDe = (d, id) => S.dm.pse.find(x => x.data === d && x.atleta_id === id)?.nota;
+const mediaPSE = d => { const v = S.dm.pse.filter(x => x.data === d).map(x => x.nota); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length * 10) / 10 : null; };
 
 /* ============ dados ============ */
 async function carregarDM(forcar) {
@@ -54,29 +57,245 @@ function sessoesPerdidas(l) {
 
 /* ============ abas ============ */
 async function pFisioDM(aba) {
-  const tit = { atendimento: 'Atendimento', lesoes: 'Lesões', prevencao: 'Prevenção' }[aba];
+  const tit = { central: 'Central', atendimento: 'Atendimento', lesoes: 'Lesões', prevencao: 'Prevenção' }[aba];
   $('#main').innerHTML = topo('Fisioterapia / DM', tit, '') + fsTabs(aba) + '<div class="panel empty">Carregando…</div>';
   ligarAbasFs();
-  try { await carregarDM(); } catch (e) { $('#main .panel').innerHTML = esc(erroAmigavel(e)); return; }
-  ({ atendimento: pAtendimento, lesoes: pLesoes, prevencao: pPrevencao }[aba])();
+  try { await carregarDM(); if (aba === 'central') await carregarFisio().catch(() => {}); } catch (e) { $('#main .panel').innerHTML = esc(erroAmigavel(e)); return; }
+  ({ central: pCentral, atendimento: pAtendimento, lesoes: pLesoes, prevencao: pPrevencao }[aba])();
+}
+
+/* ============ CENTRAL ============ */
+// região da queixa × achados da última avaliação (título + foco)
+const REG_ACHADO = { 'posterior de coxa': /isquio|posterior de coxa/, 'anterior de coxa': /quadricep|reto femoral|anterior de coxa|flexores do quadril/, 'adutores': /adut|virilha/, 'virilha': /adut|virilha|flexores do quadril/,
+  'panturrilha': /panturr|solear|gastroc|dorsiflex/, 'tornozelo': /tornozelo|dorsiflex/, 'pe': /arco plantar|controle do pe/, 'joelho': /joelho/, 'quadril': /quadril|glute|pelv/,
+  'lombar': /lombo|tronco|pelv/, 'tronco': /lombo|tronco|pelv/, 'ombro': /ombro|quadrante superior|ckcuest/ };
+function achadoDaRegiao(id, regiao) {
+  const re = REG_ACHADO[fNorm(regiao)]; if (!re || typeof ultimaAv !== 'function' || !S.fisio?.ok) return null;
+  const av = ultimaAv(id); if (!av) return null; const rv = av.revisao || {};
+  return (av.achados || []).find(a => (a.nivel === 'al' || a.nivel === 'at') && rv[a.chave] !== 'descartado' && re.test(fNorm(a.titulo + ' ' + (a.foco || '')))) || null;
+}
+function alertasDM(h) {
+  const A = [], add = (nivel, tipo, id, texto) => A.push({ nivel, tipo, id, texto });
+  const ativos = S.atletas.filter(a => a.ativo && a.status !== 'Inativo'), ids = new Set(ativos.map(a => a.id));
+  S.dm.lesoes.filter(l => lesaoAtiva(l) && ids.has(l.atleta_id) && l.previsao_retorno && l.previsao_retorno < h).forEach(l =>
+    add('al', 'Retorno atrasado', l.atleta_id, `${tituloLesao(l)} · previsão era ${fmt(l.previsao_retorno)} (${diasEntre(l.previsao_retorno, h)} dias) · etapa ${l.etapa}`));
+  const u7 = S.dm.atend.filter(x => x.queixa && x.regiao && x.data > addDays(h, -7) && x.data <= h), kk = {};
+  u7.forEach(x => { const k = x.atleta_id + '|' + x.regiao; (kk[k] = kk[k] || new Set()).add(x.data); });
+  Object.entries(kk).forEach(([k, st]) => { if (st.size >= 3) { const [id, r] = k.split('|'); add('al', 'Queixa repetida', +id, `${r}: queixa em ${st.size} dias da última semana`); } });
+  const vistos = new Set();
+  S.dm.atend.filter(x => x.queixa && x.regiao && x.data > addDays(h, -14) && x.data <= h).forEach(x => { const k = x.atleta_id + '|' + fNorm(x.regiao); if (vistos.has(k)) return;
+    const a = achadoDaRegiao(x.atleta_id, x.regiao); if (a) { vistos.add(k); add('at', 'Queixa × avaliação', x.atleta_id, `queixa em ${x.regiao} (${fmt(x.data)}) e a avaliação já apontava: ${a.titulo}`); } });
+  const ini = segunda(h), restam = diasEntre(h, addDays(ini, 6));
+  S.dm.prev.filter(p => p.ativo && ids.has(p.atleta_id)).forEach(p => {
+    const n = diasRevisar(p);
+    if (n <= 0) add('at', 'Preventivo para revisar', p.atleta_id, `${p.item}: ciclo ${n < 0 ? `venceu há ${-n} dia${n === -1 ? '' : 's'}` : 'vence hoje'} · reavaliar e atualizar os exercícios`);
+    const a = adesao(p, ini); if (a.alvo && a.feitos + restam < a.alvo) add('at', 'Preventivo atrasado', p.atleta_id, `${p.item}: ${a.feitos} de ${a.alvo} na semana, não fecha a meta`);
+  });
+  S.dm.lesoes.filter(l => !l.anterior_clube && l.data_retorno && ids.has(l.atleta_id) && l.data_retorno <= h && diasEntre(l.data_retorno, h) <= 14).forEach(l =>
+    add('at', 'Recém-liberado', l.atleta_id, `liberado em ${fmt(l.data_retorno)} (${tituloLesao(l)}) · atenção à carga nos primeiros 14 dias`));
+  if (S.fisio?.ok && typeof ultimaAv === 'function') ativos.forEach(a => { const v = ultimaAv(a.id); if (v?.proxima_reavaliacao && v.proxima_reavaliacao <= h) add('at', 'Reavaliação vencida', a.id, `avaliação física prevista para ${fmt(v.proxima_reavaliacao)}`); });
+  const p7 = S.dm.pse.filter(x => x.nota >= 8 && x.data > addDays(h, -7) && x.data <= h), cp = {}; p7.forEach(x => { cp[x.atleta_id] = (cp[x.atleta_id] || 0) + 1; });
+  Object.entries(cp).forEach(([id, n]) => { if (n >= 2 && ids.has(+id)) add('at', 'PSE alta repetida', +id, `PSE 8 ou mais em ${n} dias da última semana`); });
+  return A.sort((a, b) => (a.nivel === 'al' ? 0 : 1) - (b.nivel === 'al' ? 0 : 1) || nomeA(a.id).localeCompare(nomeA(b.id)));
+}
+function linhaDisp(pts) {
+  if (pts.length < 2) return '<p class="empty">A linha aparece a partir da segunda semana da temporada.</p>';
+  const W = 640, H = 170, pl = 34, pr = 22, pt = 12, pb = 26, mn = Math.min(70, ...pts.map(p => p.v)), x = i => pl + i * (W - pl - pr) / (pts.length - 1), y = v => pt + (100 - v) * (H - pt - pb) / (100 - mn);
+  const grid = [100, Math.round((100 + mn) / 2), mn].map(v => `<line x1="${pl}" x2="${W - pr}" y1="${y(v)}" y2="${y(v)}" class="dc-g"/><text x="${pl - 6}" y="${y(v) + 4}" text-anchor="end">${v}%</text>`).join('');
+  const passo = Math.ceil(pts.length / 8);
+  return `<svg viewBox="0 0 ${W} ${H}" class="dc-svg" role="img" aria-label="Disponibilidade semanal">${grid}
+    <polyline points="${pts.map((p, i) => `${x(i)},${y(p.v)}`).join(' ')}" class="dc-l"/>
+    ${pts.map((p, i) => `<circle cx="${x(i)}" cy="${y(p.v)}" r="3.5" class="dc-p"><title>${fmt(p.d)}: ${p.v}% (${p.fora} fora)</title></circle>${i % passo === 0 || i === pts.length - 1 ? `<text x="${x(i)}" y="${H - 8}" text-anchor="middle">${fmt(p.d)}</text>` : ''}`).join('')}</svg>`;
+}
+function pCentral() {
+  const h = hoje(), per = S.dm.periodo || 7;
+  const ativos = S.atletas.filter(a => a.ativo && a.status !== 'Inativo');
+  const sit = ativos.map(a => ({ a, s: situacao(a.id) })), fora = sit.filter(x => x.s.sit !== 'Liberado');
+  const nDM = fora.filter(x => x.s.sit === 'DM').length, nRT = fora.length - nDM, disp = ativos.length ? Math.round((ativos.length - nDM) / ativos.length * 100) : 100;
+  const ativasL = S.dm.lesoes.filter(l => lesaoAtiva(l)), ret7 = ativasL.filter(l => l.previsao_retorno && l.previsao_retorno >= h && l.previsao_retorno <= addDays(h, 7)), atras = ativasL.filter(l => l.previsao_retorno && l.previsao_retorno < h);
+  const atHoje = S.dm.atend.filter(x => x.data === h), diaH = S.dm.dias[h] || {};
+  // período
+  const iniTemp = INICIO_PRETEMPORADA <= h ? INICIO_PRETEMPORADA : null;
+  const desde = per === 'temp' ? (iniTemp || addDays(h, -29)) : addDays(h, -(per - 1));
+  const atP = S.dm.atend.filter(x => x.data >= desde && x.data <= h), contF = {}; atP.forEach(x => { contF[x.finalidade] = (contF[x.finalidade] || 0) + 1; });
+  const nAtl = new Set(atP.map(x => x.atleta_id)).size;
+  let alvoT = 0, feitoT = 0;
+  for (let w = segunda(desde); w <= h; w = addDays(w, 7)) S.dm.prev.filter(p => p.ativo && (p.inicio || h) <= addDays(w, 6)).forEach(p => { const a = adesao(p, w); if (a.alvo) { alvoT += a.alvo; feitoT += Math.min(a.feitos, a.alvo); } });
+  const temAv = S.fisio?.ok && typeof ultimaAv === 'function', semAv = temAv ? ativos.filter(a => !ultimaAv(a.id)).length : null, reavV = temAv ? ativos.filter(a => { const v = ultimaAv(a.id); return v?.proxima_reavaliacao && v.proxima_reavaliacao <= h; }).length : null;
+  // barras por dia (ou semana na temporada)
+  const porSemana = per === 'temp' || per > 31, chaves = [];
+  if (porSemana) for (let w = segunda(desde); w <= h; w = addDays(w, 7)) chaves.push(w); else for (let d = desde; d <= h; d = addDays(d, 1)) chaves.push(d);
+  const chaveDe = d => porSemana ? segunda(d) : d, cols = Object.fromEntries(chaves.map(k => [k, { Tratamento: 0, 'Prevenção': 0, 'Recuperação': 0 }]));
+  atP.forEach(x => { const c = cols[chaveDe(x.data)]; if (c) c[x.finalidade]++; });
+  const mxC = Math.max(1, ...Object.values(cols).map(c => c.Tratamento + c['Prevenção'] + c['Recuperação']));
+  const conta = (arr, f) => { const o = {}; arr.forEach(x => { const k = f(x); if (k) o[k] = (o[k] || 0) + 1; }); return Object.entries(o).sort((a, b) => b[1] - a[1]); };
+  const barras = (lst, suf = '') => { const mx = Math.max(1, ...lst.map(x => x[1])); return lst.slice(0, 7).map(([k, n, ex]) => `<div class="bar"><span>${esc(k)}</span><div><i style="width:${n / mx * 100}%"></i></div><b>${n}${suf}</b></div>${ex ? `<div class="dc-ex">${esc(ex)}</div>` : ''}`).join('') || '<p class="empty">—</p>'; };
+  // temporada
+  const lesT = iniTemp ? S.dm.lesoes.filter(l => !l.anterior_clube && l.data_inicio >= iniTemp) : [], so = lesT.filter(l => l.categoria === 'Lesão');
+  const diasP = lesT.reduce((t, l) => t + diasFora(l), 0);
+  const comPrev = so.filter(l => l.data_retorno && l.previsao_retorno), dif = comPrev.length ? Math.round(comPrev.reduce((t, l) => t + diasEntre(l.previsao_retorno, l.data_retorno), 0) / comPrev.length) : null;
+  const carga = {}; so.forEach(l => { const k = l.regiao || 'Não informado'; carga[k] = carga[k] || { n: 0, d: 0 }; carga[k].n++; carga[k].d += diasFora(l); });
+  const pts = []; if (iniTemp) for (let w = segunda(iniTemp) < iniTemp ? addDays(segunda(iniTemp), 7) : iniTemp; w <= h; w = addDays(w, 7)) { const f = ativos.filter(a => situacaoEm(a.id, w).sit === 'DM').length; pts.push({ d: w, v: ativos.length ? Math.round((ativos.length - f) / ativos.length * 100) : 100, fora: f }); }
+  if (iniTemp && pts.length && pts[pts.length - 1].d !== h) pts.push({ d: h, v: disp, fora: nDM });
+  // alertas e acompanhamento por atleta
+  const AL = alertasDM(h), alPor = {}; AL.forEach(a => { alPor[a.id] = (alPor[a.id] || 0) + 1; });
+  const linhas = ativos.map(a => { const s = situacao(a.id), at = atP.filter(x => x.atleta_id === a.id), q = at.filter(x => x.queixa);
+    const qr = conta(q, x => x.regiao)[0], pv = S.dm.prev.filter(p => p.ativo && p.atleta_id === a.id), w = segunda(h);
+    let al = 0, fe = 0; pv.forEach(p => { const x = adesao(p, w); if (x.alvo) { al += x.alvo; fe += Math.min(x.feitos, x.alvo); } });
+    const v = temAv ? ultimaAv(a.id) : null, venc = pv.filter(p => diasRevisar(p) <= 0).length;
+    const ps = S.dm.pse.filter(x => x.atleta_id === a.id && x.data >= desde && x.data <= h).map(x => x.nota);
+    const score = (s.sit === 'DM' ? 1000 : s.sit !== 'Liberado' ? 500 : 0) + (alPor[a.id] || 0) * 20 + q.length * 3 + at.length;
+    return { a, s, at, q, qr, pv, al, fe, v, venc, ps, score }; }).sort((x, y) => y.score - x.score || x.a.nome.localeCompare(y.a.nome));
+  const kpi = (l, v, s, cls = '') => `<div class="card ${cls}"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
+  const perTxt = per === 'temp' ? (iniTemp ? 'na temporada' : 'nos últimos 30 dias (temporada ainda não começou)') : `nos últimos ${per} dias`;
+  $('#main').innerHTML = topo('Fisioterapia / DM', 'Central', 'O que está acontecendo no departamento: quem está disponível, o que pede atenção e onde o elenco mais sofre.',
+    `<button class="btn" id="dcrel">Relatório de hoje</button>`) + fsTabs('central') + `
+  <h3 class="dc-bloco">Hoje <small>${esc(fmtLong(h))}</small></h3>
+  <div class="cards fs-kpis">
+    ${kpi('Disponibilidade', disp + '%', `${ativos.length - nDM} de ${ativos.length} atletas${nRT ? ` · ${nRT} com restrição` : ''}`, disp < 85 ? 'dc-ruim' : '')}
+    ${kpi('DM / Restrito', `${nDM} / ${nRT}`, fora.length ? fora.slice(0, 3).map(x => x.a.nome).join(', ') + (fora.length > 3 ? '…' : '') : 'todos liberados')}
+    ${kpi('Retornos em 7 dias', ret7.length, atras.length ? `<b class="dm-atr">${atras.length} atrasado${atras.length > 1 ? 's' : ''}</b>` : 'nenhum atrasado')}
+    ${kpi('Atendidos hoje', new Set(atHoje.map(x => x.atleta_id)).size, `${atHoje.length} atendimento${atHoje.length === 1 ? '' : 's'}${diaH.classificacao ? ' · treino ' + diaH.classificacao : ''}`)}
+  </div>
+  <div class="dm-grid">
+    <div class="panel"><h2>Alertas <small class="m">${AL.length ? `${AL.length} · o sistema sinaliza, o fisio decide` : ''}</small></h2>
+      ${AL.length ? `<div class="dc-al">${AL.map(x => `<div class="dc-ali n-${x.nivel}" data-rdm="${x.id}"><span class="dc-tp">${esc(x.tipo)}</span><b>${esc(nomeA(x.id))}</b><span class="m">${esc(x.texto)}</span></div>`).join('')}</div>` : '<p class="empty">Nada pedindo atenção agora.</p>'}</div>
+    <div class="panel"><h2>Fora ou com restrição</h2>${fora.length ? fora.sort((x, y) => x.s.sit.localeCompare(y.s.sit)).map(x => { const l = x.s.lesao;
+      return `<div class="dm-sit" data-les="${l.id}">${sitBadge(x.s.sit)}<b>${esc(x.a.nome)}</b><span class="m">${esc(tituloLesao(l))} · ${esc(l.etapa)} · ${diasFora(l)} dia${diasFora(l) === 1 ? '' : 's'}${l.previsao_retorno ? ` · retorno ${fmt(l.previsao_retorno)}${l.previsao_retorno < h ? ' <b class="dm-atr">atrasado</b>' : ''}` : ''}</span></div>`; }).join('') : '<p class="empty">Todos liberados.</p>'}</div>
+  </div>
+  <h3 class="dc-bloco">Período <small>${esc(perTxt)}</small><span class="dc-per">${[[7, '7 dias'], [30, '30 dias'], ['temp', 'Temporada']].map(([v, t]) => `<button class="chip${per === v ? ' on' : ''}" data-per="${v}">${t}</button>`).join('')}</span></h3>
+  <div class="cards fs-kpis">
+    ${kpi('Atendimentos', atP.length, nAtl === 1 ? '1 atleta' : `${nAtl} atletas diferentes`)}
+    ${kpi('Tratamento · Prevenção · Recuperação', `${contF.Tratamento || 0} · ${contF['Prevenção'] || 0} · ${contF['Recuperação'] || 0}`, atP.length ? `${Math.round((contF['Prevenção'] || 0) / atP.length * 100)}% do trabalho é prevenção` : '—')}
+    ${kpi('Adesão aos preventivos', alvoT ? Math.round(feitoT / alvoT * 100) + '%' : '—', alvoT ? `${feitoT} de ${alvoT} sessões previstas` : 'sem meta semanal definida')}
+    ${kpi('Avaliação física', temAv ? `${semAv} sem · ${reavV} vencida${reavV === 1 ? '' : 's'}` : '—', temAv ? 'sem avaliação · reavaliação vencida' : 'sem acesso às avaliações')}
+  </div>
+  <div class="grid2">
+    <div class="panel"><h2>Atendimentos por ${porSemana ? 'semana' : 'dia'}</h2>
+      <div class="dc-cols">${chaves.map((k, ki) => { const c = cols[k], t = c.Tratamento + c['Prevenção'] + c['Recuperação'];
+        return `<div class="dc-col" title="${fmt(k)}: ${t} (T ${c.Tratamento} · P ${c['Prevenção']} · R ${c['Recuperação']})"><div class="dc-stk" style="height:${t / mxC * 100}%">${['Tratamento', 'Prevenção', 'Recuperação'].map(f => c[f] ? `<i class="f-${fNorm(f)[0]}" style="flex:${c[f]}"></i>` : '').join('')}</div><b>${t || ''}</b><span>${porSemana || chaves.length > 7 ? (ki % Math.ceil(chaves.length / 8) === 0 || ki === chaves.length - 1 ? fmt(k) : '') : parse(k).toLocaleDateString('pt-BR', { weekday: 'short' }).slice(0, 3) + ' ' + fmt(k).slice(0, 2)}</span></div>`; }).join('')}</div>
+      <div class="dc-leg"><span><i class="f-t"></i>Tratamento</span><span><i class="f-p"></i>Prevenção</span><span><i class="f-r"></i>Recuperação</span></div></div>
+    <div class="panel"><h2>Queixas por região <small class="m">${atP.filter(x => x.queixa).length} queixas</small></h2><div class="fs-bars">${barras(conta(atP.filter(x => x.queixa), x => x.regiao || 'Sem região'))}</div>
+      <h4 class="dm-h4">Quem mais buscou o DM</h4><div class="fs-bars">${barras(conta(atP, x => nomeA(x.atleta_id)))}</div></div>
+  </div>
+  <h3 class="dc-bloco">Temporada <small>${iniTemp ? 'desde ' + dataBR(iniTemp) : 'começa em ' + dataBR(INICIO_PRETEMPORADA)}</small></h3>
+  <div class="cards fs-kpis">
+    ${kpi('Lesões', so.length, `${so.filter(l => l.recidiva).length} recidiva${so.filter(l => l.recidiva).length === 1 ? '' : 's'} · ${lesT.length - so.length} doença${lesT.length - so.length === 1 ? '' : 's'}`)}
+    ${kpi('Dias perdidos', diasP, lesT.length ? `${Math.round(diasP / lesT.length)} dias por ocorrência` : '—')}
+    ${kpi('Treino × jogo', `${so.filter(l => l.contexto === 'Treino').length} × ${so.filter(l => l.contexto === 'Jogo').length}`, 'lesões por contexto')}
+    ${kpi('Retorno real × previsto', dif == null ? '—' : (dif > 0 ? '+' : '') + dif + ' dias', dif == null ? 'aparece com as liberações' : dif > 0 ? 'em média, depois do previsto' : dif < 0 ? 'em média, antes do previsto' : 'em média, no previsto')}
+  </div>
+  <div class="grid2">
+    <div class="panel"><h2>Disponibilidade semanal</h2>${iniTemp ? linhaDisp(pts) : '<p class="empty">Começa com a temporada.</p>'}</div>
+    <div class="panel"><h2>Onde mais custa <small class="m">dias perdidos por região</small></h2><div class="fs-bars">${barras(Object.entries(carga).sort((a, b) => b[1].d - a[1].d).map(([k, v]) => [k, v.d, `${v.n} lesão${v.n > 1 ? 'ões' : ''}`]), 'd')}</div>
+      <h4 class="dm-h4">Mecanismo</h4><div class="fs-bars">${barras(conta(so, l => l.mecanismo || 'Não informado'))}</div></div>
+  </div>
+  <div class="panel"><h2>Acompanhamento por atleta <small class="m">${linhas.length} atletas · quem precisa de mais atenção primeiro · ${esc(perTxt)}</small></h2>
+    <input class="in fs-busca" id="dcbusca" placeholder="Buscar atleta ou posição...">
+    <div class="tablewrap fs-mapa-wrap dc-tab"><table class="tb fs-mapa"><thead><tr><th>Atleta</th><th>Situação</th><th>Atend.</th><th>Queixas</th><th>Preventivos</th><th>Avaliação</th><th>PSE</th><th>Alertas</th></tr></thead><tbody>
+      ${linhas.map(x => `<tr data-rdm="${x.a.id}" data-busca="${esc(fNorm(x.a.nome + ' ' + x.a.posicao))}"><td class="fs-at"><b>${esc(x.a.nome)}</b><div class="m">${esc(x.a.posicao)}</div></td>
+        <td>${sitBadge(x.s.sit) || '<span class="m">Liberado</span>'}</td><td>${x.at.length || '<span class="m">0</span>'}</td>
+        <td>${x.q.length ? `${x.q.length}${x.qr ? ` <span class="m">· ${esc(x.qr[0])}</span>` : ''}` : '<span class="m">—</span>'}</td>
+        <td>${x.pv.length ? `${x.pv.length} · ${x.al ? `${x.fe}/${x.al}` : 'sem meta'}${x.venc ? ' <span class="badge s-Inativo">revisar</span>' : ''}` : '<span class="m">—</span>'}</td>
+        <td>${!temAv ? '—' : x.v ? `${fmt(x.v.data)}${x.v.proxima_reavaliacao && x.v.proxima_reavaliacao <= h ? ' <span class="badge s-Inativo">reavaliar</span>' : ''}` : '<span class="badge">sem</span>'}</td>
+        <td>${x.ps.length ? (Math.round(x.ps.reduce((a, b) => a + b, 0) / x.ps.length * 10) / 10).toString().replace('.', ',') : '<span class="m">—</span>'}</td>
+        <td>${alPor[x.a.id] ? `<span class="badge dm-rt">${alPor[x.a.id]}</span>` : ''}</td></tr>`).join('')}
+    </tbody></table></div></div>`;
+  ligarAbasFs();
+  $('#dcrel').onclick = () => abrirRelatorio(h);
+  document.querySelectorAll('[data-per]').forEach(b => b.onclick = () => { S.dm.periodo = b.dataset.per === 'temp' ? 'temp' : +b.dataset.per; pCentral(); });
+  document.querySelectorAll('#main [data-les]').forEach(el => el.onclick = () => fichaLesao(+el.dataset.les));
+  document.querySelectorAll('#main [data-rdm]').forEach(el => el.onclick = () => resumoDM(+el.dataset.rdm));
+  $('#dcbusca').oninput = e => { const t = fNorm(e.target.value); document.querySelectorAll('.dc-tab tbody tr').forEach(tr => tr.classList.toggle('hidden', !!t && !tr.dataset.busca.includes(t))); };
 }
 
 /* ============ ATENDIMENTO ============ */
+/* histórico da etapa (pelas anotações de etapa) para saber a situação em qualquer dia */
+function etapaEm(l, d) {
+  if (l.anterior_clube || d < l.data_inicio) return null;
+  if (l.data_retorno && d >= l.data_retorno) return 'Liberado';
+  const ns = S.dm.notas.filter(n => n.lesao_id === l.id && n.tipo === 'etapa').sort((a, b) => a.data.localeCompare(b.data) || a.id - b.id);
+  const qual = n => { const m = (n.texto || '').match(/etapa (.+)$/i); if (!m) return null; const t = fNorm(m[1]); return ETAPAS.find(e => fNorm(e) === t) || ETAPAS.find(e => t.startsWith(fNorm(e))) || null; };
+  let e = null; ns.forEach(n => { if (n.data <= d) e = qual(n) || e; });
+  if (!e) e = ns.length ? (qual(ns[0]) || 'DM') : (l.etapa === 'Liberado' ? 'DM' : l.etapa);
+  return e === 'Liberado' && !l.data_retorno ? l.etapa : e;
+}
+function situacaoEm(id, d) {
+  if (d >= hoje()) return situacao(id);
+  const l = S.dm.lesoes.filter(x => x.atleta_id === id).map(x => ({ x, e: etapaEm(x, d) })).filter(y => y.e && y.e !== 'Liberado').sort((a, b) => ETAPAS.indexOf(a.e) - ETAPAS.indexOf(b.e))[0];
+  return l ? { sit: ETAPA_SIT[l.e], lesao: l.x, etapa: l.e } : { sit: 'Liberado', lesao: null };
+}
+const agruparAtl = arr => { const g = []; arr.forEach(x => { let y = g.find(k => k.id === x.atleta_id); if (!y) g.push(y = { id: x.atleta_id, it: [] }); y.it.push(x); }); return g; };
+
+/* ============ RELATÓRIO GERAL DO DIA ============ */
+function dadosDia(data) {
+  const dia = S.dm.dias[data] || {}, at = S.dm.atend.filter(x => x.data === data);
+  const notas = S.dm.notas.filter(x => x.data === data && ['atencao', 'atualizacao', 'exame'].includes(x.tipo));
+  const cont = {}; at.forEach(x => { cont[x.finalidade] = (cont[x.finalidade] || 0) + 1; });
+  const fora = S.atletas.filter(a => a.ativo && a.status !== 'Inativo').map(a => ({ a, s: situacaoEm(a.id, data) })).filter(x => x.s.sit !== 'Liberado')
+    .sort((x, y) => x.s.sit.localeCompare(y.s.sit) || x.a.nome.localeCompare(y.a.nome));
+  const npse = S.dm.pse.filter(x => x.data === data).length;
+  return { dia, at, notas, porAtl: agruparAtl(at), cont, fora, media: mediaPSE(data), npse };
+}
+const fimPonto = t => String(t || '').trim().replace(/[.\s]+$/, '');
+function linhaFora(x, data) { const l = x.s.lesao, e = x.s.etapa || l.etapa;
+  return `${tituloLesao(l)} · ${e} · ${diasEntre(l.data_inicio, data) + 1}º dia${l.previsao_retorno ? ` · previsão de retorno ${dataBR(l.previsao_retorno)}` : ''}`; }
 function relatorioTexto(data) {
-  const dia = S.dm.dias[data] || {}, at = S.dm.atend.filter(x => x.data === data), notas = S.dm.notas.filter(x => x.data === data && ['atencao', 'atualizacao', 'exame'].includes(x.tipo));
-  const L = [`RELATÓRIO FISIOTERAPÊUTICO ${dataBR(data)}`, '.', 'Atletas que Buscaram Atendimento/Queixa/Condutas', ''];
-  if (dia.classificacao) L.push('⭕ CLASSIFICAÇÃO:', ` ${dia.classificacao}`, '');
-  if (dia.turno_local) L.push(dia.turno_local, '');
-  const porAtl = []; at.forEach(x => { let g = porAtl.find(y => y.id === x.atleta_id); if (!g) porAtl.push(g = { id: x.atleta_id, it: [] }); g.it.push(x); });
-  porAtl.forEach(g => { L.push(nomeA(g.id)); g.it.forEach(x => L.push(`${x.queixa ? `Queixa: ${x.queixa.replace(/\.*\s*$/, '')}. ` : ''}${String(x.descricao).trim().replace(/\.*\s*$/, '')}.(${x.finalidade})`)); L.push(''); });
-  if (!porAtl.length) L.push('Nenhum atendimento registrado.', '');
-  if (notas.length) {
-    L.push('🚨 Atletas que precisam de atenção especial', '');
-    const porN = []; notas.forEach(x => { let g = porN.find(y => y.id === x.atleta_id); if (!g) porN.push(g = { id: x.atleta_id, it: [] }); g.it.push(x); });
-    porN.forEach(g => { L.push(` ${nomeA(g.id)}`); g.it.forEach(x => { const l = x.lesao_id && S.dm.lesoes.find(y => y.id === x.lesao_id);
-      L.push(String(x.texto || '').trim() + (l ? ` (${diasEntre(l.data_inicio, data)}º dia · ${l.etapa}${l.previsao_retorno && l.etapa !== 'Liberado' ? ` · previsão de retorno ${dataBR(l.previsao_retorno)}` : ''})` : '')); }); L.push(''); });
-  }
-  return L.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  const r = dadosDia(data), L = [`RELATÓRIO DA FISIOTERAPIA · ${dataBR(data)} (${parse(data).toLocaleDateString('pt-BR', { weekday: 'long' })})`];
+  const cab = [r.dia.turno_local, r.dia.classificacao ? `Treino ${r.dia.classificacao}${r.media != null ? ` (PSE média ${String(r.media).replace('.', ',')} de ${r.npse} atleta${r.npse === 1 ? '' : 's'})` : ''}` : ''].filter(Boolean);
+  if (cab.length) L.push(cab.join(' · '));
+  L.push('', 'RESUMO', `${r.at.length} atendimento${r.at.length === 1 ? '' : 's'} · ${r.porAtl.length} atleta${r.porAtl.length === 1 ? '' : 's'}${FINALIDADES.filter(f => r.cont[f]).map(f => ` · ${f} ${r.cont[f]}`).join('')}`);
+  L.push(`DM: ${r.fora.filter(x => x.s.sit === 'DM').length} · Restrito/Transição: ${r.fora.filter(x => x.s.sit !== 'DM').length}`, '', 'ATENDIMENTOS');
+  if (!r.porAtl.length) L.push('Nenhum atendimento registrado.');
+  r.porAtl.forEach(g => { const ps = pseDe(data, g.id); L.push(`• ${nomeA(g.id)}${ps != null ? ` (PSE ${ps})` : ''}`);
+    g.it.forEach(x => L.push(`  ${[x.momento, x.finalidade].filter(Boolean).join(' · ')}: ${x.queixa ? `queixa ${fimPonto(x.queixa)}${x.regiao ? ` (${x.regiao}${x.lado ? ' ' + ladoTxtDM(x.lado) : ''})` : ''}. ` : ''}${fimPonto(x.descricao)}.`)); });
+  if (r.notas.length) { L.push('', 'ATENÇÃO ESPECIAL');
+    agruparAtl(r.notas).forEach(g => { L.push(`• ${nomeA(g.id)}`); g.it.forEach(x => { const l = x.lesao_id && S.dm.lesoes.find(y => y.id === x.lesao_id);
+      L.push(`  ${fimPonto(x.texto)}${l ? ` (${diasEntre(l.data_inicio, data) + 1}º dia · ${etapaEm(l, data) || l.etapa})` : ''}.`); }); }); }
+  if (r.fora.length) { L.push('', 'DEPARTAMENTO MÉDICO'); r.fora.forEach(x => L.push(`• ${x.a.nome} — ${x.s.sit}: ${linhaFora(x, data)}`)); }
+  L.push('', `Fisioterapia QFC${S.perfil?.nome ? ' · ' + S.perfil.nome : ''}`);
+  return L.join('\n');
+}
+function relatorioHTML(data) {
+  const r = dadosDia(data);
+  return `<div class="print-head"><img src="${LOGO}" alt=""><div><b>CINQ · Centro de Inteligência do QFC</b><span>Fisioterapia / DM · relatório geral do dia</span></div></div>
+    <div class="rel-tit"><h1>Relatório da Fisioterapia</h1><span>${esc(fmtLong(data))} de ${parse(data).getFullYear()}</span></div>
+    <div class="rel-res">
+      <div><b>${r.at.length}</b><span>atendimentos</span></div><div><b>${r.porAtl.length}</b><span>atletas atendidos</span></div>
+      ${FINALIDADES.map(f => `<div><b>${r.cont[f] || 0}</b><span>${f}</span></div>`).join('')}
+      <div><b>${esc(r.dia.classificacao || '—')}</b><span>treino${r.media != null ? ` · PSE ${String(r.media).replace('.', ',')}` : ''}</span></div>
+      <div><b>${r.fora.filter(x => x.s.sit === 'DM').length} / ${r.fora.filter(x => x.s.sit !== 'DM').length}</b><span>DM / restrito</span></div>
+    </div>
+    ${r.dia.turno_local ? `<p class="rel-m">Turno/local: ${esc(r.dia.turno_local)}</p>` : ''}
+    <h3 class="rel-h">Atendimentos</h3>
+    ${r.at.length ? `<table class="rel-tb"><thead><tr><th>Atleta</th><th>Momento</th><th>Queixa / região</th><th>Conduta</th><th>Finalidade</th></tr></thead><tbody>
+      ${r.porAtl.map(g => g.it.map((x, k) => { const ps = pseDe(data, g.id);
+        return `<tr${k === 0 ? ' class="rel-nov"' : ''}><td>${k === 0 ? `<b>${esc(nomeA(g.id))}</b>${ps != null ? `<small>PSE ${ps}</small>` : ''}` : ''}</td><td>${esc(x.momento || '')}</td>
+        <td>${esc(x.queixa || '')}${x.regiao ? `<small>${esc(x.regiao)}${x.lado ? ' ' + esc(ladoTxtDM(x.lado)) : ''}</small>` : ''}</td><td>${esc(x.descricao)}</td><td><span class="rel-f f-${fNorm(x.finalidade).slice(0, 1)}">${esc(x.finalidade)}</span></td></tr>`; }).join('')).join('')}
+    </tbody></table>` : '<p class="rel-m">Nenhum atendimento registrado.</p>'}
+    ${r.notas.length ? `<h3 class="rel-h">Atenção especial</h3>${r.notas.map(x => { const l = x.lesao_id && S.dm.lesoes.find(y => y.id === x.lesao_id);
+      return `<div class="rel-nota"><b>${esc(nomeA(x.atleta_id))}</b>${l ? ` <small>${esc(tituloLesao(l))} · ${diasEntre(l.data_inicio, data) + 1}º dia · ${esc(etapaEm(l, data) || l.etapa)}</small>` : ''}<p>${esc(x.texto || '')}</p></div>`; }).join('')}` : ''}
+    <h3 class="rel-h">Departamento médico</h3>
+    ${r.fora.length ? `<table class="rel-tb"><thead><tr><th>Atleta</th><th>Situação</th><th>Lesão / doença</th><th>Etapa</th><th>Dia</th><th>Previsão</th></tr></thead><tbody>
+      ${r.fora.map(x => { const l = x.s.lesao; return `<tr><td><b>${esc(x.a.nome)}</b></td><td>${esc(x.s.sit)}</td><td>${esc(tituloLesao(l))}</td><td>${esc(x.s.etapa || l.etapa)}</td><td>${diasEntre(l.data_inicio, data) + 1}º</td><td>${l.previsao_retorno ? dataBR(l.previsao_retorno) : '—'}</td></tr>`; }).join('')}
+    </tbody></table>` : '<p class="rel-m">Todos os atletas liberados.</p>'}
+    <div class="ip-rodape">Quinho Futebol Clube · Fisioterapia${S.perfil?.nome ? ' · ' + esc(S.perfil.nome) : ''} · gerado em ${new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })} · uso interno</div>`;
+}
+function abrirRelatorio(data) {
+  modal(`<div class="rel-prev">${relatorioHTML(data)}</div>
+    <div class="mfoot"><span class="m">Baixar PDF abre a impressão: escolha “Salvar como PDF”.</span><div class="row"><button class="btn" id="relf">Fechar</button>${navigator.share ? '<button class="btn" id="relsh">Compartilhar texto</button>' : ''}<button class="btn" id="relcp">Copiar texto</button><button class="btn pri" id="relpdf">Baixar PDF</button></div></div>`, true);
+  $('#relf').onclick = fechar;
+  $('#relcp').onclick = async () => toast(await copiarTexto(relatorioTexto(data)) ? 'Texto copiado. É só colar onde quiser enviar.' : 'Não consegui copiar.', false);
+  if ($('#relsh')) $('#relsh').onclick = () => navigator.share({ title: `Relatório da Fisioterapia ${dataBR(data)}`, text: relatorioTexto(data) }).catch(() => {});
+  $('#relpdf').onclick = () => imprimirRelatorio(data);
+}
+async function imprimirRelatorio(data) {
+  document.querySelectorAll('#print-area').forEach(x => x.remove());
+  const w = document.createElement('div'); w.id = 'print-area'; w.className = 'rel-print'; w.innerHTML = relatorioHTML(data);
+  document.body.appendChild(w); document.body.classList.add('imprimindo');
+  await Promise.all([...w.querySelectorAll('img')].map(i => i.decode ? i.decode().catch(() => {}) : null));
+  const t = document.title; document.title = `Relatorio_Fisioterapia_${data}`;
+  setTimeout(() => { window.print(); setTimeout(() => { w.remove(); document.body.classList.remove('imprimindo'); document.title = t; }, 500); }, 150);
 }
 async function copiarTexto(t) {
   try { await navigator.clipboard.writeText(t); return true; } catch (e) {
@@ -87,7 +306,7 @@ async function copiarTexto(t) {
 function pAtendimento() {
   const d = S.dm.data || (S.dm.data = hoje()), dia = S.dm.dias[d] || {}, pode = podeDM();
   const at = S.dm.atend.filter(x => x.data === d), notas = S.dm.notas.filter(x => x.data === d);
-  const pse = S.dm.pse.filter(x => x.data === d);
+  const npse = S.dm.pse.filter(x => x.data === d).length, mpse = mediaPSE(d);
   const ini = segunda(d), sem = S.dm.atend.filter(x => x.data >= ini && x.data <= addDays(ini, 6));
   const contA = {}; sem.forEach(x => { contA[x.atleta_id] = (contA[x.atleta_id] || 0) + 1; });
   const contR = {}; sem.filter(x => x.regiao).forEach(x => { contR[x.regiao] = (contR[x.regiao] || 0) + 1; });
@@ -98,22 +317,22 @@ function pAtendimento() {
   Object.entries(kk).forEach(([k, s]) => { if (s.size >= 3) { const [id, r] = k.split('|'); rep.push(`${nomeA(+id)}: queixa em ${r} em ${s.size} dias da última semana`); } });
   const dm = S.atletas.filter(a => a.ativo).map(a => ({ a, s: situacao(a.id) })).filter(x => x.s.sit !== 'Liberado');
   const top = (o, n = 6) => Object.entries(o).sort((a, b) => b[1] - a[1]).slice(0, n);
-  const porAtl = []; at.forEach(x => { let g = porAtl.find(y => y.id === x.atleta_id); if (!g) porAtl.push(g = { id: x.atleta_id, it: [] }); g.it.push(x); });
-  $('#main').innerHTML = topo('Fisioterapia / DM', 'Atendimento', 'O que cada atleta fez antes e depois do treino, com o relatório do dia pronto para enviar.',
-    `${pode ? '<button class="btn" id="dmbot">Meus botões de conduta</button>' : ''}<button class="btn pri" id="dmcop">Copiar relatório</button>`) + fsTabs('atendimento') + `
+  const porAtl = agruparAtl(at);
+  $('#main').innerHTML = topo('Fisioterapia / DM', 'Atendimento', 'Quem passou no DM, queixa e conduta. O relatório geral do dia sai pronto em PDF ou texto.',
+    `${pode ? '<button class="btn" id="dmbot">Meus botões de conduta</button>' : ''}<button class="btn pri" id="dmcop">Relatório do dia</button>`) + fsTabs('atendimento') + `
   <div class="dm-dia"><button class="btn sm" id="dmant">◀</button><input type="date" class="in" id="dmdata" value="${d}"><button class="btn sm" id="dmprox">▶</button>${d !== hoje() ? '<button class="btn sm" id="dmhoje">Hoje</button>' : ''}<b>${esc(fmtLong(d))}</b></div>
   <div class="dm-grid">
     <div>
       <div class="panel dm-cab">
         <div class="dm-class c-${(dia.classificacao || 'nd').toLowerCase()}"><span>Classificação do treino</span><b>${esc(dia.classificacao || '—')}</b>
-          <small>${dia.pse_media != null ? `PSE média ${String(dia.pse_media).replace('.', ',')} · ${pse.length} atleta${pse.length === 1 ? '' : 's'}` : 'sem PSE lançada'}</small></div>
-        <div class="dm-cab-f">${pode ? `<button class="btn sm" id="dmpse">Lançar PSE dos atletas</button>
-          <label class="m">ou classificar direto <select class="in" id="dmclass">${dmLista(['Leve', 'Moderado', 'Intenso'], dia.classificacao)}</select></label>
+          <small>${mpse != null ? `PSE média ${String(mpse).replace('.', ',')} · ${npse} atleta${npse === 1 ? '' : 's'} atendido${npse === 1 ? '' : 's'}` : 'PSE: só de quem passou no DM'}</small></div>
+        <div class="dm-cab-f">${pode ? `<label class="m">Classificação <select class="in" id="dmclass">${dmLista(['Leve', 'Moderado', 'Intenso'], dia.classificacao)}</select></label>
           <label class="m">Turno/local <input class="in" id="dmturno" value="${esc(dia.turno_local || '')}" placeholder="Tarde/ESTÁDIO"></label>` : `<span class="m">${esc(dia.turno_local || '')}</span>`}</div>
       </div>
       <div class="panel"><h2>Atendimentos <small class="m">${at.length} lançamento${at.length === 1 ? '' : 's'} · ${porAtl.length} atleta${porAtl.length === 1 ? '' : 's'}</small>${pode ? '<button class="btn pri sm dm-add" id="dmnovo">+ Atendimento</button>' : ''}</h2>
         ${porAtl.length ? porAtl.map(g => { const s = situacao(g.id);
-          return `<div class="dm-at"><div class="dm-at-h"><b>${esc(nomeA(g.id))}</b>${sitBadge(s.sit)}</div>${g.it.map(x => `<div class="dm-at-i">
+          const ps = pseDe(d, g.id);
+          return `<div class="dm-at"><div class="dm-at-h"><b>${esc(nomeA(g.id))}</b>${sitBadge(s.sit)}${ps != null ? `<span class="badge dm-pseb">PSE ${ps}</span>` : ''}</div>${g.it.map(x => `<div class="dm-at-i">
             <div><span class="badge dm-f-${x.finalidade === 'Tratamento' ? 't' : x.finalidade === 'Prevenção' ? 'p' : 'r'}">${esc(x.finalidade)}</span> <span class="m">${esc(x.momento || '')}${x.regiao ? ' · ' + esc(x.regiao) + (x.lado ? ' ' + esc(ladoTxtDM(x.lado)) : '') : ''}</span>
             ${x.queixa ? `<div class="dm-q">Queixa: ${esc(x.queixa)}</div>` : ''}<p>${esc(x.descricao)}</p>
             ${x.prevencao_ids?.length ? `<small class="dm-ok">✓ ${x.prevencao_ids.map(i => esc(S.dm.prev.find(p => p.id === i)?.item || '')).filter(Boolean).join(', ')}</small>` : ''}</div>
@@ -132,7 +351,6 @@ function pAtendimento() {
         <h4 class="dm-h4">Quem mais buscou atendimento</h4>${top(contA).map(([id, n]) => `<div class="kv small"><span>${esc(nomeA(+id))}</span><b>${n}</b></div>`).join('') || '<p class="empty">—</p>'}
         <h4 class="dm-h4">Regiões mais tratadas</h4>${top(contR).map(([r, n]) => `<div class="kv small"><span>${esc(r)}</span><b>${n}</b></div>`).join('') || '<p class="empty">—</p>'}
       </div>
-      <div class="panel"><h2>Relatório do dia <small class="m">texto para o WhatsApp</small></h2><pre class="dm-rel">${esc(relatorioTexto(d))}</pre></div>
     </div>
   </div>`;
   ligarAbasFs();
@@ -140,11 +358,10 @@ function pAtendimento() {
   $('#dmant').onclick = () => irDia(addDays(d, -1)); $('#dmprox').onclick = () => irDia(addDays(d, 1));
   if ($('#dmhoje')) $('#dmhoje').onclick = () => irDia(hoje());
   $('#dmdata').onchange = e => e.target.value && irDia(e.target.value);
-  $('#dmcop').onclick = async () => toast(await copiarTexto(relatorioTexto(d)) ? 'Relatório copiado. É só colar no WhatsApp.' : 'Não consegui copiar; selecione o texto no painel.', false);
+  $('#dmcop').onclick = () => abrirRelatorio(d);
   document.querySelectorAll('#main [data-les]').forEach(el => el.onclick = () => fichaLesao(+el.dataset.les));
   if (!pode) return;
   $('#dmbot').onclick = gerenciarCondutas;
-  $('#dmpse').onclick = () => lancarPSE(d);
   $('#dmclass').onchange = e => salvarDia(d, { classificacao: e.target.value || null });
   $('#dmturno').onchange = e => salvarDia(d, { turno_local: e.target.value.trim() || null });
   $('#dmnovo').onclick = () => formAtendimento(d);
@@ -167,26 +384,17 @@ async function salvarDia(d, campos) {
   if (error) return toast(erroAmigavel(error), true);
   S.dm.dias[d] = data; if (S.page === 'fisio' && S.fisio.aba === 'atendimento') pAtendimento();
 }
-function lancarPSE(d) {
-  const ativos = S.atletas.filter(a => a.ativo && a.status !== 'Inativo').sort((a, b) => POSICOES.indexOf(a.posicao) - POSICOES.indexOf(b.posicao) || a.nome.localeCompare(b.nome));
-  const atual = Object.fromEntries(S.dm.pse.filter(x => x.data === d).map(x => [x.atleta_id, x.nota]));
-  modal(`<h2>PSE do treino · ${dataBR(d)}</h2><p class="m">Nota de 0 a 10 que cada atleta deu para a intensidade do treino. Deixe em branco quem não respondeu. Classificação pela média: até 4 Leve, 5 a 6 Moderado, 7 ou mais Intenso.</p>
-    <div class="dm-pse">${ativos.map(a => `<label><span>${esc(a.nome)}<small>${esc(a.posicao)}</small></span><input class="in" type="number" min="0" max="10" step="1" inputmode="numeric" data-pse="${a.id}" value="${atual[a.id] ?? ''}"></label>`).join('')}</div>
-    <div class="mfoot"><span class="m" id="dmpsem"></span><div class="row"><button class="btn" id="dmpsec">Cancelar</button><button class="btn pri" id="dmpses">Salvar</button></div></div>`, true);
-  const media = () => { const v = [...document.querySelectorAll('[data-pse]')].map(i => i.value).filter(x => x !== '').map(Number).filter(n => n >= 0 && n <= 10);
-    const m = v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length * 10) / 10 : null;
-    $('#dmpsem').textContent = m == null ? 'Sem notas' : `Média ${String(m).replace('.', ',')} → ${classifPSE(m)} (${v.length} atletas)`; return m; };
-  document.querySelectorAll('[data-pse]').forEach(i => i.oninput = media); media();
-  $('#dmpsec').onclick = fechar;
-  $('#dmpses').onclick = async () => {
-    const vals = [...document.querySelectorAll('[data-pse]')].map(i => ({ id: +i.dataset.pse, v: i.value }));
-    if (vals.some(x => x.v !== '' && !(+x.v >= 0 && +x.v <= 10 && Number.isInteger(+x.v)))) return toast('Use notas inteiras de 0 a 10.', true);
-    const ins = vals.filter(x => x.v !== '').map(x => ({ data: d, atleta_id: x.id, nota: +x.v })), del = vals.filter(x => x.v === '' && atual[x.id] != null).map(x => x.id);
-    if (ins.length) { const { error } = await sb.from('fisio_pse').upsert(ins, { onConflict: 'data,atleta_id' }); if (error) return toast(erroAmigavel(error), true); }
-    if (del.length) { const { error } = await sb.from('fisio_pse').delete().eq('data', d).in('atleta_id', del); if (error) return toast(erroAmigavel(error), true); }
-    S.dm.pse = S.dm.pse.filter(x => x.data !== d).concat(ins);
-    const m = media(); fechar(); await salvarDia(d, { pse_media: m, classificacao: classifPSE(m) ?? (S.dm.dias[d]?.classificacao || null) }); toast('PSE salva.');
-  };
+async function salvarPSE(d, id, nota) {
+  const atual = pseDe(d, id); if ((nota ?? null) === (atual ?? null)) return true;
+  const r = nota == null ? await sb.from('fisio_pse').delete().eq('data', d).eq('atleta_id', id) : await sb.from('fisio_pse').upsert({ data: d, atleta_id: id, nota }, { onConflict: 'data,atleta_id' });
+  if (r.error) { toast(erroAmigavel(r.error), true); return false; }
+  S.dm.pse = S.dm.pse.filter(x => !(x.data === d && x.atleta_id === id)).concat(nota == null ? [] : [{ data: d, atleta_id: id, nota }]);
+  const dia = S.dm.dias[d] || {}, antes = dia.pse_media != null ? classifPSE(dia.pse_media) : null, m = mediaPSE(d);
+  // classificação automática pela média, a não ser que o fisio tenha escolhido outra
+  const campos = { pse_media: m }; if (!dia.classificacao || dia.classificacao === antes) campos.classificacao = classifPSE(m);
+  const row = { ...dia, data: d, ...campos }; delete row.atualizado_em;
+  const u = await sb.from('fisio_dias').upsert(row, { onConflict: 'data' }).select().single(); if (!u.error) S.dm.dias[d] = u.data;
+  return true;
 }
 function gerenciarCondutas() {
   const lin = c => `<tr data-cd="${c.id || ''}"><td><input class="in" data-k="nome" value="${esc(c.nome || '')}" placeholder="Rótulo do botão"></td><td><input class="in" data-k="texto" value="${esc(c.texto || '')}" placeholder="Texto que entra no atendimento"></td><td><select class="in" data-k="finalidade">${dmLista(FINALIDADES, c.finalidade)}</select></td><td><button class="btn sm" data-rmcd>✕</button></td></tr>`;
@@ -229,6 +437,7 @@ function formAtendimento(d, x) {
       <label class="f"><span>Região</span><input class="in" id="far" list="dmreg" value="${esc(x?.regiao || '')}"></label>
       <label class="f"><span>Lado</span><select class="in" id="fala">${dmLista([['D', 'Direito'], ['E', 'Esquerdo'], ['Bilateral', 'Bilateral']], x?.lado)}</select></label></div>
     <datalist id="dmreg">${REGIOES.map(r => `<option value="${esc(r)}">`).join('')}</datalist>
+    <div class="g3" id="fapw"><label class="f"><span>PSE do treino (0 a 10)</span><input class="in" type="number" min="0" max="10" step="1" inputmode="numeric" id="fap" placeholder="se perguntou"></label></div>
     <div class="f"><span class="m">Condutas ${condAtivas.length ? '' : '· crie seus botões em “Meus botões de conduta”'}</span><div class="dm-cbtn">${condAtivas.map(c => `<button type="button" class="chip${cds.includes(c.id) ? ' on' : ''}" data-cb="${c.id}" title="${esc(c.texto)}">${esc(c.nome)}</button>`).join('')}</div></div>
     <label class="f"><span>Descrição (é o texto que vai para o relatório)</span><textarea class="in" id="fad" rows="3" placeholder="Foi realizado ...">${esc(x?.descricao || '')}</textarea></label>
     <div id="faprev"></div>
@@ -238,6 +447,7 @@ function formAtendimento(d, x) {
     $('#fal').innerHTML = opts(ls.map(l => [l.id, tituloLesao(l)]), x?.lesao_id ?? (ls[0] && $('#faf').value === 'Tratamento' ? ls[0].id : ''), 'nenhuma');
     $('#fal').disabled = !ls.length;
   };
+  const atualizaPSE = () => { const um = sel.length === 1; $('#fapw').style.display = um ? '' : 'none'; if (um) $('#fap').value = pseDe(d, sel[0]) ?? ''; };
   const atualizaPrev = () => {
     const box = $('#faprev');
     if (sel.length !== 1) { const n = S.dm.prev.filter(p => p.ativo && sel.includes(p.atleta_id) && p.conduta_id && cds.includes(p.conduta_id)).length;
@@ -249,7 +459,7 @@ function formAtendimento(d, x) {
   $('#dmatl').onclick = e => { const b = e.target.closest('[data-ca]'); if (!b) return; const id = +b.dataset.ca;
     if (edit) { sel = [id]; document.querySelectorAll('#dmatl .chip').forEach(c => c.classList.toggle('on', c === b)); }
     else { sel = sel.includes(id) ? sel.filter(i => i !== id) : [...sel, id]; b.classList.toggle('on'); }
-    atualizaLesao(); atualizaPrev(); };
+    atualizaLesao(); atualizaPrev(); atualizaPSE(); };
   document.querySelector('.dm-cbtn').onclick = e => { const b = e.target.closest('[data-cb]'); if (!b) return; const c = condAtivas.find(k => k.id === +b.dataset.cb);
     const ta = $('#fad'); if (!cds.includes(c.id)) { cds.push(c.id); b.classList.add('on');
       const t = ta.value.trim(); ta.value = t ? `${t.replace(/[.\s]+$/, '')}, ${c.texto}` : `Foi realizado ${c.texto}`;
@@ -257,11 +467,13 @@ function formAtendimento(d, x) {
     else { cds = cds.filter(i => i !== c.id); b.classList.remove('on'); }
     atualizaPrev(); };
   $('#faf').onchange = atualizaLesao;
-  atualizaLesao(); atualizaPrev();
+  atualizaLesao(); atualizaPrev(); atualizaPSE();
   $('#fac').onclick = fechar;
   $('#fas').onclick = async () => {
     if (!sel.length) return toast('Escolha o atleta.', true);
     const desc = $('#fad').value.trim(); if (!desc) return toast('Escreva a descrição (ou use os botões).', true);
+    const pv = sel.length === 1 ? $('#fap').value.trim() : '';
+    if (pv !== '' && !(Number.isInteger(+pv) && +pv >= 0 && +pv <= 10)) return toast('PSE: nota inteira de 0 a 10.', true);
     const base = { data: d, momento: $('#fam').value, finalidade: $('#faf').value, queixa: $('#faq').value.trim() || null, regiao: $('#far').value.trim() || null, lado: $('#fala').value || null, descricao: desc, conduta_ids: cds };
     const marcados = [...document.querySelectorAll('[data-pv]:checked')].map(i => +i.dataset.pv);
     const rows = sel.map(id => ({ ...base, atleta_id: id, lesao_id: sel.length === 1 && $('#fal').value ? +$('#fal').value : null,
@@ -271,6 +483,7 @@ function formAtendimento(d, x) {
     const r = edit ? await sb.from('fisio_atendimentos').update(rows[0]).eq('id', x.id).select() : await sb.from('fisio_atendimentos').insert(rows).select();
     b.disabled = false; if (r.error) return toast(erroAmigavel(r.error), true);
     if (edit) S.dm.atend = S.dm.atend.map(y => y.id === x.id ? r.data[0] : y); else S.dm.atend.push(...r.data);
+    if (sel.length === 1) await salvarPSE(d, sel[0], pv === '' ? null : +pv);
     fechar(); toast(edit ? 'Atendimento atualizado.' : `${rows.length} atendimento${rows.length > 1 ? 's' : ''} lançado${rows.length > 1 ? 's' : ''}.`); pAtendimento();
   };
 }
@@ -478,10 +691,23 @@ function editarCriterios() {
 }
 
 /* ============ PREVENÇÃO ============ */
+// frequência é escrita livre ("3x na semana", "todo pré-treino"); quando tem número por semana, vira meta de adesão
+function alvoFreq(f) {
+  const t = fNorm(f); if (!t) return null;
+  let m = t.match(/^(\d{1,2})\s*(x|vezes)?$/) || t.match(/(\d{1,2})\s*(x|vezes)?\s*(por|na|a|\/|p\/)?\s*sem/);
+  return m && +m[1] >= 1 && +m[1] <= 14 ? +m[1] : null;
+}
+const revisarEm = p => p.revisar_em || addDays(p.inicio || hoje(), CICLO_PREV);
+const diasRevisar = p => diasEntre(hoje(), revisarEm(p));
+function cicloBadge(p) {
+  const n = diasRevisar(p);
+  return n < 0 ? `<span class="badge s-Inativo">revisar · venceu há ${-n} dia${n === -1 ? '' : 's'}</span>` : n === 0 ? '<span class="badge s-Inativo">revisar hoje</span>'
+    : n <= 7 ? `<span class="badge dm-rt">revisar em ${n} dia${n === 1 ? '' : 's'}</span>` : '';
+}
 function adesao(p, ini) {
   const fim = addDays(ini, 6);
   const dias = new Set(S.dm.atend.filter(x => x.atleta_id === p.atleta_id && x.data >= ini && x.data <= fim && (x.prevencao_ids || []).includes(p.id)).map(x => x.data));
-  return { feitos: dias.size, alvo: p.vezes_semana || null };
+  return { feitos: dias.size, alvo: alvoFreq(p.vezes_semana) };
 }
 function pPrevencao() {
   const pode = podeDM(), ini = S.dm.semana || (S.dm.semana = segunda(hoje()));
@@ -489,24 +715,27 @@ function pPrevencao() {
   const atls = [...new Set(ativos.map(p => p.atleta_id))].sort((a, b) => nomeA(a).localeCompare(nomeA(b)));
   let alvoT = 0, feitoT = 0; const devendo = new Set();
   ativos.forEach(p => { const a = adesao(p, ini); if (a.alvo) { alvoT += a.alvo; feitoT += Math.min(a.feitos, a.alvo); if (a.feitos < a.alvo && ini <= hoje()) devendo.add(p.atleta_id); } });
+  const vencidos = ativos.filter(p => diasRevisar(p) <= 0), breve = ativos.filter(p => diasRevisar(p) > 0 && diasRevisar(p) <= 7);
   const kpi = (l, v, s) => `<div class="card"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
-  $('#main').innerHTML = topo('Fisioterapia / DM', 'Prevenção', 'Preventivos de cada atleta. A adesão conta sozinha pelos atendimentos marcados como prevenção.',
+  $('#main').innerHTML = topo('Fisioterapia / DM', 'Prevenção', `Preventivos de cada atleta, por no máximo 1 mês e meio (${CICLO_PREV} dias): depois reavalia e atualiza os exercícios. A adesão conta sozinha pelos atendimentos.`,
     pode ? '<button class="btn pri" id="dmpv">+ Preventivo</button>' : '') + fsTabs('prevencao') + `
   <div class="dm-dia"><button class="btn sm" id="dmsa">◀</button><b>Semana de ${fmt(ini)} a ${fmt(addDays(ini, 6))}</b><button class="btn sm" id="dmsp">▶</button>${ini !== segunda(hoje()) ? '<button class="btn sm" id="dmsh">Esta semana</button>' : ''}</div>
   <div class="cards fs-kpis">
-    ${kpi('Preventivos ativos', ativos.length, `${atls.length} atleta${atls.length === 1 ? '' : 's'}`)}
-    ${kpi('Adesão da semana', alvoT ? Math.round(feitoT / alvoT * 100) + '%' : '—', alvoT ? `${feitoT} de ${alvoT} sessões previstas` : 'defina as vezes por semana')}
+    ${kpi('Preventivos ativos', ativos.length, `${atls.length} atleta${atls.length === 1 ? '' : 's'}${pausados.length ? ` · ${pausados.length} pausado${pausados.length === 1 ? '' : 's'}` : ''}`)}
+    ${kpi('Adesão da semana', alvoT ? Math.round(feitoT / alvoT * 100) + '%' : '—', alvoT ? `${feitoT} de ${alvoT} sessões previstas` : 'conta quando a frequência tem “x por semana”')}
+    ${kpi('Para revisar', vencidos.length, breve.length ? `${breve.length} vence${breve.length === 1 ? '' : 'm'} nos próximos 7 dias` : 'nenhum vence nos próximos 7 dias')}
     ${kpi('Com pendência na semana', devendo.size, devendo.size ? [...devendo].map(nomeA).slice(0, 3).join(', ') + (devendo.size > 3 ? '…' : '') : 'todos em dia')}
-    ${kpi('Pausados', pausados.length, 'fora do controle de adesão')}
   </div>
+  ${vencidos.length ? `<div class="note fs-venc"><b>Ciclo encerrado, reavaliar e atualizar:</b> ${[...new Set(vencidos.map(p => p.atleta_id))].map(id => esc(nomeA(id))).join(' · ')}</div>` : ''}
   <div class="panel"><h2>Por atleta</h2>
     ${atls.length ? atls.map(id => { const s = situacao(id).sit;
       return `<div class="dm-pa"><div class="dm-pa-h"><b>${esc(nomeA(id))}</b>${sitBadge(s)}${pode ? `<button class="btn sm" data-pvn="${id}">+ item</button>` : ''}</div>
-        <table class="tb dm-ptab"><tbody>${ativos.filter(p => p.atleta_id === id).map(p => { const a = adesao(p, ini);
-          return `<tr><td><b>${esc(p.item)}</b>${p.regiao ? `<div class="m">${esc(p.regiao)}</div>` : ''}</td><td class="sm">${esc(p.dosagem || '')}</td>
-          <td class="sm">${esc(p.origem || '')}${p.motivo ? ` · ${esc(p.motivo)}` : ''}${p.grupo ? ' <span class="badge">grupo</span>' : ''}</td>
+        <div class="tablewrap"><table class="tb dm-ptab"><tbody>${ativos.filter(p => p.atleta_id === id).map(p => { const a = adesao(p, ini);
+          return `<tr><td><b>${esc(p.item)}</b>${p.regiao ? `<div class="m">${esc(p.regiao)}</div>` : ''}</td><td class="sm">${esc(p.vezes_semana || '')}</td>
+          <td class="sm">${esc(p.motivo || '')}${p.grupo ? ' <span class="badge">grupo</span>' : ''}</td>
+          <td class="sm dm-ciclo">${fmt(p.inicio)} → ${fmt(revisarEm(p))} ${cicloBadge(p)}</td>
           <td class="dm-ad">${a.alvo ? `${[...Array(a.alvo)].map((_, k) => `<i class="${k < a.feitos ? 'ok' : ''}"></i>`).join('')}<span>${a.feitos}/${a.alvo}</span>` : `<span class="m">${a.feitos}× na semana</span>`}</td>
-          ${pode ? `<td class="dm-act"><button class="btn sm" data-pve="${p.id}">Editar</button><button class="btn sm" data-pvp="${p.id}">Pausar</button></td>` : ''}</tr>`; }).join('')}</tbody></table></div>`; }).join('') : '<p class="empty">Nenhum preventivo cadastrado.</p>'}
+          ${pode ? `<td class="dm-act"><button class="btn sm" data-pve="${p.id}">Editar</button>${diasRevisar(p) <= 7 ? `<button class="btn sm" data-pvnov="${p.id}">Renovar</button>` : ''}<button class="btn sm" data-pvp="${p.id}">Pausar</button></td>` : ''}</tr>`; }).join('')}</tbody></table></div></div>`; }).join('') : '<p class="empty">Nenhum preventivo cadastrado.</p>'}
   </div>
   ${pausados.length ? `<div class="panel"><h2>Pausados</h2>${pausados.map(p => `<div class="kv small"><span><b>${esc(nomeA(p.atleta_id))}</b> · ${esc(p.item)}</span>${pode ? `<span><button class="btn sm" data-pvr="${p.id}">Reativar</button> <button class="btn sm" data-pvx="${p.id}">Excluir</button></span>` : ''}</div>`).join('')}</div>` : ''}`;
   ligarAbasFs();
@@ -516,33 +745,39 @@ function pPrevencao() {
   $('#dmpv').onclick = () => formPrevencao();
   document.querySelectorAll('[data-pvn]').forEach(b => b.onclick = () => formPrevencao(null, +b.dataset.pvn));
   document.querySelectorAll('[data-pve]').forEach(b => b.onclick = () => formPrevencao(S.dm.prev.find(p => p.id === +b.dataset.pve)));
+  document.querySelectorAll('[data-pvnov]').forEach(b => b.onclick = () => formPrevencao(S.dm.prev.find(p => p.id === +b.dataset.pvnov), null, true));
   const upd = async (id, campos, msg) => { const { error } = await sb.from('fisio_prevencao').update(campos).eq('id', id); if (error) return toast(erroAmigavel(error), true); Object.assign(S.dm.prev.find(p => p.id === id), campos); toast(msg); pPrevencao(); };
   document.querySelectorAll('[data-pvp]').forEach(b => b.onclick = () => upd(+b.dataset.pvp, { ativo: false }, 'Preventivo pausado.'));
-  document.querySelectorAll('[data-pvr]').forEach(b => b.onclick = () => upd(+b.dataset.pvr, { ativo: true }, 'Preventivo reativado.'));
+  document.querySelectorAll('[data-pvr]').forEach(b => b.onclick = () => { const p = S.dm.prev.find(x => x.id === +b.dataset.pvr);
+    upd(p.id, diasRevisar(p) <= 0 ? { ativo: true, inicio: hoje(), revisar_em: addDays(hoje(), CICLO_PREV) } : { ativo: true }, 'Preventivo reativado.'); });
   document.querySelectorAll('[data-pvx]').forEach(b => b.onclick = async () => { if (!confirm('Excluir este preventivo?')) return;
     const { error } = await sb.from('fisio_prevencao').delete().eq('id', +b.dataset.pvx); if (error) return toast(erroAmigavel(error), true); S.dm.prev = S.dm.prev.filter(p => p.id !== +b.dataset.pvx); pPrevencao(); });
 }
-function formPrevencao(p, atletaPre) {
+function formPrevencao(p, atletaPre, renovar) {
   const edit = !!p; let sel = edit ? [p.atleta_id] : atletaPre ? [atletaPre] : [];
+  const ini0 = renovar || !edit ? hoje() : (p.inicio || hoje()), rev0 = renovar || !edit ? addDays(ini0, CICLO_PREV) : revisarEm(p);
   const sugestoes = id => { const out = [];
-    try { const av = typeof ultimaAv === 'function' && S.fisio?.ok ? ultimaAv(id) : null; if (av) focosDe(av.achados, av.revisao || {}).slice(0, 4).forEach(f => out.push(['Avaliação', f])); } catch (e) { /* sem avaliação */ }
-    S.dm.lesoes.filter(l => l.atleta_id === id && l.categoria === 'Lesão').slice(-3).forEach(l => out.push(['Lesão anterior', tituloLesao(l)]));
+    try { const av = typeof ultimaAv === 'function' && S.fisio?.ok ? ultimaAv(id) : null; if (av) focosDe(av.achados, av.revisao || {}).slice(0, 4).forEach(f => out.push(`${f} (avaliação ${fmt(av.data)})`)); } catch (e) { /* sem avaliação */ }
+    S.dm.lesoes.filter(l => l.atleta_id === id && l.categoria === 'Lesão').slice(-3).forEach(l => out.push(`lesão anterior: ${tituloLesao(l)}`));
     return out; };
-  modal(`<h2>${edit ? 'Editar preventivo' : 'Novo preventivo'}</h2>
+  modal(`<h2>${renovar ? 'Renovar preventivo' : edit ? 'Editar preventivo' : 'Novo preventivo'}</h2>
+    ${renovar ? '<p class="m">Novo ciclo a partir de hoje. Atualize os exercícios conforme a reavaliação.</p>' : ''}
     ${edit ? `<p><b>${esc(nomeA(p.atleta_id))}</b></p>` : `<label class="f"><span>Atletas (marque vários para um protocolo do grupo)</span><div class="row dm-selall"><button type="button" class="btn sm" id="pvtodos">Todo o elenco</button>${POSICOES.map(x => `<button type="button" class="btn sm" data-pos="${esc(x)}">${esc(x)}</button>`).join('')}<button type="button" class="btn sm" id="pvlimpa">Limpar</button></div>${chipsAtletas(sel, true)}</label>`}
     <div id="pvsug"></div>
     <div class="g2"><label class="f"><span>Preventivo</span><input class="in" id="pvi" value="${esc(p?.item || '')}" placeholder="ex.: Nórdico, Copenhagen, mobilização de quadril"></label>
       <label class="f"><span>Região</span><input class="in" id="pvr" list="dmreg3" value="${esc(p?.regiao || '')}"></label></div>
     <datalist id="dmreg3">${REGIOES.map(r => `<option value="${esc(r)}">`).join('')}</datalist>
-    <div class="g3"><label class="f"><span>Vezes por semana</span><input class="in" type="number" min="1" max="14" id="pvv" value="${p?.vezes_semana ?? ''}"></label>
-      <label class="f"><span>Dosagem</span><input class="in" id="pvd" value="${esc(p?.dosagem || '')}" placeholder="3x8, 2x30s..."></label>
-      <label class="f"><span>Origem</span><select class="in" id="pvo">${dmLista(ORIGENS_PREV, p?.origem)}</select></label></div>
+    <div class="g3"><label class="f"><span>Vezes por semana</span><input class="in" id="pvv" value="${esc(p?.vezes_semana || '')}" placeholder="como você descreve"></label>
+      <label class="f"><span>Início</span><input type="date" class="in" id="pvini" value="${ini0}"></label>
+      <label class="f"><span>Revisar em (máx. ${CICLO_PREV} dias)</span><input type="date" class="in" id="pvrev" value="${rev0}"></label></div>
     <div class="g2"><label class="f"><span>Motivo</span><input class="in" id="pvm" value="${esc(p?.motivo || '')}" placeholder="ex.: mobilidade de quadril (avaliação 14/10)"></label>
       <label class="f"><span>Botão de conduta ligado (conta a adesão sozinho)</span><select class="in" id="pvc">${dmLista(S.dm.condutas.filter(c => c.ativo).map(c => [c.id, c.nome]), p?.conduta_id)}</select></label></div>
-    <div class="mfoot"><span class="m">Com o botão ligado, todo atendimento de prevenção que usar esse botão conta como feito.</span><div class="row"><button class="btn" id="pvcan">Cancelar</button><button class="btn pri" id="pvsal">Salvar</button></div></div>`, true);
+    <div class="mfoot"><span class="m">Com o botão ligado, todo atendimento de prevenção que usar esse botão conta como feito. Se a frequência tiver “x por semana”, vira meta de adesão.</span><div class="row"><button class="btn" id="pvcan">Cancelar</button><button class="btn pri" id="pvsal">Salvar</button></div></div>`, true);
+  let revMexeu = false; $('#pvrev').oninput = () => { revMexeu = true; };
+  $('#pvini').onchange = () => { if (!revMexeu && $('#pvini').value) $('#pvrev').value = addDays($('#pvini').value, CICLO_PREV); };
   const atualizaSug = () => { const box = $('#pvsug'); if (sel.length !== 1) { box.innerHTML = ''; return; }
-    const s = sugestoes(sel[0]); box.innerHTML = s.length ? `<div class="f"><span class="m">Sugestões para ${esc(nomeA(sel[0]))}</span><div class="dm-cbtn">${s.map(([o, t]) => `<button type="button" class="chip" data-so="${esc(o)}" data-st="${esc(t)}">${esc(o)}: ${esc(t)}</button>`).join('')}</div></div>` : '';
-    box.querySelectorAll('[data-so]').forEach(b => b.onclick = () => { $('#pvo').value = b.dataset.so; $('#pvm').value = b.dataset.st; if (!$('#pvi').value) $('#pvi').value = b.dataset.st; }); };
+    const s = sugestoes(sel[0]); box.innerHTML = s.length ? `<div class="f"><span class="m">Sugestões para ${esc(nomeA(sel[0]))} (preenche o motivo)</span><div class="dm-cbtn">${s.map(t => `<button type="button" class="chip" data-st="${esc(t)}">${esc(t)}</button>`).join('')}</div></div>` : '';
+    box.querySelectorAll('[data-st]').forEach(b => b.onclick = () => { $('#pvm').value = b.dataset.st; }); };
   if (!edit) {
     const marca = ids => { sel = ids; document.querySelectorAll('#dmatl .chip').forEach(c => c.classList.toggle('on', sel.includes(+c.dataset.ca))); atualizaSug(); };
     $('#dmatl').onclick = e => { const b = e.target.closest('[data-ca]'); if (!b) return; const id = +b.dataset.ca; marca(sel.includes(id) ? sel.filter(i => i !== id) : [...sel, id]); };
@@ -555,14 +790,18 @@ function formPrevencao(p, atletaPre) {
   $('#pvsal').onclick = async () => {
     if (!sel.length) return toast('Escolha o atleta.', true);
     const item = $('#pvi').value.trim(); if (!item) return toast('Informe o preventivo.', true);
-    const base = { item, regiao: $('#pvr').value.trim() || null, vezes_semana: $('#pvv').value ? +$('#pvv').value : null, dosagem: $('#pvd').value.trim() || null,
-      origem: $('#pvo').value || (sel.length > 1 ? 'Protocolo do grupo' : null), motivo: $('#pvm').value.trim() || null, conduta_id: $('#pvc').value ? +$('#pvc').value : null };
-    if (base.vezes_semana != null && !(base.vezes_semana >= 1 && base.vezes_semana <= 14)) return toast('Vezes por semana: de 1 a 14.', true);
+    const ini = $('#pvini').value, rev = $('#pvrev').value;
+    if (!ini || !rev) return toast('Informe o início e a data de revisão.', true);
+    if (rev < ini) return toast('A revisão precisa ser depois do início.', true);
+    if (diasEntre(ini, rev) > CICLO_PREV && !confirm(`O ciclo passa de ${CICLO_PREV} dias (1 mês e meio). Salvar assim mesmo?`)) return;
+    const base = { item, regiao: $('#pvr').value.trim() || null, vezes_semana: $('#pvv').value.trim() || null, motivo: $('#pvm').value.trim() || null,
+      conduta_id: $('#pvc').value ? +$('#pvc').value : null, inicio: ini, revisar_em: rev };
+    if (renovar) base.ativo = true;
     const grupo = sel.length > 1 ? `${item} · ${hoje()}` : null;
     const r = edit ? await sb.from('fisio_prevencao').update(base).eq('id', p.id).select() : await sb.from('fisio_prevencao').insert(sel.map(id => ({ ...base, atleta_id: id, grupo, ativo: true }))).select();
     if (r.error) return toast(erroAmigavel(r.error), true);
     if (edit) S.dm.prev = S.dm.prev.map(x => x.id === p.id ? r.data[0] : x); else S.dm.prev.push(...r.data);
-    fechar(); toast(edit ? 'Preventivo atualizado.' : `${r.data.length} preventivo${r.data.length > 1 ? 's' : ''} criado${r.data.length > 1 ? 's' : ''}.`); pPrevencao();
+    fechar(); toast(renovar ? 'Novo ciclo iniciado.' : edit ? 'Preventivo atualizado.' : `${r.data.length} preventivo${r.data.length > 1 ? 's' : ''} criado${r.data.length > 1 ? 's' : ''}.`); pFisio();
   };
 }
 
@@ -572,7 +811,7 @@ function resumoDM(id) {
   const pv = S.dm.prev.filter(p => p.atleta_id === id && p.ativo), at = S.dm.atend.filter(x => x.atleta_id === id).slice(-8).reverse();
   modal(`<h2>${esc(nomeA(id))} · DM</h2><p>${sitBadge(s.sit) || '<span class="badge s-Titular">Liberado</span>'} ${s.lesao ? esc(tituloLesao(s.lesao)) + ' · ' + esc(s.lesao.etapa) : ''}</p>
     <h3 class="fs-h">Lesões e doenças</h3>${ls.length ? ls.map(l => `<div class="kv small dm-tr" data-les="${l.id}"><span>${esc(tituloLesao(l))}${l.anterior_clube ? ' <span class="badge">anterior ao clube</span>' : ''}</span><span class="m">${dataBR(l.data_inicio)}${l.anterior_clube ? '' : ' · ' + diasFora(l) + ' dias'}</span></div>`).join('') : '<p class="empty">Nenhuma.</p>'}
-    <h3 class="fs-h">Preventivos</h3>${pv.length ? pv.map(p => { const a = adesao(p, segunda(hoje())); return `<div class="kv small"><span>${esc(p.item)}${p.dosagem ? ' · ' + esc(p.dosagem) : ''}</span><span class="m">${a.alvo ? `${a.feitos}/${a.alvo} na semana` : `${a.feitos}× na semana`}</span></div>`; }).join('') : '<p class="empty">Nenhum.</p>'}
+    <h3 class="fs-h">Preventivos</h3>${pv.length ? pv.map(p => { const a = adesao(p, segunda(hoje())); return `<div class="kv small"><span>${esc(p.item)}${p.vezes_semana ? ' · ' + esc(p.vezes_semana) : ''} ${cicloBadge(p)}</span><span class="m">${a.alvo ? `${a.feitos}/${a.alvo} na semana` : `${a.feitos}× na semana`}</span></div>`; }).join('') : '<p class="empty">Nenhum.</p>'}
     <h3 class="fs-h">Últimos atendimentos</h3>${at.length ? at.map(x => `<div class="kv small"><span>${esc(x.descricao)}</span><span class="m">${fmt(x.data)} · ${esc(x.finalidade)}</span></div>`).join('') : '<p class="empty">Nenhum.</p>'}
     <div class="mfoot"><span></span><div class="row"><button class="btn" id="rdmf">Fechar</button></div></div>`, true);
   $('#rdmf').onclick = fechar;

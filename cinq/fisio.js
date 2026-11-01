@@ -4,10 +4,10 @@
    O sistema não diagnostica nem prevê lesão: mostra perfil, evolução e foco. A decisão é do fisio. */
 'use strict';
 
-S.fisio = { ok: false, av: [], vinc: [], aba: 'avaliacoes' };
+S.fisio = { ok: false, av: [], vinc: [], aba: 'central' };
 const podeLerFisio = () => !!S.perfil && S.perfil.funcao !== 'visualizacao';
 const podeFisio = () => isAdmin() || ['fisio', 'medico', 'analise'].includes(S.perfil?.funcao);
-const FS_ABAS = [['avaliacoes', 'Avaliações'], ['atendimento', 'Atendimento'], ['lesoes', 'Lesões'], ['prevencao', 'Prevenção']];
+const FS_ABAS = [['central', 'Central'], ['avaliacoes', 'Avaliações'], ['atendimento', 'Atendimento'], ['lesoes', 'Lesões'], ['prevencao', 'Prevenção']];
 const fsTabs = ab => `<div class="ind-tabs fs-tabs">${FS_ABAS.map(([k, l]) => `<button data-fsaba="${k}" class="${k === ab ? 'on' : ''}">${l}</button>`).join('')}</div>`;
 const ligarAbasFs = () => document.querySelectorAll('[data-fsaba]').forEach(b => b.onclick = () => { S.fisio.aba = b.dataset.fsaba; pFisio(); window.scrollTo(0, 0); });
 const MOTIVOS_FISIO = ['Pré-temporada', 'Reavaliação', 'Retorno de lesão', 'Outro'];
