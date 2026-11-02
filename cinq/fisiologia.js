@@ -193,7 +193,7 @@ function pPosTreino() {
     <h3 class="dc-bloco">Visão da sessão <small>média do grupo</small></h3>
     <div class="cards fs-kpis fl-kpis">${kpi('Distância total', flFmt(m.dist, 1) + ' m')}${kpi('Distância relativa', flFmt(m.mmin, 1) + ' m/min')}${kpi('Alta intensidade', flFmt(m.ai, 1) + ' m')}${kpi('Sprint', flFmt(m.sprint, 1) + ' m', `média · ${flFmt(m.n_sprints, 1)} sprints`)}
       ${kpi('Acelerações', flFmt(m.n_acel, 1), `média · ${flFmt(m.acel_m, 1)} m`)}${kpi('Desacelerações', flFmt(m.n_desac, 1), `média · ${flFmt(m.desac_m, 1)} m`)}${kpi('Vel. máxima', flFmt(m.vmax, 1) + ' km/h', 'média do grupo')}${kpi('Maior distância', flFmt(D.maior('dist')?.dist) + ' m', esc(flNomeAt(D.maior('dist') || {})))}</div>
-    ${D.per.length ? `<h3 class="dc-bloco">Distribuição por parte</h3><div class="fl-per">${D.per.map(p => `<div class="panel"><b>${esc(p.nome)}</b><div class="fl-per-v"><span><small>Duração</small>${flDur(p.dur)}</span><span><small>Distância</small>${flFmt(p.dist)} m</span><span><small>m/min</small>${flFmt(p.mmin)}</span><span><small>Alta int.</small>${flFmt(p.ai)} m</span></div></div>`).join('')}</div>` : ''}
+    ${D.per.length ? `<h3 class="dc-bloco">Distribuição por parte</h3><div class="fl-per">${D.per.map(p => `<div class="panel"><b>${esc(p.nome)}</b><div class="fl-per-v"><span><small>Duração</small>${flDur(p.dur)}</span><span><small>Distância</small>${flFmt(p.dist)} m</span><span><small>m/min</small>${flFmt(p.mmin)}</span><span><small>Alta int.</small>${flFmt(p.ai)} m</span></div></div>`).join('')}</div>${flPartesEx(s, D)}` : ''}
     <div class="panel"><h2>Indicadores individuais <small class="m">clique no atleta para ver cada parte · setas = diferença de 10% ou mais da média dele (a partir de 3 sessões)</small></h2><div class="tablewrap">${flTabela(s, D)}</div>
       <p class="m fl-nota">% vmáx = em relação à maior velocidade já registrada do atleta no CINQ (aparece a partir de 3 sessões). Quando houver o teste de velocidade máxima, passa a usar o teste.</p></div>
     ${D.dest.length ? `<div class="panel"><h2>Destaques <small class="m">o sistema sinaliza, o fisiologista decide</small></h2><div class="dc-al">${D.dest.map(([t, r, x]) => `<div class="dc-ali n-${/Tempo|DM|Recém/.test(t) ? 'al' : 'at'}"><span class="dc-tp">${esc(t)}</span><b>${esc(flNomeAt(r))}</b><span class="m">${esc(x)}</span></div>`).join('')}</div></div>` : ''}
@@ -207,9 +207,37 @@ function pPosTreino() {
   $('#flsel').onchange = e => { S.fl.sel = +e.target.value; pPosTreino(); };
   $('#flpdf').onclick = () => imprimirFl(relPosHTML(s), `Relatorio_Treino_QFC_${s.data}`);
   document.querySelectorAll('[data-flat]').forEach(tr => tr.onclick = () => flPartesAtleta(s, tr.dataset.flat));
+  ligarPartesEx(s);
   if ($('#flrm')) $('#flrm').onclick = async () => { if (!confirm(`Excluir a sessão de ${dataBR(s.data)} e todos os dados do GPS dela?`)) return;
     const { error } = await sb.from('fisl_sessoes').delete().eq('id', s.id); if (error) return toast(erroAmigavel(error), true);
     S.fl.sess = S.fl.sess.filter(x => x.id !== s.id); S.fl.gps = S.fl.gps.filter(x => x.sessao_id !== s.id); S.fl.sel = null; toast('Sessão excluída.'); pPosTreino(); };
+}
+/* partes do GPS × exercícios do treino (espaço, direcionamento e a métrica-alvo de cada um) */
+const flExDaParte = (s, p, k) => { const ex = s.sessao_id ? exDe(s.sessao_id) : []; if (p.exercicio_id === null) return null;
+  return ex.find(e => e.id === p.exercicio_id) || (p.exercicio_id === undefined ? ex[k] : null) || null; };
+function flPartesEx(s, D) {
+  const pode = podeFisl(), cal = s.sessao_id && S.sessoes.find(x => x.id === s.sessao_id), ex = cal ? exDe(cal.id) : [];
+  if (!cal) { const op = S.sessoes.filter(x => x.data === s.data);
+    return `<div class="panel fl-pex"><h2>Partes do GPS × exercícios</h2><p class="m">${op.length ? 'Ligue esta sessão ao treino do calendário para ver o espaço e a métrica-alvo de cada exercício ao lado da carga de cada parte.' : `Não há treino no calendário em ${dataBR(s.data)}. Quando o treino estiver no calendário (com os planos de treino), dá para ligar aqui.`}</p>
+      ${op.length && pode ? `<div class="row"><select class="in" id="flcal">${opts(op.map(x => [x.id, `${horaTxt(x)} · ${x.tipo}${x.titulo ? ' · ' + x.titulo : ''} (${exDe(x.id).length} exercícios)`]))}</select><button class="btn sm pri" id="flcalok">Ligar</button></div>` : ''}</div>`; }
+  if (!ex.length) return `<div class="panel fl-pex"><h2>Partes do GPS × exercícios</h2><p class="m">O treino do calendário ainda não tem exercícios.</p></div>`;
+  const col = (rs, k, porMin) => { const v = rs.map(r => porMin ? ((+r[k] || 0) + (+r[porMin] || 0)) / ((r.duracao_s || 0) / 60 || 1) : +r[k]).filter(x => x != null && !isNaN(x)); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+  const alvo = (e, m) => e?.direcionamento && METRICA_DIRECAO[e.direcionamento] === m ? ' class="fl-alvo"' : '';
+  return `<div class="panel fl-pex"><h2>Partes do GPS × exercícios <small class="m">média do grupo em cada parte · destaque = métrica-alvo do exercício</small></h2><div class="tablewrap"><table class="tb fl-tab"><thead><tr><th>Parte</th><th>Exercício</th><th>Espaço</th><th>m²/jog.</th><th>Direcionamento</th><th>Duração</th><th>Distância</th><th>m/min</th><th>Sprint (m)</th><th>Acel+desac/min</th></tr></thead><tbody>
+    ${D.per.map((p, k) => { const e = flExDaParte(s, p, k);
+      return `<tr><td><b>${esc(p.nome)}</b></td><td>${pode ? `<select class="in fl-pexs" data-pnum="${p.num}">${opts(ex.map(x => [x.id, `${x.ordem}. ${x.nome}`]), e?.id ?? '', '— nenhum —')}</select>` : esc(e?.nome || '—')}${p.exercicio_id === undefined && e ? ' <small class="m">sugestão pela ordem</small>' : ''}</td>
+        <td>${esc(e ? espacoTxt(e) || '—' : '—')}</td><td>${e && m2Jog(e) ? m2Jog(e) : '—'}</td><td>${e?.espaco || e?.direcionamento ? esc([e.espaco, e.direcionamento && `${e.direcionamento} → ${METRICA_DIRECAO[e.direcionamento]}`].filter(Boolean).join(' · ')) : '—'}</td>
+        <td>${flDur(p.dur)}</td><td${alvo(e, 'Distância')}>${flFmt(p.dist)} m</td><td${alvo(e, 'Distância')}>${flFmt(p.mmin)}</td><td${alvo(e, 'Sprint')}>${flFmt(col(p.rs, 'sprint'), 1)}</td><td${alvo(e, 'Acc/Dcc')}>${flFmt(col(p.rs, 'n_acel', 'n_desac'), 2)}</td></tr>`; }).join('')}
+  </tbody></table></div><p class="m fl-nota">Espaço e direcionamento vêm do exercício no calendário (Editar exercício). Os limites numéricos entre espaço grande, médio e pequeno ainda serão definidos com o treinador e o fisiologista.</p></div>`;
+}
+function ligarPartesEx(s) {
+  if ($('#flcalok')) $('#flcalok').onclick = async () => { const id = +$('#flcal').value;
+    const { data, error } = await sb.from('fisl_sessoes').update({ sessao_id: id }).eq('id', s.id).select().single(); if (error) return toast(erroAmigavel(error), true);
+    Object.assign(s, data); toast('Sessão ligada ao treino do calendário.'); pPosTreino(); };
+  document.querySelectorAll('.fl-pexs').forEach(sel => sel.onchange = async () => {
+    const per = s.periodos.map(p => p.num === +sel.dataset.pnum ? { ...p, exercicio_id: sel.value ? +sel.value : null } : p);
+    const { data, error } = await sb.from('fisl_sessoes').update({ periodos: per }).eq('id', s.id).select().single(); if (error) return toast(erroAmigavel(error), true);
+    Object.assign(s, data); pPosTreino(); });
 }
 function flPartesAtleta(s, nome) {
   const rs = S.fl.gps.filter(g => g.sessao_id === s.id && g.nome_origem === nome).sort((a, b) => (a.periodo || 99) - (b.periodo || 99));

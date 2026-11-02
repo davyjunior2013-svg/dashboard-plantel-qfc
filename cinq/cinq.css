@@ -580,3 +580,13 @@ b.gol{font-size:11px;margin-left:3px;font-weight:600}
 .flp-dest{font-size:11.5px;padding-left:18px}.flp-nota{font-size:10.5px;color:#74808a}
 @media print{#print-area.flp *{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 @media (max-width:760px){.fl-kpis{grid-template-columns:1fr 1fr}.fl-per-v{grid-template-columns:1fr 1fr}.fs-bars .bar.fl-bar{grid-template-columns:96px 1fr 56px}}
+/* exercício editável: espaço e tempo */
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:0 12px}
+.fx-h{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:14px 0 6px;border-top:1px solid var(--line);padding-top:12px}
+.fx-calc{border:1px dashed var(--line);border-radius:10px;padding:9px 11px;font-weight:700;font-size:13.5px;background:#f7f9fa;min-height:38px}
+.fx-ref{font-size:11.5px;margin:-4px 0 8px}.ex-aviso{border-left:3px solid var(--warn);background:#fffaf0;font-size:13px;margin:8px 0}
+.badge.ex-esp{background:#e8f0fd;color:#1f4fa8}.badge.ex-dir{background:#f1ecfb;color:#5b3fa0}
+.seq small{font-weight:400}
+@media (max-width:760px){.g4{grid-template-columns:1fr 1fr}}
+.fl-pex select.in{min-width:200px;padding:5px 8px}.fl-tab td.fl-alvo{background:#fff4dc;font-weight:800;color:#9a6200}
+div.f{display:block;margin-bottom:12px}div.f>span:first-child{display:block;font-size:12px;font-weight:600;color:#4d5a64;margin-bottom:4px}

@@ -252,9 +252,9 @@ function verSessao(id, foco) {
   ${ex.length ? `<div class="panel"><h2>Resumo do treino</h2>
     <div class="metric-grid"><div><b>${ex.length}</b><span>Exercícios</span></div><div><b>${total ? total + "'" : '—'}</b><span>Tempo total</span></div><div><b>${jog || '—'}</b><span>Jogadores (máx.)</span></div><div><b>${esc(ex[0].periodo || '—')}</b><span>Período</span></div></div>
     <div class="k" style="margin-top:12px">Sequência de comportamentos-chave</div>
-    <ol class="seq">${ex.map(e => `<li><b>${esc(e.nome)}</b><br><span>${esc(e.comportamento || '—')}</span></li>`).join('')}</ol>
+    <ol class="seq">${ex.map(e => `<li><b>${esc(e.nome)}</b>${espacoTxt(e) || e.espaco ? ` <small class="m">· ${esc([espacoTxt(e), m2Jog(e) ? m2Jog(e) + ' m²/jog.' : '', e.espaco, e.direcionamento].filter(Boolean).join(' · '))}</small>` : ''}<br><span>${esc(e.comportamento || '—')}</span></li>`).join('')}</ol>
     <div class="k">Material</div><ul class="mat">${ex.map(e => e.material ? `<li><b>${e.ordem}.</b> ${esc(e.material)}</li>` : '').join('')}</ul></div>` : ''}
-  <div class="exhead"><h2>Exercícios</h2>${pode ? '<button class="btn pri sm" id="splanos">+ Adicionar planos de treino (PDF)</button>' : ''}</div>
+  <div class="exhead"><h2>Exercícios</h2>${pode ? '<div class="row"><button class="btn sm" id="sexman">+ Exercício sem PDF</button><button class="btn pri sm" id="splanos">+ Adicionar planos de treino (PDF)</button></div>' : ''}</div>
   <div id="exlist">${ex.length ? ex.map((e, i) => cardExercicio(e, i, ex.length, pode, !!yt)).join('') : `<div class="panel empty">Nenhum plano de treino nesta sessão.${pode ? ' Clique em <b>Adicionar planos de treino</b> e selecione os PDFs do Dossier do Treinador.' : ''}</div>`}</div>
   ${s.objetivo || s.conteudo || s.observacoes ? `<div class="panel detail">${campo('Objetivo (manual)', s.objetivo)}${campo('Conteúdo (manual)', s.conteudo)}${campo('Observações', s.observacoes)}</div>` : ''}`, true);
   $('#sfechar').onclick = fechar;
@@ -268,6 +268,7 @@ function verSessao(id, foco) {
     S.sessoes = S.sessoes.map(x => x.id === data.id ? data : x); toast(u ? 'Vídeo adicionado.' : 'Vídeo removido.'); verSessao(id);
   };
   if ($('#splanos')) $('#splanos').onclick = () => escolherPlanos(s);
+  if ($('#sexman')) $('#sexman').onclick = () => formExercicio({ sessao_id: s.id, nome: '', periodo: ex[0]?.periodo || null });
   urlsAssinadas(ex.flatMap(e => [e.img_path, e.pdf_path])).then(u => {
     document.querySelectorAll('img[data-img]').forEach(im => { if (u[im.dataset.img]) im.src = u[im.dataset.img]; });
     document.querySelectorAll('a[data-pdf]').forEach(a => { if (u[a.dataset.pdf]) a.href = u[a.dataset.pdf]; });
@@ -299,12 +300,33 @@ function verSessao(id, foco) {
   if (foco) { const el = document.getElementById('ex' + foco); if (el) el.scrollIntoView({ block: 'center' }); }
 }
 
+/* ---------- espaço do exercício (referência do QFC: espaço → direcionamento → métrica) ---------- */
+const ESPACOS = ['Grande', 'Médio', 'Pequeno'];
+const DIRECAO_ESPACO = { Grande: 'Resistência', 'Médio': 'Velocidade', Pequeno: 'Força' };
+const METRICA_DIRECAO = { 'Resistência': 'Distância', Velocidade: 'Sprint', 'Força': 'Acc/Dcc' };
+function dimDoTexto(t) {
+  const m = String(t || '').match(/(\d{2,3}(?:[.,]\d+)?)\s*[xX×]\s*(\d{2,3}(?:[.,]\d+)?)\s*m/); if (!m) return null;
+  const a = +m[1].replace(',', '.'), b = +m[2].replace(',', '.');
+  return Math.max(a, b) <= 150 && Math.min(a, b) <= 100 ? { comprimento: Math.max(a, b), largura: Math.min(a, b) } : null;
+}
+const areaEx = e => e.comprimento && e.largura ? Math.round(e.comprimento * e.largura) : null;
+const m2Jog = e => areaEx(e) && e.jogadores ? Math.round(areaEx(e) / e.jogadores) : null;
+const numBR = v => v == null || v === '' ? '' : String(v).replace('.', ',');
+const espacoTxt = e => e.comprimento && e.largura ? `${numBR(e.comprimento)} × ${numBR(e.largura)} m` : '';
+const seriesTxt = e => e.series && e.tempo_serie_min ? `${e.series} × ${numBR(e.tempo_serie_min)}'${e.pausa_min != null ? ` · pausa ${numBR(e.pausa_min)}'` : ''}` : '';
+function avisoEspaco(e) {
+  if (!e.espaco || !e.direcionamento || DIRECAO_ESPACO[e.espaco] === e.direcionamento) return '';
+  const d = DIRECAO_ESPACO[e.espaco];
+  return `Espaço ${e.espaco.toLowerCase()} com direcionamento ${e.direcionamento.toLowerCase()}: pela referência do QFC, espaço ${e.espaco.toLowerCase()} trabalha ${d.toLowerCase()} (métrica: ${METRICA_DIRECAO[d]}). Confirmar com o treinador.`;
+}
+
 function cardExercicio(e, i, n, pode, temVideo) {
   const lista = t => (t || '').split('\n').filter(Boolean).map(l => `<li>${esc(l)}</li>`).join('');
   return `<div class="panel exc" id="ex${e.id}">
     <div class="exc-top"><div class="exn">${e.ordem}</div><div style="flex:1;min-width:0"><h3>${esc(e.nome)}</h3>
-      <div class="row tags">${e.numero_plano ? `<span class="badge">Plano ${e.numero_plano}</span>` : ''}${e.jogadores ? `<span class="badge">${e.jogadores} jogadores</span>` : ''}${e.duracao_min ? `<span class="badge t-Treino">${e.duracao_min} min</span>` : (pode ? '<span class="badge s-Inativo">sem tempo</span>' : '')}${e.video_inicio ? `<span class="badge t-Amistoso">vídeo ${esc(e.video_inicio)}</span>` : ''}${e.nome_gerado ? `<span class="m" title="Nome criado a partir do objetivo">no plano: “${esc(e.titulo_original || '')}”</span>` : ''}</div></div>
+      <div class="row tags">${e.numero_plano ? `<span class="badge">Plano ${e.numero_plano}</span>` : ''}${e.jogadores ? `<span class="badge">${e.jogadores} jogadores</span>` : ''}${e.duracao_min ? `<span class="badge t-Treino">${e.duracao_min} min</span>` : (pode ? '<span class="badge s-Inativo">sem tempo</span>' : '')}${e.video_inicio ? `<span class="badge t-Amistoso">vídeo ${esc(e.video_inicio)}</span>` : ''}${espacoTxt(e) ? `<span class="badge ex-esp">${esc(espacoTxt(e))}${m2Jog(e) ? ` · ${m2Jog(e)} m²/jog.` : ''}</span>` : (pode ? '<span class="badge s-Inativo">sem tamanho</span>' : '')}${e.espaco ? `<span class="badge ex-dir">${esc(e.espaco)}${e.direcionamento ? ` · ${esc(e.direcionamento)} → ${esc(METRICA_DIRECAO[e.direcionamento])}` : ''}</span>` : ''}${seriesTxt(e) ? `<span class="badge">${esc(seriesTxt(e))}</span>` : ''}${e.nome_gerado ? `<span class="m" title="Nome criado a partir do objetivo">no plano: “${esc(e.titulo_original || '')}”</span>` : ''}</div></div>
       ${pode ? `<div class="row"><button class="btn sm" data-act="up" data-ex="${e.id}" ${i === 0 ? 'disabled' : ''} title="Subir">↑</button><button class="btn sm" data-act="down" data-ex="${e.id}" ${i === n - 1 ? 'disabled' : ''} title="Descer">↓</button></div>` : ''}</div>
+    ${avisoEspaco(e) ? `<div class="note ex-aviso">⚠️ ${esc(avisoEspaco(e))}</div>` : ''}
     <div class="exc-body">
       ${e.img_path ? `<img class="diag" data-img="${esc(e.img_path)}" data-act="img" data-ex="${e.id}" alt="Desenho do exercício" title="Abrir desenho em tamanho maior">` : ''}
       <div class="exc-txt">
@@ -316,31 +338,70 @@ function cardExercicio(e, i, n, pode, temVideo) {
     </div>
     <div id="desc${e.id}" hidden><div class="k">Descrição e organização metodológica</div><p class="pre">${esc(e.descricao || '—')}</p></div>
     ${e.balanco ? `<div class="balanco"><span>Observações / balanço</span><p class="pre">${esc(e.balanco)}</p></div>` : ''}
-    <div class="row exc-act"><button class="btn sm" data-act="desc" data-ex="${e.id}">Descrição completa</button>${e.pdf_path ? `<a class="btn sm" href="#" target="_blank" rel="noopener" data-act="pdf" data-pdf="${esc(e.pdf_path)}" data-ex="${e.id}">PDF original ↗</a>` : ''}${temVideo && e.video_inicio ? `<button class="btn sm" data-act="play" data-ex="${e.id}">▶ Ver no vídeo</button>` : ''}${pode ? `<button class="btn sm pri" data-act="edit" data-ex="${e.id}">Tempo, vídeo e balanço</button><button class="btn sm dan" data-act="del" data-ex="${e.id}">Remover</button>` : ''}</div>
+    <div class="row exc-act"><button class="btn sm" data-act="desc" data-ex="${e.id}">Descrição completa</button>${e.pdf_path ? `<a class="btn sm" href="#" target="_blank" rel="noopener" data-act="pdf" data-pdf="${esc(e.pdf_path)}" data-ex="${e.id}">PDF original ↗</a>` : ''}${temVideo && e.video_inicio ? `<button class="btn sm" data-act="play" data-ex="${e.id}">▶ Ver no vídeo</button>` : ''}${pode ? `<button class="btn sm pri" data-act="edit" data-ex="${e.id}">Editar exercício</button><button class="btn sm dan" data-act="del" data-ex="${e.id}">Remover</button>` : ''}</div>
   </div>`;
 }
 
 function formExercicio(e) {
-  modal(`<h2>${esc(e.nome)}</h2>
+  const novo = !e.id, v = k => esc(e[k] ?? ''), ta = (k, rot, rows = 3, ph = '') => `<label class="f"><span>${rot}</span><textarea class="in" name="${k}" rows="${rows}" placeholder="${ph}">${v(k)}</textarea></label>`;
+  modal(`<h2>${novo ? 'Novo exercício' : 'Editar exercício'}</h2>
+  ${!novo && e.pdf_path ? '<p class="m">Os campos vieram do PDF do plano de treino. O que mudar aqui vale para o CINQ; o PDF original continua guardado.</p>' : ''}
   <form id="fex">
-    <label class="f"><span>Nome do exercício</span><input class="in" name="nome" value="${esc(e.nome)}" required></label>
-    <div class="g2">
-      <label class="f"><span>Tempo do exercício (min)</span><input class="in" type="number" min="0" max="300" name="duracao_min" value="${esc(e.duracao_min ?? '')}" placeholder="Ex.: 20"></label>
-      <label class="f"><span>Início no vídeo (mm:ss)</span><input class="in" name="video_inicio" value="${esc(e.video_inicio || '')}" placeholder="Ex.: 12:30 ou 1:05:10"></label>
-    </div>
-    <label class="f"><span>Observações / balanço</span><textarea class="in" name="balanco" placeholder="Como o exercício funcionou, ajustes, comportamentos que apareceram ou não…">${esc(e.balanco || '')}</textarea></label>
+    <div class="g3"><label class="f" style="grid-column:span 2"><span>Nome do exercício *</span><input class="in" name="nome" value="${v('nome')}" required></label>
+      <label class="f"><span>Nº do plano</span><input class="in" type="number" min="1" name="numero_plano" value="${v('numero_plano')}"></label></div>
+    <h3 class="fx-h">Espaço e organização</h3>
+    <div class="g4"><label class="f"><span>Comprimento (m)</span><input class="in" type="number" min="1" max="150" step="0.5" name="comprimento" value="${v('comprimento')}" placeholder="ex.: 40"></label>
+      <label class="f"><span>Largura (m)</span><input class="in" type="number" min="1" max="100" step="0.5" name="largura" value="${v('largura')}" placeholder="ex.: 30"></label>
+      <label class="f"><span>Jogadores</span><input class="in" type="number" min="1" max="40" name="jogadores" value="${v('jogadores')}"></label>
+      <div class="f"><span>Área</span><div class="fx-calc" id="fxarea">—</div></div></div>
+    <div class="g3"><label class="f"><span>Tipo de espaço</span><select class="in" name="espaco">${opts(ESPACOS, e.espaco, '—')}</select></label>
+      <label class="f"><span>Direcionamento</span><select class="in" name="direcionamento">${opts(Object.keys(METRICA_DIRECAO), e.direcionamento, '—')}</select></label>
+      <div class="f"><span>Métrica-alvo</span><div class="fx-calc" id="fxmet">—</div></div></div>
+    <p class="m fx-ref">Referência do QFC: espaço grande → resistência → distância · médio → velocidade → sprint · pequeno → força → acelerações e desacelerações.</p>
+    <div class="note ex-aviso" id="fxaviso" hidden></div>
+    <h3 class="fx-h">Tempo</h3>
+    <div class="g4"><label class="f"><span>Séries</span><input class="in" type="number" min="1" max="30" name="series" value="${v('series')}"></label>
+      <label class="f"><span>Tempo por série (min)</span><input class="in" type="number" min="0.25" step="0.25" name="tempo_serie_min" value="${v('tempo_serie_min')}"></label>
+      <label class="f"><span>Pausa (min)</span><input class="in" type="number" min="0" step="0.25" name="pausa_min" value="${v('pausa_min')}"></label>
+      <label class="f"><span>Tempo total (min)</span><input class="in" type="number" min="0" max="300" name="duracao_min" value="${v('duracao_min')}" placeholder="ex.: 20"></label></div>
+    <div class="g2"><label class="f"><span>Período</span><input class="in" name="periodo" value="${v('periodo')}" placeholder="ex.: Preparatório"></label>
+      <label class="f"><span>Início no vídeo (mm:ss)</span><input class="in" name="video_inicio" value="${v('video_inicio')}" placeholder="Ex.: 12:30 ou 1:05:10"></label></div>
+    <h3 class="fx-h">Conteúdo</h3>
+    ${ta('comportamento', 'Comportamento-chave', 2)}${ta('objetivo', 'Objetivo', 3)}${ta('indicadores', 'Indicadores de êxito (um por linha)', 3)}
+    ${ta('material', 'Material e espaço', 2, 'fitas de marcação, discos, 2 traves...')}${ta('descricao', 'Descrição e organização metodológica', 5)}
+    ${ta('balanco', 'Observações / balanço', 3, 'Como o exercício funcionou, ajustes, comportamentos que apareceram ou não…')}
     <div class="mfoot"><span></span><div class="row"><button type="button" class="btn" id="exvolta">Voltar</button><button class="btn pri" type="submit">Salvar</button></div></div>
   </form>`, true);
+  const f0 = $('#fex'), val = n => f0.querySelector(`[name=${n}]`).value;
+  const atualiza = () => {
+    const x = { comprimento: +val('comprimento') || null, largura: +val('largura') || null, jogadores: +val('jogadores') || null };
+    $('#fxarea').textContent = areaEx(x) ? `${areaEx(x).toLocaleString('pt-BR')} m²${m2Jog(x) ? ` · ${m2Jog(x)} m²/jogador` : ''}` : '—';
+    const d = val('direcionamento'); $('#fxmet').textContent = d ? METRICA_DIRECAO[d] : '—';
+    const av = avisoEspaco({ espaco: val('espaco'), direcionamento: d }); $('#fxaviso').hidden = !av; $('#fxaviso').textContent = av ? '⚠️ ' + av : '';
+  };
+  f0.querySelector('[name=espaco]').addEventListener('change', ev => { const d = f0.querySelector('[name=direcionamento]'); if (!d.value && ev.target.value) d.value = DIRECAO_ESPACO[ev.target.value]; atualiza(); });
+  ['comprimento', 'largura', 'jogadores', 'direcionamento'].forEach(n => f0.querySelector(`[name=${n}]`).addEventListener('input', atualiza));
+  ['series', 'tempo_serie_min', 'pausa_min'].forEach(n => f0.querySelector(`[name=${n}]`).addEventListener('input', () => {
+    const se = +val('series'), t = +val('tempo_serie_min'), pa = +val('pausa_min') || 0;
+    if (se && t) f0.querySelector('[name=duracao_min]').value = Math.round(se * t + (se - 1) * pa); }));
+  atualiza();
   $('#exvolta').onclick = () => verSessao(e.sessao_id, e.id);
-  $('#fex').onsubmit = async ev => {
+  f0.onsubmit = async ev => {
     ev.preventDefault();
-    const f = formData(ev.target);
+    const f = formData(ev.target), n = k => f[k] === '' || f[k] == null ? null : +f[k];
     if (f.video_inicio && segs(f.video_inicio) === null) return toast('Use o formato mm:ss, por exemplo 12:30.', true);
-    const row = { nome: f.nome, duracao_min: f.duracao_min ? +f.duracao_min : null, video_inicio: nul(f.video_inicio), balanco: nul(f.balanco) };
-    if (row.nome !== e.nome) row.nome_gerado = false;
-    const { data, error } = await sb.from('exercicios').update(row).eq('id', e.id).select().single();
+    if ((f.comprimento && !f.largura) || (!f.comprimento && f.largura)) return toast('Informe o comprimento e a largura do espaço.', true);
+    const row = { nome: f.nome.trim(), numero_plano: n('numero_plano'), comprimento: n('comprimento'), largura: n('largura'), jogadores: n('jogadores'),
+      espaco: nul(f.espaco), direcionamento: nul(f.direcionamento), series: n('series'), tempo_serie_min: n('tempo_serie_min'), pausa_min: n('pausa_min'),
+      duracao_min: n('duracao_min'), periodo: nul(f.periodo), video_inicio: nul(f.video_inicio), comportamento: nul(f.comportamento), objetivo: nul(f.objetivo),
+      indicadores: nul(f.indicadores), material: nul(f.material), descricao: nul(f.descricao), balanco: nul(f.balanco) };
+    if (row.comprimento && row.largura && row.largura > row.comprimento) [row.comprimento, row.largura] = [row.largura, row.comprimento];
+    if (!novo && row.nome !== e.nome) row.nome_gerado = false;
+    if (novo) Object.assign(row, { sessao_id: e.sessao_id, ordem: Math.max(0, ...exDe(e.sessao_id).map(x => x.ordem)) + 1 });
+    const { data, error } = novo ? await sb.from('exercicios').insert(row).select().single() : await sb.from('exercicios').update(row).eq('id', e.id).select().single();
     if (error) return toast(erroAmigavel(error), true);
-    S.exercicios = S.exercicios.map(x => x.id === data.id ? data : x); toast('Exercício salvo.'); verSessao(e.sessao_id, e.id);
+    S.exercicios = novo ? [...S.exercicios, data] : S.exercicios.map(x => x.id === data.id ? data : x);
+    toast(novo ? 'Exercício criado.' : 'Exercício salvo.'); verSessao(data.sessao_id, data.id); if (S.page === 'calendario') pCalendario();
   };
 }
 
@@ -403,6 +464,7 @@ async function importarPlanos(files, sessaoFixa) {
       const ins = await sb.from('exercicios').insert({ sessao_id: ses.id, ordem, nome: nm.nome, titulo_original: r.titulo_original, nome_gerado: nm.gerado,
         numero_plano: r.numero_plano, jogadores: r.jogadores, microciclo: r.microciclo, mesociclo: r.mesociclo, periodo: r.periodo || null,
         material: r.material || null, objetivo: r.objetivo || null, comportamento: r.comportamento || null, indicadores: r.indicadores || null, descricao: r.descricao || null,
+        ...(dimDoTexto([r.material, r.descricao].filter(Boolean).join(' ')) || {}),
         pdf_path: base + '.pdf', img_path: up2.error ? null : base + '.jpg' }).select().single();
       if (ins.error) throw ins.error;
       S.exercicios = [...S.exercicios, ins.data]; ultima = ses.id; nOk++;
