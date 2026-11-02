@@ -552,3 +552,31 @@ b.gol{font-size:11px;margin-left:3px;font-weight:600}
 @media (max-width:760px){.dc-svg text{font-size:16px}}
 .mod-box{border:1px solid var(--line);border-radius:10px;padding:10px 12px}.mod-box .row{gap:8px;margin:4px 0;font-size:13.5px}.mod-lista{margin:4px 0 6px 22px}
 #nav [hidden]{display:none!important}
+/* Fisiologia (teste) */
+.fl-teste{margin-left:auto;align-self:center;font-size:11px;text-transform:uppercase;letter-spacing:.06em;background:#fff4dc;color:#9a6200;border-radius:999px;padding:3px 10px;font-weight:700}
+.fl-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
+.fl-per{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-bottom:14px}.fl-per .panel{padding:12px 14px;margin:0}
+.fl-per-v{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:6px;font-size:13px;font-weight:700}.fl-per-v small{display:block;font-size:10.5px;color:var(--muted);font-weight:400}
+.fl-tab td,.fl-tab th{white-space:nowrap;padding:7px 8px;font-size:12.5px}.fl-tab th{font-size:10.5px}
+.fl-d{display:block;font-size:10.5px;font-weight:700}.fl-d.up{color:#1f7a45}.fl-d.dn{color:#b42318}
+.fl-curto{color:#b42318;font-weight:700}.fl-nota{margin:8px 0 0;font-size:12px}.fl-totrow td{font-weight:700;background:#f6f8f9}
+.fs-bars .bar.fl-bar,.flp-box .bar.fl-bar{grid-template-columns:120px 1fr 64px}.bar.fl-bar i{background:#1d3f7a}.bar.fl-bar.fl-am i{background:#e0a526}
+.fl-sem{display:inline-block;width:14px;height:14px;border-radius:50%;vertical-align:middle}.fl-vd{background:#2e9e5b}.fl-am-x{}.fl-sem.fl-am{background:#e0a526}.fl-vm{background:#d64545}
+.fl-c-vd .v{color:#1f7a45}.fl-c-am .v{color:#9a6200}.fl-c-vm .v{color:#b42318}
+.fl-l-al{color:#b42318}.fl-l-at{color:#9a6200}.fl-l-ok{color:#1f7a45}.fl-l-nd{color:var(--muted)}.fl-neg{color:#b42318;font-weight:700}
+.fl-cola{font-family:ui-monospace,monospace;font-size:12px}.fl-vinc select{min-width:220px}
+.fl-banda{fill:#e3e8ec;opacity:.8}.fl-ref{fill:none;stroke:#9aa5ad;stroke-dasharray:4 3}
+.fl-cols .dc-stk{max-width:44px}
+/* PDF da fisiologia (A4 paisagem, padrão Saúde e Performance) */
+#print-area.flp{font-family:inherit;color:#15202b;background:#fff}@media print{body.imprimindo:has(#print-area.flp){background:#fff}}
+.flp-pg{page-break-after:always;padding:0 0 10mm;min-height:190mm}.flp-pg:last-child{page-break-after:auto}
+.flp-cab{display:flex;align-items:center;gap:14px;background:#13295b;color:#fff;padding:14px 22px;margin-bottom:14px}.flp-cab img{width:46px;height:46px;object-fit:contain}
+.flp-cab small{font-size:10px;letter-spacing:.06em;font-weight:700}.flp-cab h1{margin:2px 0 0;font-size:22px;letter-spacing:.02em}.flp-dt{margin-left:auto;text-align:right}.flp-dt b{display:block;font-size:13px}.flp-dt span{font-size:11px;opacity:.85}
+.flp-pg>h3,.flp-pg>table,.flp-pg>.flp-ks,.flp-pg>.flp-g2,.flp-pg>ul,.flp-pg>p{margin-left:22px;margin-right:22px}
+.flp-pg h3{font-size:12px;color:#13295b;letter-spacing:.05em;margin-top:14px;margin-bottom:8px}.flp-pg h3 small{font-weight:400;color:#74808a}
+.flp-ks{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}.flp-k{border:1px solid #dfe5ea;border-left:4px solid #e0a526;border-radius:8px;padding:8px 10px}.flp-k small{display:block;font-size:9.5px;text-transform:uppercase;color:#13295b;font-weight:700}.flp-k b{font-size:16px;color:#13295b}
+.flp-pg .fl-tab{width:calc(100% - 44px);border-collapse:collapse}.flp-pg .fl-tab th{background:#13295b;color:#fff;padding:6px}.flp-pg .fl-tab td{padding:6px;border-bottom:1px solid #eceff1;font-size:11.5px}
+.flp-g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.flp-box{border:1px solid #dfe5ea;border-radius:8px;padding:10px 12px}.flp-box h4{margin:0 0 8px;font-size:11px;color:#13295b;text-transform:uppercase}
+.flp-dest{font-size:11.5px;padding-left:18px}.flp-nota{font-size:10.5px;color:#74808a}
+@media print{#print-area.flp *{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+@media (max-width:760px){.fl-kpis{grid-template-columns:1fr 1fr}.fl-per-v{grid-template-columns:1fr 1fr}.fs-bars .bar.fl-bar{grid-template-columns:96px 1fr 56px}}
