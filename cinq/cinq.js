@@ -37,7 +37,7 @@ const opts = (arr, sel, vazio) => (vazio !== undefined ? `<option value="">${esc
 const isAdmin = () => !!S.perfil?.admin;
 const podeSessoes = () => isAdmin() || ['tecnico', 'analise'].includes(S.perfil?.funcao);
 const podeHistorico = () => isAdmin() || S.perfil?.funcao === 'analise';
-const podeMapa = () => isAdmin() || ['tecnico', 'analise'].includes(S.perfil?.funcao);
+const podeMapa = () => isAdmin() || S.perfil?.funcao === 'analise'; // técnico só vê (edita só o Calendário)
 const num = v => (v === null || v === undefined || v === '' ? '—' : Number(v).toLocaleString('pt-BR'));
 const dataBR = s => s ? parse(s).toLocaleDateString('pt-BR') : '—';
 const histDe = a => S.historico.find(h => h.atleta_id === a.id);
@@ -799,7 +799,7 @@ function pComissao() {
   <div class="panel tablewrap"><table class="tb"><tr><th>Nome</th><th>E-mail</th><th>Função</th><th>Admin</th><th>Situação</th><th></th></tr>
   ${S.perfis.map(p => `<tr><td><b>${esc(p.nome)}</b></td><td>${esc(p.email || '')}</td><td>${esc(FUNCOES[p.funcao] || p.funcao)}</td><td>${p.admin ? 'Sim' : '—'}</td><td>${p.ativo ? '<span class="badge s-Titular">Ativo</span>' : '<span class="badge s-Inativo">Bloqueado</span>'}</td><td>${p.id === S.perfil.id ? '<span class="m">você</span>' : `<button class="btn sm" data-pf="${p.id}">Editar</button>`}</td></tr>`).join('')}</table></div>
   <div class="panel"><h2>O que cada função pode fazer</h2>
-    <div class="note" style="margin:0">Todas as funções <b>veem</b> todo o CINQ. Hoje, <b>editam</b>: calendário e sessões → Técnico/Auxiliar e Análise de desempenho; elenco e acessos → administrador. As áreas de Fisiologia, Fisioterapia e Técnico individual terão permissão de edição própria quando forem criadas. <b>Visualização</b> só consulta.</div></div>`;
+    <div class="note" style="margin:0">Todas as funções <b>veem</b> o CINQ (dá para restringir por pessoa em “O que pode ver”). <b>Editam</b>: Calendário (sessões, exercícios e programação) → Técnico/Auxiliar e Análise de desempenho; Mapa tático, Histórico e Análise do adversário → Análise de desempenho; Fisioterapia/DM → Fisioterapia, Médico e Análise (liberação só o Médico); Fisiologia → Preparação física/Fisiologia e Análise; Técnico individual → quem tem acesso à pasta do atleta; elenco e acessos → administrador. <b>Visualização</b> só consulta e não vê dados de saúde.</div></div>`;
   $('#bvinc').onclick = () => formMembro({});
   document.querySelectorAll('[data-pf]').forEach(b => b.onclick = () => formMembro(S.perfis.find(p => p.id === b.dataset.pf)));
 }

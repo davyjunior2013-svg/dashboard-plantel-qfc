@@ -10,7 +10,7 @@ const LIMITE_AMARELOS = 3; // suspensão automática a cada 3 amarelos (confirma
 const ADV_LS = 'cinq.adv.';
 const advGet = k => { try { return localStorage.getItem(ADV_LS + k); } catch (e) { return null; } };
 const advSet = (k, v) => { try { localStorage.setItem(ADV_LS + k, v); } catch (e) { /* sem armazenamento */ } };
-const podeAdv = () => isAdmin() || ['tecnico', 'analise'].includes(S.perfil?.funcao);
+const podeAdv = () => isAdmin() || S.perfil?.funcao === 'analise'; // técnico só vê
 
 /* ---------- dados ---------- */
 async function advTodos(tabela, ordem) {
