@@ -37,7 +37,7 @@ const opts = (arr, sel, vazio) => (vazio !== undefined ? `<option value="">${esc
 const isAdmin = () => !!S.perfil?.admin;
 const podeSessoes = () => isAdmin() || ['tecnico', 'analise'].includes(S.perfil?.funcao);
 const podeHistorico = () => isAdmin() || S.perfil?.funcao === 'analise';
-const podeMapa = () => isAdmin() || S.perfil?.funcao === 'analise'; // técnico só vê (edita só o Calendário)
+const podeMapa = () => isAdmin() || ['tecnico', 'analise'].includes(S.perfil?.funcao);
 const num = v => (v === null || v === undefined || v === '' ? '—' : Number(v).toLocaleString('pt-BR'));
 const dataBR = s => s ? parse(s).toLocaleDateString('pt-BR') : '—';
 const histDe = a => S.historico.find(h => h.atleta_id === a.id);
@@ -677,39 +677,109 @@ function formAtleta(a) {
 }
 
 /* ---------- Mapa tático ---------- */
-function pMapa() {
-  const pode = podeMapa(), ed = S.editMapa && pode;
-  const at = id => S.atletas.find(a => a.id === id);
+/* ---------- Mapa tático: quadro com peças que se movem ---------- */
+// adversário: 11 peças pretas (4-4-2 na metade de cima) + bola; posições guardadas em quadro_pecas
+const ADV_PADRAO = { a1: [50, 5], a2: [20, 17], a3: [40, 15], a4: [60, 15], a5: [80, 17], a6: [20, 31], a7: [40, 29], a8: [60, 29], a9: [80, 31], a10: [42, 41], a11: [58, 41], bola: [50, 50] };
+const QUADRO_VIS = 'cinq_quadro_vis';
+function quadroVis() { try { return JSON.parse(localStorage.getItem(QUADRO_VIS)) || { adv: true, bola: true }; } catch (e) { return { adv: true, bola: true }; } }
+function salvarQuadroVis(v) { try { localStorage.setItem(QUADRO_VIS, JSON.stringify(v)); } catch (e) { /* sem armazenamento */ } }
+async function carregarQuadro() {
+  if (S.quadro) return;
+  const { data, error } = await sb.from('quadro_pecas').select('*');
+  S.quadro = Object.fromEntries(Object.entries(ADV_PADRAO).map(([k, [x, y]]) => [k, { id: k, x, y }]));
+  if (!error) (data || []).forEach(r => { S.quadro[r.id] = r; });
+}
+async function pMapa() {
+  const pode = podeMapa(), at = id => S.atletas.find(a => a.id === id), vis = quadroVis();
+  await carregarQuadro().catch(() => {});
   const noXI = new Set(S.mapa.map(m => m.atleta_id).filter(Boolean));
   const banco = S.atletas.filter(a => a.ativo && a.status !== 'Inativo' && !noXI.has(a.id)).sort((a, b) => POSICOES.indexOf(a.posicao) - POSICOES.indexOf(b.posicao) || a.nome.localeCompare(b.nome));
-  const opcoes = S.atletas.filter(a => a.ativo).sort((a, b) => POSICOES.indexOf(a.posicao) - POSICOES.indexOf(b.posicao) || a.nome.localeCompare(b.nome)).map(a => [a.id, `${a.nome} · ${a.posicao}`]);
-  $('#main').innerHTML = topo('CINQ · Modelo de jogo', 'Mapa tático', '11 inicial de referência', pode ? (ed ? '<button class="btn" id="bmcanc">Concluir</button>' : '<button class="btn pri" id="bmed">Editar escalação</button>') : '') + `
+  const advs = Object.keys(ADV_PADRAO).filter(k => k !== 'bola');
+  $('#main').innerHTML = topo('CINQ · Modelo de jogo', 'Mapa tático', pode ? 'Arraste as peças como num quadro tático. Clique numa bolinha do QFC para trocar o atleta.' : '11 inicial de referência. Clique numa bolinha para ver o atleta.',
+    `<button class="btn${vis.adv ? ' on' : ''}" id="qadv">${vis.adv ? 'Esconder' : 'Mostrar'} adversário</button><button class="btn${vis.bola ? ' on' : ''}" id="qbola">${vis.bola ? 'Esconder' : 'Mostrar'} bola</button>${pode ? '<button class="btn" id="qreset">Reorganizar adversário</button>' : ''}`) + `
   <div class="tactical">
-    <div class="pitch"><div class="pl mid"></div><div class="pc"></div><div class="pg top"></div><div class="pg bot"></div><div class="pa top"></div><div class="pa bot"></div>
-      ${S.mapa.map(m => { const a = at(m.atleta_id); return `<div class="dot" style="left:${m.x}%;top:${m.y}%">${a ? foto(a) : '<div class="av">?</div>'}<span>${esc(a?.nome || '—')}</span></div>`; }).join('')}
+    <div class="pitch quadro${pode ? ' editavel' : ''}" id="qpitch"><div class="pl mid"></div><div class="pc"></div><div class="pg top"></div><div class="pg bot"></div><div class="pa top"></div><div class="pa bot"></div>
+      ${S.mapa.map(m => { const a = at(m.atleta_id); return `<div class="dot" data-ordem="${m.ordem}" style="left:${m.x}%;top:${m.y}%" title="${esc(a ? `${a.nome} · ${a.posicao}` : 'vazio')}">${a ? foto(a) : '<div class="av">?</div>'}<span>${esc(a?.nome || '—')}</span></div>`; }).join('')}
+      ${vis.adv ? advs.map(k => `<div class="adv-dot" data-peca="${k}" style="left:${S.quadro[k].x}%;top:${S.quadro[k].y}%">${k.slice(1)}</div>`).join('') : ''}
+      ${vis.bola ? `<div class="bola-peca" data-peca="bola" style="left:${S.quadro.bola.x}%;top:${S.quadro.bola.y}%"></div>` : ''}
     </div>
-    <div class="panel"><h2>11 inicial</h2>
-      ${S.mapa.map(m => { const a = at(m.atleta_id); return ed
-        ? `<div class="kv"><span>${m.ordem}.</span><select class="in" data-slot="${m.ordem}" style="max-width:260px">${opts(opcoes, m.atleta_id, '— vazio —')}</select></div>`
-        : `<div class="kv"><span><b>${m.ordem}.</b> ${esc(a?.nome || '—')}</span><b>${esc(a?.posicao || '')}</b></div>`; }).join('')}
+    <div class="panel"><h2>11 inicial <small class="m">${pode ? 'clique para trocar' : ''}</small></h2>
+      ${S.mapa.map(m => { const a = at(m.atleta_id); return `<div class="kv q-lin" data-ordem="${m.ordem}"><span><b>${m.ordem}.</b> ${esc(a?.nome || '—')}</span><b>${esc(a?.posicao || '')}</b></div>`; }).join('')}
       <h2 style="margin-top:16px">Banco / opções</h2>
       ${banco.map(a => `<div class="kv small"><span>${esc(a.nome)}</span><span class="m">${esc(a.posicao)}</span></div>`).join('') || '<div class="empty">—</div>'}
+      <p class="m q-leg"><i class="q-leg-qfc"></i> QFC · <i class="q-leg-adv"></i> adversário · <i class="q-leg-bola"></i> bola</p>
     </div>
   </div>`;
-  if ($('#bmed')) $('#bmed').onclick = () => { S.editMapa = true; pMapa(); };
-  if ($('#bmcanc')) $('#bmcanc').onclick = () => { S.editMapa = false; pMapa(); };
-  document.querySelectorAll('[data-slot]').forEach(sel => sel.onchange = async () => {
-    const ordem = +sel.dataset.slot, id = sel.value ? +sel.value : null;
-    const dup = id && S.mapa.find(m => m.atleta_id === id && m.ordem !== ordem);
-    const ups = [{ ordem, atleta_id: id }]; if (dup) ups.push({ ordem: dup.ordem, atleta_id: S.mapa.find(m => m.ordem === ordem).atleta_id });
+  $('#qadv').onclick = () => { salvarQuadroVis({ ...vis, adv: !vis.adv }); pMapa(); };
+  $('#qbola').onclick = () => { salvarQuadroVis({ ...vis, bola: !vis.bola }); pMapa(); };
+  if ($('#qreset')) $('#qreset').onclick = async () => {
+    if (!confirm('Voltar as peças do adversário e a bola para a posição inicial (4-4-2)?')) return;
+    const rows = Object.entries(ADV_PADRAO).map(([id, [x, y]]) => ({ id, x, y }));
+    const { error } = await sb.from('quadro_pecas').upsert(rows, { onConflict: 'id' }); if (error) return toast(erroAmigavel(error), true);
+    rows.forEach(r => { S.quadro[r.id] = r; }); pMapa();
+  };
+  document.querySelectorAll('.q-lin').forEach(l => l.onclick = () => clicarPeca(+l.dataset.ordem));
+  ligarQuadro(pode);
+}
+function clicarPeca(ordem) {
+  const m = S.mapa.find(x => x.ordem === ordem), a = S.atletas.find(x => x.id === m?.atleta_id);
+  if (podeMapa()) return escolherAtletaMapa(ordem); if (a) verAtleta(a);
+}
+// arrastar com mouse, dedo ou caneta; clique sem arrastar abre a troca de atleta
+function ligarQuadro(pode) {
+  const pitch = $('#qpitch'); if (!pitch) return;
+  pitch.querySelectorAll('.dot, .adv-dot, .bola-peca').forEach(el => {
+    el.onpointerdown = ev => {
+      if (ev.button > 0) return;
+      const r = pitch.getBoundingClientRect(), x0 = ev.clientX, y0 = ev.clientY; let moveu = false;
+      if (pode) el.setPointerCapture(ev.pointerId);
+      const mover = e => {
+        if (!pode) return;
+        if (!moveu && Math.hypot(e.clientX - x0, e.clientY - y0) < 5) return;
+        moveu = true; el.classList.add('arrastando');
+        el.style.left = Math.max(0, Math.min(100, (e.clientX - r.left) / r.width * 100)) + '%';
+        el.style.top = Math.max(0, Math.min(100, (e.clientY - r.top) / r.height * 100)) + '%';
+      };
+      const soltar = async () => {
+        el.onpointermove = el.onpointerup = el.onpointercancel = null; el.classList.remove('arrastando');
+        if (!moveu) { if (el.dataset.ordem) clicarPeca(+el.dataset.ordem); return; }
+        const x = Math.round(parseFloat(el.style.left) * 10) / 10, y = Math.round(parseFloat(el.style.top) * 10) / 10;
+        const r1 = el.dataset.ordem ? await sb.from('mapa_tatico').update({ x, y }).eq('ordem', +el.dataset.ordem) : await sb.from('quadro_pecas').upsert({ id: el.dataset.peca, x, y }, { onConflict: 'id' });
+        if (r1.error) { toast(erroAmigavel(r1.error), true); return pMapa(); }
+        if (el.dataset.ordem) Object.assign(S.mapa.find(m => m.ordem === +el.dataset.ordem), { x, y }); else S.quadro[el.dataset.peca] = { id: el.dataset.peca, x, y };
+      };
+      el.onpointermove = mover; el.onpointerup = soltar; el.onpointercancel = soltar;
+      ev.preventDefault();
+    };
+  });
+}
+function escolherAtletaMapa(ordem) {
+  const m = S.mapa.find(x => x.ordem === ordem), atual = S.atletas.find(a => a.id === m.atleta_id);
+  const lista = S.atletas.filter(a => a.ativo && a.status !== 'Inativo').sort((a, b) => POSICOES.indexOf(a.posicao) - POSICOES.indexOf(b.posicao) || a.nome.localeCompare(b.nome));
+  const sit = id => typeof situacao === 'function' && S.dm?.ok ? situacao(id).sit : 'Liberado';
+  const item = a => { const no = S.mapa.find(x => x.atleta_id === a.id), s = sit(a.id);
+    return `<button type="button" class="q-at${a.id === m.atleta_id ? ' on' : ''}" data-at="${a.id}" data-busca="${esc(fNormQ(a.nome + ' ' + a.posicao))}">${foto(a)}<span><b>${esc(a.nome)}</b><small>${esc(a.posicao)}${no && no.ordem !== ordem ? ` · no campo (${no.ordem})` : ''}</small></span>${s !== 'Liberado' && typeof sitBadge === 'function' ? sitBadge(s) : ''}</button>`; };
+  modal(`<h2>Posição ${ordem} · ${esc(atual?.nome || 'vazia')}</h2><p class="m">Escolha quem entra nesta bolinha. Se o atleta já estiver no campo, os dois trocam de lugar.</p>
+    <input class="in" id="qbusca" placeholder="Buscar atleta ou posição...">
+    <div class="q-lista">${POSICOES.map(p => { const g = lista.filter(a => a.posicao === p); return g.length ? `<div class="q-grupo"><h4>${esc(p)}</h4>${g.map(item).join('')}</div>` : ''; }).join('')}
+      ${lista.filter(a => !POSICOES.includes(a.posicao)).map(item).join('')}</div>
+    <div class="mfoot"><button class="btn" id="qvazio">Deixar vazia</button><div class="row">${atual ? '<button class="btn" id="qver">Ver ficha</button>' : ''}<button class="btn" id="qfec">Fechar</button></div></div>`, true);
+  $('#qfec').onclick = fechar; if ($('#qver')) $('#qver').onclick = () => verAtleta(atual);
+  $('#qbusca').oninput = e => { const t = fNormQ(e.target.value); document.querySelectorAll('.q-at').forEach(b => { b.hidden = !!t && !b.dataset.busca.includes(t); }); document.querySelectorAll('.q-grupo').forEach(g => { g.hidden = ![...g.querySelectorAll('.q-at')].some(b => !b.hidden); }); };
+  const aplicar = async id => {
+    const dup = id && S.mapa.find(x => x.atleta_id === id && x.ordem !== ordem);
+    const ups = [{ ordem, atleta_id: id }]; if (dup) ups.push({ ordem: dup.ordem, atleta_id: m.atleta_id });
     for (const u of ups) {
       const { error } = await sb.from('mapa_tatico').update({ atleta_id: u.atleta_id }).eq('ordem', u.ordem);
       if (error) { toast(erroAmigavel(error), true); return pMapa(); }
-      S.mapa.find(m => m.ordem === u.ordem).atleta_id = u.atleta_id;
+      S.mapa.find(x => x.ordem === u.ordem).atleta_id = u.atleta_id;
     }
-    toast(dup ? 'Posições trocadas.' : 'Escalação atualizada.'); pMapa();
-  });
+    fechar(); toast(dup ? 'Atletas trocados de lugar.' : id ? 'Atleta trocado.' : 'Posição vazia.'); pMapa();
+  };
+  document.querySelectorAll('.q-at').forEach(b => b.onclick = () => +b.dataset.at === m.atleta_id ? fechar() : aplicar(+b.dataset.at));
+  $('#qvazio').onclick = () => aplicar(null);
 }
+const fNormQ = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 /* ---------- Histórico ---------- */
 function pHistorico() {
@@ -799,7 +869,7 @@ function pComissao() {
   <div class="panel tablewrap"><table class="tb"><tr><th>Nome</th><th>E-mail</th><th>Função</th><th>Admin</th><th>Situação</th><th></th></tr>
   ${S.perfis.map(p => `<tr><td><b>${esc(p.nome)}</b></td><td>${esc(p.email || '')}</td><td>${esc(FUNCOES[p.funcao] || p.funcao)}</td><td>${p.admin ? 'Sim' : '—'}</td><td>${p.ativo ? '<span class="badge s-Titular">Ativo</span>' : '<span class="badge s-Inativo">Bloqueado</span>'}</td><td>${p.id === S.perfil.id ? '<span class="m">você</span>' : `<button class="btn sm" data-pf="${p.id}">Editar</button>`}</td></tr>`).join('')}</table></div>
   <div class="panel"><h2>O que cada função pode fazer</h2>
-    <div class="note" style="margin:0">Todas as funções <b>veem</b> o CINQ (dá para restringir por pessoa em “O que pode ver”). <b>Editam</b>: Calendário (sessões, exercícios e programação) → Técnico/Auxiliar e Análise de desempenho; Mapa tático, Histórico e Análise do adversário → Análise de desempenho; Fisioterapia/DM → Fisioterapia, Médico e Análise (liberação só o Médico); Fisiologia → Preparação física/Fisiologia e Análise; Técnico individual → quem tem acesso à pasta do atleta; elenco e acessos → administrador. <b>Visualização</b> só consulta e não vê dados de saúde.</div></div>`;
+    <div class="note" style="margin:0">Todas as funções <b>veem</b> o CINQ (dá para restringir por pessoa em “O que pode ver”). <b>Editam</b>: Calendário (sessões, exercícios e programação) e Mapa tático → Técnico/Auxiliar e Análise de desempenho; Histórico e Análise do adversário → Análise de desempenho; Fisioterapia/DM → Fisioterapia, Médico e Análise (liberação só o Médico); Fisiologia → Preparação física/Fisiologia e Análise; Técnico individual → quem tem acesso à pasta do atleta; elenco e acessos → administrador. <b>Visualização</b> só consulta e não vê dados de saúde.</div></div>`;
   $('#bvinc').onclick = () => formMembro({});
   document.querySelectorAll('[data-pf]').forEach(b => b.onclick = () => formMembro(S.perfis.find(p => p.id === b.dataset.pf)));
 }

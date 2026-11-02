@@ -833,7 +833,7 @@ pInicio = function () { _pInicioDM(); const html = painelDM(); if (!html) return
 const _pElencoDM = pElenco;
 pElenco = function () { _pElencoDM(); if (!S.dm.ok) return; document.querySelectorAll('#main .ath[data-at]').forEach(el => { const s = situacao(+el.dataset.at).sit; if (s !== 'Liberado') el.querySelector('.badge')?.insertAdjacentHTML('afterend', ' ' + sitBadge(s)); }); };
 const _pMapaDM = pMapa;
-pMapa = function () { _pMapaDM(); if (!S.dm.ok) return;
+pMapa = async function () { await _pMapaDM(); if (!S.dm.ok) return;
   const dots = document.querySelectorAll('#main .pitch .dot');
   S.mapa.forEach((m, k) => { const s = m.atleta_id ? situacao(m.atleta_id).sit : 'Liberado'; if (s !== 'Liberado' && dots[k]) { dots[k].classList.add(s === 'DM' ? 'dm-dot-dm' : 'dm-dot-rt'); dots[k].insertAdjacentHTML('beforeend', `<em class="dm-tag">${s === 'DM' ? 'DM' : 'RT'}</em>`); } });
   document.querySelectorAll('#main .tactical .panel .kv').forEach(kv => { const nome = kv.querySelector('span')?.textContent.replace(/^\d+\.\s*/, '').trim(); const a = S.atletas.find(x => x.nome === nome); if (a) { const s = situacao(a.id).sit; if (s !== 'Liberado') kv.querySelector('span').insertAdjacentHTML('beforeend', ' ' + sitBadge(s)); } });

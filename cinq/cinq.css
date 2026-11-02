@@ -590,3 +590,22 @@ b.gol{font-size:11px;margin-left:3px;font-weight:600}
 @media (max-width:760px){.g4{grid-template-columns:1fr 1fr}}
 .fl-pex select.in{min-width:200px;padding:5px 8px}.fl-tab td.fl-alvo{background:#fff4dc;font-weight:800;color:#9a6200}
 div.f{display:block;margin-bottom:12px}div.f>span:first-child{display:block;font-size:12px;font-weight:600;color:#4d5a64;margin-bottom:4px}
+/* quadro tático */
+.pitch.quadro{touch-action:none;user-select:none;-webkit-user-select:none}
+.pitch.quadro .dot,.pitch.quadro .adv-dot,.pitch.quadro .bola-peca{cursor:pointer;z-index:2}
+.pitch.quadro.editavel .dot,.pitch.quadro.editavel .adv-dot,.pitch.quadro.editavel .bola-peca{cursor:grab}
+.pitch.quadro .arrastando{cursor:grabbing!important;z-index:5;filter:drop-shadow(0 6px 10px rgba(0,0,0,.35))}
+.pitch.quadro .arrastando .av{transform:scale(1.08)}
+.pitch.quadro .dot .av{transition:transform .1s}.pitch.quadro.editavel .dot:hover .av{transform:scale(1.06)}
+.adv-dot{position:absolute;transform:translate(-50%,-50%);width:34px;height:34px;border-radius:50%;background:#111;color:#fff;border:2px solid #fff;font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+.bola-peca{position:absolute;transform:translate(-50%,-50%);width:18px;height:18px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff 55%,#cfd6db);border:1.5px solid #222;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.btn.on{background:var(--accent2);border-color:var(--accent);color:var(--accent)}
+.q-lin{cursor:pointer}.q-lin:hover{background:#f6f8f9}
+.q-leg{margin-top:12px;font-size:12px}.q-leg i{display:inline-block;width:12px;height:12px;border-radius:50%;vertical-align:-1px;margin:0 3px 0 8px}.q-leg i:first-child{margin-left:0}
+.q-leg-qfc{background:#2f8f4e;border:2px solid #fff;box-shadow:0 0 0 1px #2f8f4e}.q-leg-adv{background:#111}.q-leg-bola{background:#fff;border:1.5px solid #222}
+.q-lista{max-height:56vh;overflow:auto;margin-top:10px;display:flex;flex-direction:column;gap:4px}
+.q-grupo h4{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:10px 0 4px}
+.q-at{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:1px solid var(--line);background:#fff;border-radius:10px;padding:6px 10px;cursor:pointer;margin-bottom:4px}
+.q-at:hover{border-color:var(--accent)}.q-at.on{background:var(--accent2);border-color:var(--accent)}
+.q-at .av{width:34px;height:34px;flex:0 0 34px}.q-at span{flex:1;min-width:0}.q-at small{display:block;color:var(--muted)}
+@media (max-width:760px){.adv-dot{width:28px;height:28px;font-size:11px}}
