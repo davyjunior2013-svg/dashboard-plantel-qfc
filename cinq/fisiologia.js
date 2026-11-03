@@ -1,6 +1,6 @@
 /* CINQ · Fisiologia
-   Pós-treino: CSV de sessão do Catapult (OpenField) → relatório no padrão do Departamento de Saúde e Performance, com HSR
-   (19,8–25,2), Sprint (≥25,2), HSR total (≥19,8), Player Load e PL/min, % da velocidade máxima de referência e o sino (🔔).
+   Pós-treino: CSV de sessão do Catapult (OpenField) → relatório no padrão do Departamento de Saúde e Performance, com alta
+   intensidade (faixa 5, 19,8–25,2), Sprint (faixa 6, ≥25,2), Player Load e PL/min, % da velocidade máxima de referência e o sino (🔔).
    Jogo: 3 arquivos (aquecimento, 1º e 2º tempo); total = 1º + 2º tempo, aquecimento separado. Tags MD+5…MD-5 por sessão.
    Prontidão: CMJ digitado no CINQ; referência = média das últimas 10 avaliações, DP, SWC = 0,2 × DP, faixas ±1 e ±2 DP.
    Velocidade: referência = maior marca válida, exposições ≥90%, dias sem exposição, falso pico a confirmar.
@@ -22,7 +22,7 @@ const flNomeAt = r => (r.atleta_id && S.atletas.find(a => a.id === r.atleta_id)?
 const flPos = r => (r.atleta_id && S.atletas.find(a => a.id === r.atleta_id)?.posicao) || r.posicao || '';
 const flSoma = (arr, k) => arr.reduce((t, r) => t + (+r[k] || 0), 0);
 const flMedia = (arr, k) => { const v = arr.map(r => typeof k === 'function' ? k(r) : r[k]).filter(x => x != null && isFinite(x)).map(Number); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
-const FL_LIMIARES = 'HSR 19,8–25,2 km/h · Sprint ≥25,2 km/h · HSR total ≥19,8 km/h · Acc ≥ +3 m/s² · Dcc ≤ −3 m/s² · PL = Player Load (UA)';
+const FL_LIMIARES = 'Alta intensidade 19,8–25,2 km/h (faixa 5) · Sprint ≥25,2 km/h (faixa 6) · Acc ≥ +3 m/s² · Dcc ≤ −3 m/s² · PL = Player Load (UA)';
 // parâmetros ajustáveis pelo fisiologista
 const FL_DEF = { vmax: { pct: 90, dias: 7, jogo_min: 45, salto_conf: 5, n_min: 3 }, acwr: { min: 1.0, max: 1.5 }, prontidao: { ruido_pct: 3, n_ref: 10, n_min: 5 } };
 const flCfg = k => ({ ...FL_DEF[k], ...(S.fl.cfg[k] || {}) });
@@ -294,7 +294,7 @@ function flEditarMD(s) {
 }
 
 /* ============ PÓS-TREINO ============ */
-const FL_MET = [['dist', 'Distância total', 'm', 0], ['mmin', 'Distância relativa', 'm/min', 0], ['ai', 'HSR 19,8–25,2', 'm', 0], ['sprint', 'Sprint ≥25,2', 'm', 0], ['hsr_total', 'HSR total ≥19,8', 'm', 0],
+const FL_MET = [['dist', 'Distância total', 'm', 0], ['mmin', 'Distância relativa', 'm/min', 0], ['ai', 'Alta intensidade 19,8–25,2', 'm', 0], ['sprint', 'Sprint ≥25,2', 'm', 0],
   ['n_sprints', 'Nº sprints', '', 0], ['vmax', 'Vel. máxima', 'km/h', 2], ['acel_m', 'Dist. aceleração', 'm', 0], ['n_acel', 'Nº acelerações', '', 0], ['desac_m', 'Dist. desaceleração', 'm', 0],
   ['n_desac', 'Nº desacelerações', '', 0], ['pl', 'Player Load', 'UA', 0], ['plmin', 'PL/min', 'UA/min', 2]];
 const flNomeParte = (s, n) => n === 0 ? (s.tipo === 'Jogo' ? 'Jogo (1º + 2º)' : 'Sessão') : s.periodos.find(p => p.num === n)?.nome || FL_PJ[n] || 'Parte ' + n;
@@ -317,7 +317,7 @@ function flDados(s) {
     else if (e?.recorde) dest.push(['Recorde de velocidade', r, `${flFmt(e.v, 2)} km/h (antes ${flFmt(e.antes, 2)} km/h)`]);
     if (x?.vel) dest.push(['🔔 Velocidade máxima', r, `${flFmt(e.v, 1)} km/h = ${Math.round(x.pct)}% da referência${x.partes.length ? ` · ${x.partes.map(p => flNomeParte(s, p.periodo)).join(', ')}` : ''}`]);
     if (x?.vel && x.md1) dest.push(['MD-1 · para discutir', r, `exposição ≥${C.pct}% na véspera do jogo`]);
-    const h = flHist(r, s); if (h) ['dist', 'hsr_total', 'sprint'].forEach(k => { if (h[k] && r[k] != null && Math.abs(r[k] - h[k]) / h[k] >= 0.3) dest.push([r[k] > h[k] ? 'Acima do habitual' : 'Abaixo do habitual', r, `${FL_MET.find(m => m[0] === k)[1]}: ${flFmt(r[k])} m (média dele ${flFmt(h[k])} m)`]); });
+    const h = flHist(r, s); if (h) ['dist', 'ai', 'sprint'].forEach(k => { if (h[k] && r[k] != null && Math.abs(r[k] - h[k]) / h[k] >= 0.3) dest.push([r[k] > h[k] ? 'Acima do habitual' : 'Abaixo do habitual', r, `${FL_MET.find(m => m[0] === k)[1]}: ${flFmt(r[k])} m (média dele ${flFmt(h[k])} m)`]); });
     if (r.atleta_id && typeof situacao === 'function' && S.dm?.ok) { const st = situacao(r.atleta_id); if (st.sit !== 'Liberado') dest.push(['DM', r, `está em ${st.sit} (${st.lesao.etapa})`]);
       const lib = S.dm.lesoes.find(l => l.atleta_id === r.atleta_id && l.data_retorno && l.data_retorno <= s.data && diasEntre(l.data_retorno, s.data) <= 14);
       if (lib) dest.push(['Recém-liberado', r, `liberado em ${fmt(lib.data_retorno)} (${tituloLesao(lib)})`]); } });
@@ -327,15 +327,15 @@ function flDados(s) {
 const flBarras = (tot, k, d = 0, suf = '', cor = '') => { const mx = Math.max(1, ...tot.map(r => +r[k] || 0)), md = flMedia(tot, k), mk = md == null ? '' : `<em class="fl-mk" style="left:${md / mx * 100}%" title="média do grupo: ${k === 'duracao_s' ? flDur(md) : flFmt(md, d) + suf}"></em>`;
   return tot.map(r => `<div class="bar fl-bar${cor}"><span>${esc(flNomeAt(r))}</span><div><i style="width:${(+r[k] || 0) / mx * 100}%"></i>${mk}</div><b>${k === 'duracao_s' ? flDur(r[k]) : flFmt(r[k], d) + suf}</b></div>`).join(''); };
 function flTabela(s, D, pdf) {
-  return `<table class="tb fl-tab"><thead><tr><th>Atleta</th><th>${s.tipo === 'Jogo' ? 'Minutos' : 'Duração'}</th><th>Total (m)</th><th>m/min</th><th>HSR 19,8–25,2</th><th>Sprint ≥25,2</th><th>HSR total</th><th>Nº spr.</th><th>Vmáx</th><th>% vmáx</th><th>Acc (m)</th><th>Nº acc</th><th>Dcc (m)</th><th>Nº dcc</th><th>PL</th><th>PL/min</th></tr></thead><tbody>
+  return `<table class="tb fl-tab"><thead><tr><th>Atleta</th><th>${s.tipo === 'Jogo' ? 'Minutos' : 'Duração'}</th><th>Total (m)</th><th>m/min</th><th>Alta int. 19,8–25,2</th><th>Sprint ≥25,2</th><th>Nº spr.</th><th>Vmáx</th><th>% vmáx</th><th>Acc (m)</th><th>Nº acc</th><th>Dcc (m)</th><th>Nº dcc</th><th>PL</th><th>PL/min</th></tr></thead><tbody>
     ${D.tot.map(r => { const h = pdf ? null : flHist(r, s);
       return `<tr${pdf ? '' : ` data-flat="${esc(r.nome_origem)}" class="dm-tr"`}><td><b>${esc(flNomeAt(r))}</b>${r.atleta_id ? '' : ' <small class="m">fora do elenco</small>'}</td><td${D.durMax && r.duracao_s < D.durMax * 0.9 && s.tipo !== 'Jogo' ? ' class="fl-curto"' : ''}>${flDur(r.duracao_s)}</td>
-      <td>${flFmt(r.dist)}${flSeta(r.dist, h?.dist)}</td><td>${flFmt(r.mmin)}${flSeta(r.mmin, h?.mmin)}</td><td>${flFmt(r.ai)}</td><td>${flFmt(r.sprint)}${flSeta(r.sprint, h?.sprint)}</td><td>${flFmt(r.hsr_total)}${flSeta(r.hsr_total, h?.hsr_total)}</td><td>${flFmt(r.n_sprints)}</td>
+      <td>${flFmt(r.dist)}${flSeta(r.dist, h?.dist)}</td><td>${flFmt(r.mmin)}${flSeta(r.mmin, h?.mmin)}</td><td>${flFmt(r.ai)}${flSeta(r.ai, h?.ai)}</td><td>${flFmt(r.sprint)}${flSeta(r.sprint, h?.sprint)}</td><td>${flFmt(r.n_sprints)}</td>
       <td>${flFmt(r.vmax, 2)}</td><td>${pdf ? flPctTxt(r).replace(/<span class="badge[^>]*>([^<]*)<\/span>/g, '($1)') : flPctTxt(r)}</td><td>${flFmt(r.acel_m)}</td><td>${flFmt(r.n_acel)}</td><td>${flFmt(r.desac_m)}</td><td>${flFmt(r.n_desac)}</td><td>${flFmt(r.pl)}${flSeta(r.pl, h?.pl)}</td><td>${flFmt(r.plmin, 2)}</td></tr>`; }).join('')}
   </tbody></table>`;
 }
 // jogo: 1º × 2º tempo por minuto
-const FL_PMIN = [['dist', 'm/min'], ['hsr_total', 'HSR total/min'], ['sprint', 'Sprint/min'], ['accdcc', 'Acc+Dcc/min'], ['pl', 'PL/min']];
+const FL_PMIN = [['dist', 'm/min'], ['ai', 'Alta int./min'], ['sprint', 'Sprint/min'], ['accdcc', 'Acc+Dcc/min'], ['pl', 'PL/min']];
 const flPorMin = (r, k) => !r || !r.duracao_s ? null : (k === 'accdcc' ? (+r.n_acel || 0) + (+r.n_desac || 0) : +r[k] || 0) / (r.duracao_s / 60);
 function flTempos(s, pdf) {
   if (s.tipo !== 'Jogo' || !s.periodos.some(p => p.num === 1) || !s.periodos.some(p => p.num === 2)) return '';
@@ -352,8 +352,8 @@ function flTempos(s, pdf) {
 }
 function flAquec(s) {
   const rs = S.fl.gps.filter(g => g.sessao_id === s.id && g.periodo === 9).sort((a, b) => flNomeAt(a).localeCompare(flNomeAt(b), 'pt')); if (!rs.length) return '';
-  return `<div class="panel"><h2>Aquecimento <small class="m">separado: não entra no total do jogo nem na carga</small></h2><div class="tablewrap"><table class="tb fl-tab"><thead><tr><th>Atleta</th><th>Duração</th><th>Distância</th><th>m/min</th><th>HSR total</th><th>Sprint</th><th>Vmáx</th><th>Acc</th><th>Dcc</th><th>PL</th></tr></thead><tbody>
-    ${rs.map(r => `<tr><td><b>${esc(flNomeAt(r))}</b></td><td>${flDur(r.duracao_s)}</td><td>${flFmt(r.dist)}</td><td>${flFmt(r.mmin)}</td><td>${flFmt(r.hsr_total)}</td><td>${flFmt(r.sprint)}</td><td>${flFmt(r.vmax, 2)}</td><td>${flFmt(r.n_acel)}</td><td>${flFmt(r.n_desac)}</td><td>${flFmt(r.pl)}</td></tr>`).join('')}</tbody></table></div></div>`;
+  return `<div class="panel"><h2>Aquecimento <small class="m">separado: não entra no total do jogo nem na carga</small></h2><div class="tablewrap"><table class="tb fl-tab"><thead><tr><th>Atleta</th><th>Duração</th><th>Distância</th><th>m/min</th><th>Alta int.</th><th>Sprint</th><th>Vmáx</th><th>Acc</th><th>Dcc</th><th>PL</th></tr></thead><tbody>
+    ${rs.map(r => `<tr><td><b>${esc(flNomeAt(r))}</b></td><td>${flDur(r.duracao_s)}</td><td>${flFmt(r.dist)}</td><td>${flFmt(r.mmin)}</td><td>${flFmt(r.ai)}</td><td>${flFmt(r.sprint)}</td><td>${flFmt(r.vmax, 2)}</td><td>${flFmt(r.n_acel)}</td><td>${flFmt(r.n_desac)}</td><td>${flFmt(r.pl)}</td></tr>`).join('')}</tbody></table></div></div>`;
 }
 const flSessOpt = x => `${dataBR(x.data)} · ${x.tipo}${x.md?.length ? ' · ' + flMdTxt(x) : ''}${x.titulo ? ' · ' + x.titulo : ''}${x.hora ? ' · ' + x.hora.slice(0, 5) : ''}`;
 function pPosTreino() {
@@ -367,17 +367,17 @@ function pPosTreino() {
       <b>${esc(fmtLong(s.data))}</b><span class="m">${esc(s.tipo)} · ${flDur(s.duracao_s)} · ${D.tot.length} atletas${cal ? ` · calendário: ${esc([cal.tipo, cal.titulo].filter(Boolean).join(' · '))}` : ''}</span>
       <span class="fl-mds">${(s.md || []).map(t => `<span class="badge fl-mdb">${esc(t)}</span>`).join('') || '<span class="m">sem MD</span>'}</span>${pode ? '<button class="btn sm" id="flmd">Tags / tipo</button><button class="btn sm" id="flrm">Excluir sessão</button>' : ''}</div>
     <h3 class="dc-bloco">Visão da sessão <small>média do grupo${s.tipo === 'Jogo' ? ' · jogo = 1º + 2º tempo' : ''}</small></h3>
-    <div class="cards fs-kpis fl-kpis">${kpi('Distância total', flFmt(m.dist, 1) + ' m')}${kpi('Distância relativa', flFmt(m.mmin, 1) + ' m/min')}${kpi('HSR 19,8–25,2', flFmt(m.ai, 1) + ' m')}${kpi('Sprint ≥25,2', flFmt(m.sprint, 1) + ' m', `média · ${flFmt(m.n_sprints, 1)} sprints`)}
-      ${kpi('HSR total ≥19,8', flFmt(m.hsr_total, 1) + ' m')}${kpi('Acelerações', flFmt(m.n_acel, 1), `média · ${flFmt(m.acel_m, 1)} m`)}${kpi('Desacelerações', flFmt(m.n_desac, 1), `média · ${flFmt(m.desac_m, 1)} m`)}${kpi('Vel. máxima', flFmt(m.vmax, 1) + ' km/h', `média · ${sinos} 🔔`)}
+    <div class="cards fs-kpis fl-kpis">${kpi('Distância total', flFmt(m.dist, 1) + ' m')}${kpi('Distância relativa', flFmt(m.mmin, 1) + ' m/min')}${kpi('Alta intensidade 19,8–25,2', flFmt(m.ai, 1) + ' m')}${kpi('Sprint ≥25,2', flFmt(m.sprint, 1) + ' m', `média · ${flFmt(m.n_sprints, 1)} sprints`)}
+      ${kpi('Acelerações', flFmt(m.n_acel, 1), `média · ${flFmt(m.acel_m, 1)} m`)}${kpi('Desacelerações', flFmt(m.n_desac, 1), `média · ${flFmt(m.desac_m, 1)} m`)}${kpi('Vel. máxima', flFmt(m.vmax, 1) + ' km/h', `média · ${sinos} 🔔`)}
       ${kpi('Player Load', flFmt(m.pl, 0) + ' UA')}${kpi('PL/min', flFmt(m.plmin, 2))}${kpi('Maior distância', flFmt(D.maior('dist')?.dist) + ' m', esc(flNomeAt(D.maior('dist') || {})))}${kpi('Maior vel.', flFmt(D.maior('vmax')?.vmax, 1) + ' km/h', esc(flNomeAt(D.maior('vmax') || {})))}</div>
-    ${D.per.length ? `<h3 class="dc-bloco">Distribuição por parte</h3><div class="fl-per">${D.per.map(p => `<div class="panel${p.num === 9 ? ' fl-aq' : ''}"><b>${esc(p.nome)}</b>${p.num === 9 ? ' <small class="m">fora do total</small>' : ''}<div class="fl-per-v"><span><small>Duração</small>${flDur(p.dur)}</span><span><small>Distância</small>${flFmt(p.dist)} m</span><span><small>m/min</small>${flFmt(p.mmin)}</span><span><small>HSR total</small>${flFmt(p.hsr)} m</span></div></div>`).join('')}</div>${flTempos(s)}${s.tipo === 'Jogo' ? '' : flPartesEx(s, D)}` : ''}
+    ${D.per.length ? `<h3 class="dc-bloco">Distribuição por parte</h3><div class="fl-per">${D.per.map(p => `<div class="panel${p.num === 9 ? ' fl-aq' : ''}"><b>${esc(p.nome)}</b>${p.num === 9 ? ' <small class="m">fora do total</small>' : ''}<div class="fl-per-v"><span><small>Duração</small>${flDur(p.dur)}</span><span><small>Distância</small>${flFmt(p.dist)} m</span><span><small>m/min</small>${flFmt(p.mmin)}</span><span><small>Alta int.</small>${flFmt(p.ai)} m</span></div></div>`).join('')}</div>${flTempos(s)}${s.tipo === 'Jogo' ? '' : flPartesEx(s, D)}` : ''}
     <div class="panel"><h2>Indicadores individuais <small class="m">clique no atleta para ver cada parte · setas = diferença de 10% ou mais da média dele (a partir de 3 sessões do mesmo tipo)</small></h2><div class="tablewrap">${flTabela(s, D)}</div>
       <p class="m fl-nota">${FL_LIMIARES}. % vmáx = em relação à maior velocidade válida do atleta (treinos, jogos e teste); 🔔 = ${flCfg('vmax').pct}% ou mais.</p></div>
     ${D.dest.length ? `<div class="panel"><h2>Destaques <small class="m">o sistema sinaliza, o fisiologista decide</small></h2><div class="dc-al">${D.dest.map(([t, r, x, gid]) => `<div class="dc-ali n-${/Tempo|DM|Recém|confirmar|MD-1/.test(t) ? 'al' : 'at'}"><span class="dc-tp">${esc(t)}</span><b>${esc(flNomeAt(r))}</b><span class="m">${esc(x)}</span>${gid && pode ? `<span class="row fl-vc"><button class="btn sm pri" data-vok="${gid}">É real</button><button class="btn sm" data-vfalso="${gid}">Falso pico</button></span>` : ''}</div>`).join('')}</div></div>` : ''}
     ${flAquec(s)}
     <p class="m fl-nota fl-mkleg"><em class="fl-mk-s"></em> risco = média do grupo na sessão · barra cheia = maior valor do grupo</p>
     <div class="grid2"><div class="panel"><h2>Distância total (m)</h2><div class="fs-bars">${flBarras(D.tot, 'dist')}</div></div><div class="panel"><h2>Distância relativa (m/min)</h2><div class="fs-bars">${flBarras(D.tot, 'mmin')}</div></div>
-      <div class="panel"><h2>HSR total ≥19,8 (m)</h2><div class="fs-bars">${flBarras(D.tot, 'hsr_total')}</div></div><div class="panel"><h2>Velocidade máxima (km/h)</h2><div class="fs-bars">${flBarras(D.tot, 'vmax', 2)}</div></div>
+      <div class="panel"><h2>Alta intensidade 19,8–25,2 (m)</h2><div class="fs-bars">${flBarras(D.tot, 'ai')}</div></div><div class="panel"><h2>Velocidade máxima (km/h)</h2><div class="fs-bars">${flBarras(D.tot, 'vmax', 2)}</div></div>
       <div class="panel"><h2>Sprint ≥25,2 (m)</h2><div class="fs-bars">${flBarras(D.tot, 'sprint')}</div></div><div class="panel"><h2>Player Load (UA)</h2><div class="fs-bars">${flBarras(D.tot, 'pl', 0, '', ' fl-pl')}</div></div>
       <div class="panel"><h2>Acelerações (nº)</h2><div class="fs-bars">${flBarras(D.tot, 'n_acel', 0, '', ' fl-am')}</div></div><div class="panel"><h2>Desacelerações (nº)</h2><div class="fs-bars">${flBarras(D.tot, 'n_desac', 0, '', ' fl-am')}</div></div></div>`;
   })());
@@ -425,9 +425,9 @@ function ligarPartesEx(s) {
 function flPartesAtleta(s, nome) {
   const rs = S.fl.gps.filter(g => g.sessao_id === s.id && g.nome_origem === nome).sort((a, b) => (a.periodo === 9 ? -1 : a.periodo || 99) - (b.periodo === 9 ? -1 : b.periodo || 99));
   const tot = rs.find(r => r.periodo === 0), vr = flVEntrada(tot)?.ref;
-  modal(`<h2>${esc(flNomeAt(tot || rs[0]))} · ${dataBR(s.data)}</h2><div class="tablewrap"><table class="tb"><thead><tr><th>Parte</th><th>Duração</th><th>Distância</th><th>m/min</th><th>HSR 19,8–25,2</th><th>Sprint</th><th>HSR total</th><th>Vmáx</th><th>% ref.</th><th>Acc</th><th>Dcc</th><th>PL</th><th>PL/min</th></tr></thead><tbody>
+  modal(`<h2>${esc(flNomeAt(tot || rs[0]))} · ${dataBR(s.data)}</h2><div class="tablewrap"><table class="tb"><thead><tr><th>Parte</th><th>Duração</th><th>Distância</th><th>m/min</th><th>Alta int. 19,8–25,2</th><th>Sprint</th><th>Vmáx</th><th>% ref.</th><th>Acc</th><th>Dcc</th><th>PL</th><th>PL/min</th></tr></thead><tbody>
     ${[...rs.filter(r => r.periodo > 0), tot].filter(Boolean).map(r => { const p = vr && r.vmax ? r.vmax / vr * 100 : null;
-      return `<tr class="${r.periodo === 0 ? 'fl-totrow' : r.periodo === 9 ? 'fl-aqrow' : ''}"><td><b>${esc(flNomeParte(s, r.periodo))}</b>${r.periodo === 9 ? ' <small class="m">fora do total</small>' : ''}</td><td>${flDur(r.duracao_s)}</td><td>${flFmt(r.dist)} m</td><td>${flFmt(r.mmin)}</td><td>${flFmt(r.ai)} m</td><td>${flFmt(r.sprint)} m</td><td>${flFmt(r.hsr_total)} m</td><td>${flFmt(r.vmax, 2)}</td><td>${p ? Math.round(p) + '%' + (p >= flCfg('vmax').pct ? ' 🔔' : '') : '—'}</td><td>${flFmt(r.n_acel)}</td><td>${flFmt(r.n_desac)}</td><td>${flFmt(r.pl)}</td><td>${flFmt(r.plmin, 2)}</td></tr>`; }).join('')}
+      return `<tr class="${r.periodo === 0 ? 'fl-totrow' : r.periodo === 9 ? 'fl-aqrow' : ''}"><td><b>${esc(flNomeParte(s, r.periodo))}</b>${r.periodo === 9 ? ' <small class="m">fora do total</small>' : ''}</td><td>${flDur(r.duracao_s)}</td><td>${flFmt(r.dist)} m</td><td>${flFmt(r.mmin)}</td><td>${flFmt(r.ai)} m</td><td>${flFmt(r.sprint)} m</td><td>${flFmt(r.vmax, 2)}</td><td>${p ? Math.round(p) + '%' + (p >= flCfg('vmax').pct ? ' 🔔' : '') : '—'}</td><td>${flFmt(r.n_acel)}</td><td>${flFmt(r.n_desac)}</td><td>${flFmt(r.pl)}</td><td>${flFmt(r.plmin, 2)}</td></tr>`; }).join('')}
     </tbody></table></div><div class="mfoot"><span class="m">${vr ? `referência de velocidade: ${flFmt(vr, 2)} km/h` : ''}</span><button class="btn" id="flpf">Fechar</button></div>`, true);
   $('#flpf').onclick = fechar;
 }
@@ -717,7 +717,7 @@ function flFiltrar(f, ini, fim) {
   return { ss: ss.filter(s => rs.some(r => r.sessao_id === s.id)), rs };
 }
 // métricas da carga; taxas (por minuto) = soma da base ÷ minutos
-const FL_CM = [['dist', 'Distância', 'm', 0], ['ai', 'HSR 19,8–25,2', 'm', 0], ['sprint', 'Sprint ≥25,2', 'm', 0], ['hsr_total', 'HSR total', 'm', 0], ['n_sprints', 'Nº sprints', '', 0],
+const FL_CM = [['dist', 'Distância', 'm', 0], ['ai', 'Alta int. 19,8–25,2', 'm', 0], ['sprint', 'Sprint ≥25,2', 'm', 0], ['n_sprints', 'Nº sprints', '', 0],
   ['acel_m', 'Dist. acc', 'm', 0], ['n_acel', 'Nº acc', '', 0], ['desac_m', 'Dist. dcc', 'm', 0], ['n_desac', 'Nº dcc', '', 0], ['pl', 'PL', 'UA', 0], ['plmin', 'PL/min', '', 2], ['mmin', 'm/min', '', 0]];
 const FL_TAXA = { plmin: 'pl', mmin: 'dist' };
 function flAgg(rs, k, modo = 'soma') {
@@ -726,7 +726,7 @@ function flAgg(rs, k, modo = 'soma') {
   const s = flSoma(rs, k); return modo === 'media' ? s / rs.length : s;
 }
 // ACWR 7:28 (média simples): soma dos últimos 7 dias ÷ (soma dos últimos 28 dias ÷ 4)
-const FL_ACWR = [['dist', 'Distância'], ['ai', 'HSR 19,8–25,2'], ['sprint', 'Sprint'], ['hsr_total', 'HSR total'], ['accdcc', 'Acc+Dcc (nº)'], ['pl', 'Player Load']];
+const FL_ACWR = [['dist', 'Distância'], ['ai', 'Alta int. 19,8–25,2'], ['sprint', 'Sprint'], ['accdcc', 'Acc+Dcc (nº)'], ['pl', 'Player Load']];
 const flValK = (g, k) => k === 'accdcc' ? (+g.n_acel || 0) + (+g.n_desac || 0) : +g[k] || 0;
 function flAcwr(aid, dia, k) {
   return flCache('acwr', `${aid}|${dia}|${k}`, () => {
@@ -821,7 +821,7 @@ function pEvolucao() {
   const series = f.modo === 'atletas' ? f.ats.map(id => ({ nome: S.atletas.find(a => a.id === id)?.nome || '?', pts: pontos(r => r.atleta_id === id) }))
     : (f.pos ? [f.pos] : flPosicoes()).map(p => ({ nome: p, pts: pontos(r => flPos(r) === p) })).filter(s => s.pts.length);
   series.push({ nome: 'Média do grupo', cor: '#9aa5ad', tracejado: true, pts: pontos(() => true) });
-  const kA = { dist: 'dist', ai: 'ai', sprint: 'sprint', hsr_total: 'hsr_total', n_acel: 'accdcc', n_desac: 'accdcc', pl: 'pl' }[met[0]], dias = Math.min(diasEntre(ini, fim), 180);
+  const kA = { dist: 'dist', ai: 'ai', sprint: 'sprint', n_acel: 'accdcc', n_desac: 'accdcc', pl: 'pl' }[met[0]], dias = Math.min(diasEntre(ini, fim), 180);
   const acwrS = kA && f.modo === 'atletas' ? f.ats.map(id => ({ nome: S.atletas.find(a => a.id === id)?.nome || '?', pts: [...Array(dias + 1)].map((_, k) => { const d = addDays(ini, k), r = d <= hoje() ? flAcwr(id, d, kA) : {}; return { d, v: r.r ?? null }; }) })) : [];
   const cmjAt = f.modo === 'atletas' ? f.ats.filter(id => S.fl.cmj.some(c => c.atleta_id === id)) : [];
   $('#main').innerHTML = topo('Fisiologia', 'Evolução', 'Acompanhamento do atleta ou da posição ao longo do tempo: cada ponto é uma sessão (o jogo conta 1º + 2º tempo).', '') + flTabs('evolucao') + `
@@ -831,7 +831,7 @@ function pEvolucao() {
       <select class="in" id="flemet">${opts(FL_EVM.map(m => [m[0], m[1] + (m[2] ? ` (${m[2]})` : '')]), f.met)}</select><select class="in" id="flemd">${opts(MD_TAGS, f.md, 'Todos os MD')}</select><select class="in" id="fletp">${opts(['Treino', 'Jogo', 'Teste'], f.tipo, 'Treino e jogo')}</select></div>
     ${f.modo === 'atletas' ? `<div class="fl-chips">${ats.map(a => `<button class="fl-chip${f.ats.includes(a.id) ? ' on' : ''}" data-eat="${a.id}"${f.ats.includes(a.id) ? ` style="border-color:${FL_CORES[f.ats.indexOf(a.id) % FL_CORES.length]}"` : ''}>${esc(a.nome)}</button>`).join('')}<span class="m">até 6 atletas</span></div>` : ''}
     <div class="panel"><h2>${esc(met[1])}${met[2] ? ` <small class="m">(${met[2]})</small>` : ''} <small class="m">${ss.length} sessões · 🔔 = exposição à velocidade máxima</small></h2>${flGrafico(series, ini, fim, { min: ['vmax', 'vpct'].includes(met[0]) ? null : undefined })}</div>
-    ${acwrS.length ? `<div class="panel"><h2>ACWR 7:28 · ${esc(FL_ACWR.find(a => a[0] === kA)[1])} <small class="m">dia a dia · vazio = em formação (menos de 4 semanas de dados)</small></h2>${flGrafico(acwrS, ini, fim, { zona: [A.min, A.max] })}</div>` : f.modo === 'atletas' && !kA ? '<p class="m fl-nota">O ACWR aparece para distância, HSR, sprint, acc/dcc e Player Load.</p>' : ''}
+    ${acwrS.length ? `<div class="panel"><h2>ACWR 7:28 · ${esc(FL_ACWR.find(a => a[0] === kA)[1])} <small class="m">dia a dia · vazio = em formação (menos de 4 semanas de dados)</small></h2>${flGrafico(acwrS, ini, fim, { zona: [A.min, A.max] })}</div>` : f.modo === 'atletas' && !kA ? '<p class="m fl-nota">O ACWR aparece para distância, alta intensidade, sprint, acc/dcc e Player Load.</p>' : ''}
     ${cmjAt.map(id => `<div class="panel"><h2>CMJ · ${esc(S.atletas.find(a => a.id === id).nome)}</h2>${flSvgCmj('a' + id, ini, fim)}</div>`).join('')}`;
   ligarFlTabs();
   const re = () => pEvolucao();
@@ -845,9 +845,9 @@ function pEvolucao() {
 /* ============ CARDS ============ */
 // barras em relação ao próprio atleta (maior valor dele em sessões do mesmo tipo, a partir de 3); antes disso, ao maior do grupo na sessão.
 // Traço = média do grupo na sessão.
-const FL_CK = { comissao: [['dist', 'Distância', 'm', 0], ['mmin', 'm/min', '', 0], ['ai', 'HSR 19,8–25,2', 'm', 0], ['sprint', 'Sprint ≥25,2', 'm', 0], ['hsr_total', 'HSR total', 'm', 0], ['n_sprints', 'Nº sprints', '', 0],
+const FL_CK = { comissao: [['dist', 'Distância', 'm', 0], ['mmin', 'm/min', '', 0], ['ai', 'Alta intensidade 19,8–25,2', 'm', 0], ['sprint', 'Sprint ≥25,2', 'm', 0], ['n_sprints', 'Nº sprints', '', 0],
   ['vmax', 'Vel. máxima', 'km/h', 1], ['n_acel', 'Acelerações', '', 0], ['n_desac', 'Desacelerações', '', 0], ['pl', 'Player Load', 'UA', 0], ['plmin', 'PL/min', '', 2]],
-  atleta: [['dist', 'Distância', 'm', 0], ['hsr_total', 'Alta velocidade (HSR)', 'm', 0], ['sprint', 'Sprint', 'm', 0], ['vmax', 'Velocidade máxima', 'km/h', 1], ['pl', 'Player Load', 'UA', 0]] };
+  atleta: [['dist', 'Distância', 'm', 0], ['ai', 'Alta intensidade', 'm', 0], ['sprint', 'Sprint', 'm', 0], ['vmax', 'Velocidade máxima', 'km/h', 1], ['pl', 'Player Load', 'UA', 0]] };
 function flCard(s, r, tot, modelo) {
   const a = r.atleta_id && S.atletas.find(x => x.id === r.atleta_id), e = flVEntrada(r), x = flExpo(e);
   const hs = r.atleta_id ? flLinhasAt(r.atleta_id).filter(y => y.s.tipo === s.tipo).map(y => y.g) : [];
@@ -913,14 +913,14 @@ function relPosHTML(s) {
   const D = flDados(s), m = D.med, sub = `${s.tipo}${s.md?.length ? ' ' + flMdTxt(s) : ''} | ${flDur(s.duracao_s)} | ${D.tot.length} atletas`, card = (l, v) => `<div class="flp-k"><small>${l}</small><b>${v}</b></div>`;
   const bl = (t, k, d = 0, cor = '') => `<div class="flp-box"><h4>${t}</h4>${flBarras(D.tot, k, d, '', cor)}</div>`, tit = s.tipo === 'Jogo' ? 'RELATÓRIO DE JOGO' : 'RELATÓRIO DE TREINO';
   return `<section class="flp-pg">${flCab(tit, s.data, sub)}<h3>VISÃO DA SESSÃO <small>média do grupo${s.tipo === 'Jogo' ? ' · 1º + 2º tempo' : ''}</small></h3>
-      <div class="flp-ks">${card('Distância total', flFmt(m.dist, 1) + ' m')}${card('Distância relativa', flFmt(m.mmin, 1) + ' m/min')}${card('HSR 19,8–25,2', flFmt(m.ai, 1) + ' m')}${card('Sprint ≥25,2', `${flFmt(m.sprint, 1)} m · ${flFmt(m.n_sprints, 1)}`)}
-        ${card('HSR total ≥19,8', flFmt(m.hsr_total, 1) + ' m')}${card('Acelerações', `${flFmt(m.acel_m, 1)} m · ${flFmt(m.n_acel, 1)}`)}${card('Desacelerações', `${flFmt(m.desac_m, 1)} m · ${flFmt(m.n_desac, 1)}`)}${card('Player Load', `${flFmt(m.pl, 0)} · ${flFmt(m.plmin, 2)}/min`)}</div>
+      <div class="flp-ks">${card('Distância total', flFmt(m.dist, 1) + ' m')}${card('Distância relativa', flFmt(m.mmin, 1) + ' m/min')}${card('Alta intensidade 19,8–25,2', flFmt(m.ai, 1) + ' m')}${card('Sprint ≥25,2', `${flFmt(m.sprint, 1)} m · ${flFmt(m.n_sprints, 1)}`)}
+        ${card('Velocidade máxima', flFmt(m.vmax, 1) + ' km/h')}${card('Acelerações', `${flFmt(m.acel_m, 1)} m · ${flFmt(m.n_acel, 1)}`)}${card('Desacelerações', `${flFmt(m.desac_m, 1)} m · ${flFmt(m.n_desac, 1)}`)}${card('Player Load', `${flFmt(m.pl, 0)} · ${flFmt(m.plmin, 2)}/min`)}</div>
       ${D.per.length ? `<h3>DISTRIBUIÇÃO POR PERÍODO</h3><div class="flp-ks">${D.per.map(p => card(p.nome + (p.num === 9 ? ' (fora do total)' : ''), `${flDur(p.dur)} · ${flFmt(p.dist)} m · ${flFmt(p.mmin)} m/min`)).join('')}</div>` : ''}
       ${D.dest.length ? `<h3>DESTAQUES</h3><ul class="flp-dest">${D.dest.map(([t, r, x]) => `<li><b>${esc(flNomeAt(r))}</b> · ${esc(t)}: ${esc(x)}</li>`).join('')}</ul>` : ''}</section>
     <section class="flp-pg">${flCab('INDICADORES INDIVIDUAIS', s.data, sub)}${flTabela(s, D, true)}<p class="flp-nota">${FL_LIMIARES} · 🔔 = ${flCfg('vmax').pct}% ou mais da velocidade máxima de referência.</p>
-      <h3>MAIORES VALORES OBSERVADOS</h3><div class="flp-ks">${[['dist', 'Distância total', ' m', 0], ['hsr_total', 'HSR total', ' m', 0], ['vmax', 'Vmáx.', ' km/h', 2], ['pl', 'Player Load', '', 0]].map(([k, l, u, d]) => { const r = D.maior(k); return card(l, r ? `${esc(flNomeAt(r))} · ${flFmt(r[k], d)}${u}` : '—'); }).join('')}</div></section>
+      <h3>MAIORES VALORES OBSERVADOS</h3><div class="flp-ks">${[['dist', 'Distância total', ' m', 0], ['ai', 'Alta intensidade', ' m', 0], ['vmax', 'Vmáx.', ' km/h', 2], ['pl', 'Player Load', '', 0]].map(([k, l, u, d]) => { const r = D.maior(k); return card(l, r ? `${esc(flNomeAt(r))} · ${flFmt(r[k], d)}${u}` : '—'); }).join('')}</div></section>
     ${s.tipo === 'Jogo' && flTempos(s) ? `<section class="flp-pg">${flCab('1º × 2º TEMPO', s.data, sub)}${flTempos(s, true)}</section>` : ''}
-    <section class="flp-pg">${flCab('DURAÇÃO E DISTÂNCIAS', s.data, sub)}<div class="flp-g2">${bl('Duração individual', 'duracao_s')}${bl('Distância total (m)', 'dist')}${bl('Distância relativa (m/min)', 'mmin')}${bl('HSR total ≥19,8 (m)', 'hsr_total')}</div></section>
+    <section class="flp-pg">${flCab('DURAÇÃO E DISTÂNCIAS', s.data, sub)}<div class="flp-g2">${bl('Duração individual', 'duracao_s')}${bl('Distância total (m)', 'dist')}${bl('Distância relativa (m/min)', 'mmin')}${bl('Alta intensidade 19,8–25,2 (m)', 'ai')}</div></section>
     <section class="flp-pg">${flCab('VELOCIDADE, SPRINT E ACELERAÇÕES', s.data, sub)}<div class="flp-g2">${bl('Velocidade máxima (km/h)', 'vmax', 2)}${bl('Sprint ≥25,2 (m)', 'sprint')}${bl('Número de acelerações', 'n_acel', 0, ' fl-am')}${bl('Número de desacelerações', 'n_desac', 0, ' fl-am')}</div></section>
     <section class="flp-pg">${flCab('PLAYER LOAD', s.data, sub)}<div class="flp-g2">${bl('Player Load (UA)', 'pl', 0, ' fl-pl')}${bl('Player Load por minuto', 'plmin', 2, ' fl-pl')}</div></section>`;
 }
@@ -948,9 +948,8 @@ function flRefConteudo(ab) {
   const V = flCfg('vmax'), A = flCfg('acwr'), R = flCfg('prontidao'), n = (v, d = 0) => flFmt(v, d);
   const sec = (t, itens) => `<h4 class="dm-h4">${t}</h4><ul class="fl-refl">${itens.map(i => `<li>${i}</li>`).join('')}</ul>`;
   const LIM = sec('Limiares do GPS (definidos no OpenField)', [
-    '<b>HSR 19,8–25,2 km/h</b>: distância na faixa de velocidade 5 (coluna “Distância alta intensidade” / Velocity Band 5).',
+    '<b>Alta intensidade 19,8–25,2 km/h</b>: distância na faixa de velocidade 5 (coluna “Distância alta intensidade” / Velocity Band 5).',
     '<b>Sprint ≥ 25,2 km/h</b>: distância na faixa 6 (“Distância sprint” / Velocity Band 6). <b>Nº sprints</b> = Sprint Efforts (nº de entradas acima de 25,2 km/h).',
-    '<b>HSR total ≥ 19,8 km/h</b> = faixa 5 + faixa 6 (High Speed Distance).',
     '<b>Aceleração</b> ≥ +3 m/s² e <b>desaceleração</b> ≤ −3 m/s² (distância e número de esforços).',
     '<b>Player Load (UA)</b>: carga do acelerômetro triaxial da Catapult (soma das variações da aceleração nos 3 eixos). <b>PL/min</b> = coluna “Carga minuto” (ou PL ÷ minutos).',
     'Distância relativa = metros por minuto da sessão (coluna “Metros/min”).']);
@@ -960,7 +959,7 @@ function flRefConteudo(ab) {
         'Fonte: CSV de sessão do Catapult (OpenField). A linha “Session” é o total; as demais são as partes. Sem linha “Session”, o total é a soma das partes.',
         'Média do grupo = média simples dos atletas com dado na sessão. Duração da parte = maior duração entre os atletas.',
         'Setas na tabela: diferença ≥ 10% em relação à média do próprio atleta nas sessões anteriores do <b>mesmo tipo</b> (mínimo 3 sessões).',
-        'Destaques: “acima/abaixo do habitual” = diferença ≥ 30% dessa média (distância, HSR total, sprint); “tempo menor” = menos de 90% da maior duração da sessão (não vale para jogo); DM e recém-liberado (até 14 dias do retorno) vêm da Fisioterapia/DM.',
+        'Destaques: “acima/abaixo do habitual” = diferença ≥ 30% dessa média (distância, alta intensidade, sprint); “tempo menor” = menos de 90% da maior duração da sessão (não vale para jogo); DM e recém-liberado (até 14 dias do retorno) vêm da Fisioterapia/DM.',
         `% vmáx e 🔔: ver a aba Velocidade (🔔 = ${n(V.pct)}% ou mais da referência).`,
         'Gráficos de barras: barra cheia = maior valor do grupo na sessão; risco = média do grupo.']), LIM,
       sec('Jogo', ['3 arquivos: aquecimento, 1º e 2º tempo. Total do jogo = 1º + 2º tempo (somas; vmáx = maior das partes; m/min e PL/min = total ÷ minutos).',
@@ -1006,7 +1005,7 @@ function flRefConteudo(ab) {
         '<b>Aguda</b> = soma dos últimos 7 dias; <b>crônica</b> = soma dos últimos 28 dias ÷ 4 (média semanal). ACWR = aguda ÷ crônica.',
         'Média simples, dias corridos (rolling), modelo acoplado (os 7 dias agudos fazem parte dos 28). Referência usada pelo fisiologista: K-Sport.',
         `Zona ok: <b>${n(A.min, 2)} a ${n(A.max, 2)}</b>; acima ou abaixo = alerta.`,
-        'Métricas: distância, HSR 19,8–25,2, sprint, HSR total, acc + dcc (nº) e Player Load. Usa todas as sessões (filtros de MD e tipo não se aplicam).',
+        'Métricas: distância, alta intensidade 19,8–25,2, sprint, acc + dcc (nº) e Player Load. Usa todas as sessões (filtros de MD e tipo não se aplicam).',
         '“Em formação” até o atleta ter 28 dias desde a primeira sessão no CINQ.',
         'Uso: contexto para a decisão da carga, não previsão de lesão.']),
       BIB(['Gabbett TJ. The training–injury prevention paradox: should athletes be training smarter and harder? Br J Sports Med, 2016.',
@@ -1021,8 +1020,8 @@ function flRefConteudo(ab) {
     cards: [sec('Barras', ['<b>Barra</b> = valor do atleta na sessão em relação ao <b>maior valor dele</b> em sessões do mesmo tipo (treino com treino, jogo com jogo), a partir de 3 sessões. Antes disso, em relação ao maior valor do grupo na sessão (o rodapé do card indica qual).',
         '<b>Risco</b> = média do grupo na sessão, na mesma régua.',
         `Vel. máxima mostra o % da referência e 🔔 a partir de ${n(V.pct)}%.`]),
-      sec('Modelos', ['<b>Comissão</b>: distância, m/min, HSR 19,8–25,2, sprint ≥25,2, HSR total, nº sprints, vmáx, acelerações, desacelerações, PL e PL/min.',
-        '<b>Atleta</b>: distância, HSR total, sprint, vmáx (%) e PL.']), LIM]
+      sec('Modelos', ['<b>Comissão</b>: distância, m/min, alta intensidade 19,8–25,2, sprint ≥25,2, nº sprints, vmáx, acelerações, desacelerações, PL e PL/min.',
+        '<b>Atleta</b>: distância, alta intensidade, sprint, vmáx (%) e PL.']), LIM]
   };
   return (C[ab] || C.pos).join('');
 }
