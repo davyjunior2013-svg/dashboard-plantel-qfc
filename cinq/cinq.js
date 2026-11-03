@@ -66,13 +66,37 @@ const fotoImgSt = a => { const q = fotoQ(a); return `object-position:${q.x}% ${q
 const foto = a => !a.foto_url ? `<div class="av">${esc(iniciais(a.nome))}</div>` : fotoQ(a).z > 1 ? `<span class="av avz"><img src="${esc(a.foto_url)}" alt="" style="${fotoImgSt(a)}"></span>` : `<img class="av" src="${esc(a.foto_url)}" alt="" style="${fotoImgSt(a)}">`;
 // versão em fundo (usada nos cards: sai certo também na imagem PNG)
 const fotoFundo = (a, url = a?.foto_url) => { const q = fotoQ(a); return `<i class="fbg" style="background-image:url('${esc(url)}');background-position:${q.x}% ${q.y}%;transform:scale(${q.z});transform-origin:${q.x}% ${q.y}%"></i>`; };
+// troca/envio da foto: reduz no navegador (máx. 800 px, JPEG) e guarda no Storage (bucket fotos); enquadramento volta ao padrão
+function trocarFoto(a, depois) {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/jpeg,image/png,image/webp';
+  inp.onchange = async () => { const f = inp.files[0]; if (!f) return;
+    try {
+      const img = await new Promise((ok, err) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => err(new Error('Não consegui abrir a imagem.')); i.src = URL.createObjectURL(f); });
+      if (Math.min(img.naturalWidth, img.naturalHeight) < 200) toast(`Foto pequena (${img.naturalWidth}×${img.naturalHeight} px): pode ficar borrada no card. O ideal é 600 px ou mais.`, true);
+      const k = Math.min(1, 800 / Math.max(img.naturalWidth, img.naturalHeight)), cv = document.createElement('canvas');
+      cv.width = Math.round(img.naturalWidth * k); cv.height = Math.round(img.naturalHeight * k);
+      const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height); cx.drawImage(img, 0, 0, cv.width, cv.height); URL.revokeObjectURL(img.src);
+      const blob = await new Promise(ok => cv.toBlob(ok, 'image/jpeg', 0.88));
+      const path = `atletas/${a.id}_${Date.now()}.jpg`;
+      const up = await sb.storage.from('fotos').upload(path, blob, { contentType: 'image/jpeg', upsert: true }); if (up.error) throw up.error;
+      const url = sb.storage.from('fotos').getPublicUrl(path).data.publicUrl, ant = a.foto_url;
+      const v = { foto_url: url, foto_x: null, foto_y: null, foto_zoom: null };
+      const { error } = await sb.from('atletas').update(v).eq('id', a.id); if (error) throw error;
+      Object.assign(a, v); const at = S.atletas.find(x => x.id === a.id); if (at && at !== a) Object.assign(at, v);
+      const m = ant && ant.match(/\/storage\/v1\/object\/public\/fotos\/(.+)$/); if (m) sb.storage.from('fotos').remove([decodeURIComponent(m[1])]).catch(() => {});
+      toast('Foto trocada. Ajuste o enquadramento se precisar.'); try { ir(S.page); } catch (e) {} depois();
+    } catch (e) { toast(erroAmigavel(e), true); } };
+  inp.click();
+}
 function ajustarFoto(a, depois) {
+  if (!a.foto_url) return trocarFoto(a, () => ajustarFoto(a, depois));
   let q = fotoQ(a); const url = esc(a.foto_url);
   modal(`<h2>Ajustar foto · ${esc(a.nome)}</h2><p class="m">Arraste a foto dentro da moldura para posicionar e use o zoom. Vale para todo o CINQ (elenco, mapa, DM, cards).</p>
     <div class="aj-wrap"><div><span class="aj-c aj-fr" data-aj="c"><img src="${url}" alt=""></span><small class="m">Elenco, mapa e listas</small></div>
       <div><span class="aj-r aj-fr" data-aj="r"><img src="${url}" alt=""></span><small class="m">Card do atleta</small></div></div>
     <label class="f"><span>Zoom</span><input type="range" id="ajz" min="1" max="3" step="0.05" value="${q.z}"></label>
-    <div class="mfoot"><button class="btn" id="ajp">Voltar ao padrão</button><div class="row"><button class="btn" id="ajc">Cancelar</button><button class="btn pri" id="ajs">Salvar</button></div></div>`);
+    <div class="mfoot"><div class="row"><button class="btn" id="ajt">Trocar foto</button><button class="btn" id="ajp">Voltar ao padrão</button></div><div class="row"><button class="btn" id="ajc">Cancelar</button><button class="btn pri" id="ajs">Salvar</button></div></div>`);
+  $('#ajt').onclick = () => trocarFoto(a, () => ajustarFoto(a, depois));
   const pinta = () => document.querySelectorAll('.aj-fr img').forEach(i => { i.style.cssText = `object-position:${q.x}% ${q.y}%;transform:scale(${q.z});transform-origin:${q.x}% ${q.y}%`; });
   pinta();
   document.querySelectorAll('.aj-fr').forEach(fr => fr.onpointerdown = e => { e.preventDefault(); fr.setPointerCapture(e.pointerId); const x0 = e.clientX, y0 = e.clientY, q0 = { ...q }, w = fr.clientWidth, h = fr.clientHeight;
@@ -649,7 +673,7 @@ function verAtleta(a) {
     ${a.observacoes ? `<div class="k">Observações</div><p class="pre">${esc(a.observacoes)}</p>` : ''}
     ${blocoH}
   </div>
-  <div class="mfoot"><div class="row">${isAdmin() ? '<button class="btn" id="medcad">Editar cadastro</button>' : ''}${isAdmin() && a.foto_url ? '<button class="btn" id="medfoto">Ajustar foto</button>' : ''}${podeHistorico() ? `<button class="btn" id="medhist">${h ? 'Editar histórico' : 'Adicionar histórico'}</button>` : ''}</div><button class="btn pri" id="mf">Fechar</button></div>`);
+  <div class="mfoot"><div class="row">${isAdmin() ? '<button class="btn" id="medcad">Editar cadastro</button>' : ''}${isAdmin() ? `<button class="btn" id="medfoto">${a.foto_url ? 'Ajustar / trocar foto' : 'Adicionar foto'}</button>` : ''}${podeHistorico() ? `<button class="btn" id="medhist">${h ? 'Editar histórico' : 'Adicionar histórico'}</button>` : ''}</div><button class="btn pri" id="mf">Fechar</button></div>`);
   $('#mf').onclick = fechar;
   if ($('#medcad')) $('#medcad').onclick = () => formAtleta(a);
   if ($('#medfoto')) $('#medfoto').onclick = () => ajustarFoto(a, () => verAtleta(a));
