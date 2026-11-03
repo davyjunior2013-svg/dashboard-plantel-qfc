@@ -8,8 +8,9 @@ S.fisio = { ok: false, av: [], vinc: [], aba: 'central' };
 const podeLerFisio = () => !!S.perfil && S.perfil.funcao !== 'visualizacao';
 const podeFisio = () => isAdmin() || ['fisio', 'medico'].includes(S.perfil?.funcao);
 const FS_ABAS = [['central', 'Central'], ['avaliacoes', 'Avaliações'], ['atendimento', 'Atendimento'], ['lesoes', 'Lesões'], ['prevencao', 'Prevenção']];
-const fsTabs = ab => `<div class="ind-tabs fs-tabs">${FS_ABAS.map(([k, l]) => `<button data-fsaba="${k}" class="${k === ab ? 'on' : ''}">${l}</button>`).join('')}</div>`;
-const ligarAbasFs = () => document.querySelectorAll('[data-fsaba]').forEach(b => b.onclick = () => { S.fisio.aba = b.dataset.fsaba; pFisio(); window.scrollTo(0, 0); });
+const fsTabs = ab => `<div class="ind-tabs fs-tabs">${FS_ABAS.map(([k, l]) => `<button data-fsaba="${k}" class="${k === ab ? 'on' : ''}">${l}</button>`).join('')}<span class="fl-sep"></span><button class="fl-refb" data-fsref="${ab}" title="critérios, cálculos e referências desta aba">📘 Referências</button></div>`;
+const ligarAbasFs = () => { document.querySelectorAll('[data-fsaba]').forEach(b => b.onclick = () => { S.fisio.aba = b.dataset.fsaba; pFisio(); window.scrollTo(0, 0); });
+  document.querySelectorAll('[data-fsref]').forEach(b => b.onclick = () => typeof fsReferencias === 'function' && fsReferencias(b.dataset.fsref)); };
 const MOTIVOS_FISIO = ['Pré-temporada', 'Reavaliação', 'Retorno de lesão', 'Outro'];
 const FISIO_ASS_ISQ = [10, 15]; // isquiossurais: diferença entre os lados (%) — amarelo a partir de 10, vermelho a partir de 15
 const fNorm = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();

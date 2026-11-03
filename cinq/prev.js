@@ -283,3 +283,68 @@ pCentral = function () {
   };
   if (S.pv.ok) pinta(); else carregarPrev().then(pinta).catch(() => {});
 };
+
+/* ============ REFERÊNCIAS da Fisioterapia/DM (critérios e cálculos de cada aba, para conferência técnica) ============ */
+function fsRefConteudo(ab) {
+  const sec = (t, itens) => `<h4 class="dm-h4">${t}</h4><ul class="fl-refl">${itens.map(i => `<li>${i}</li>`).join('')}</ul>`, BIB = l => sec('Referências bibliográficas', l);
+  const SIT = sec('Situação do atleta (usada em todo o CINQ)', ['<b>DM</b> = etapas DM e Reabilitação · <b>Restrito/Transição</b> = Transição em campo e Treino com restrição · <b>Liberado</b> = sem lesão ativa.',
+    'A situação aparece no Painel Geral, Elenco, Calendário, Mapa tático, ficha do atleta e na Fisiologia (semáforo da prontidão).']);
+  const C = {
+    central: [sec('Hoje', ['<b>Disponibilidade</b> = (atletas ativos − atletas em DM) ÷ atletas ativos. Restrito/Transição conta como disponível com restrição.',
+        'Retornos em 7 dias e atrasados: pela previsão de retorno registrada na lesão.', 'Atendidos hoje: atendimentos lançados na data.',
+        'Preventivo de hoje: o que cada atleta tem prescrito no dia da semana (obrigação do atleta; informativo).']), SIT,
+      sec('Alertas (o sistema sinaliza, o fisio decide)', ['<b>Retorno atrasado</b>: previsão de retorno já passou e o atleta não foi liberado.',
+        '<b>Queixa repetida</b>: mesma região com queixa em 3 dias ou mais dos últimos 7.',
+        '<b>Queixa × avaliação</b>: queixa nos últimos 14 dias numa região que a última avaliação física já apontava.',
+        '<b>Preventivo para revisar</b>: ciclo de 45 dias vencido. <b>Preventivo atrasado</b>: item com “N x por semana” que não fecha a meta na semana.',
+        '<b>Recém-liberado</b>: até 14 dias depois do retorno (atenção à carga).', '<b>Reavaliação vencida</b>: data de reavaliação física já passou.',
+        '<b>PSE alta repetida</b>: PSE 8 ou mais em 2 dias ou mais dos últimos 7.']),
+      sec('Período e temporada', ['Período: últimos 7 ou 30 dias, ou temporada (desde o início da pré-temporada, 02/11/2026).',
+        'Dias perdidos = da data de início da lesão até o retorno (ou até hoje, se ativa). Treinos e jogos perdidos contados pelo calendário.',
+        'Disponibilidade semanal: pela etapa de cada atleta em cada dia.', 'Retorno real × previsto: diferença em dias entre a liberação e a previsão.']),
+      BIB(['Fuller CW et al. Consensus statement on injury definitions and data collection procedures in studies of football (soccer) injuries. Br J Sports Med, 2006.',
+        'Bahr R et al. International Olympic Committee consensus statement: methods for recording and reporting of epidemiological data on injury and illness in sport 2020. Br J Sports Med, 2020.'])],
+    avaliacoes: [sec('Fonte', ['PDF do app Phast (13 testes). O CINQ lê o texto do PDF; PDF com senha: a senha só abre o arquivo no navegador e não é salva.',
+        'Nome do Phast × elenco: confirmado na primeira importação e guardado (vínculo).', 'Motivo: Pré-temporada, Reavaliação, Retorno de lesão ou Outro.']),
+      sec('Cor de cada teste', ['Duas referências: abaixo da menor = vermelho · entre as duas = amarelo · acima = verde.',
+        'Uma referência: ≥ referência = verde · ≥ 80% = amarelo · abaixo = vermelho.', 'Assimetria: ≤ limite = verde · até 1,5 × o limite = amarelo · acima = vermelho.',
+        `<b>Isquiossurais</b>: a referência do Phast é o limite máximo do teste, então vale só a <b>diferença entre os lados</b>: &lt; ${FISIO_ASS_ISQ[0]}% verde · ${FISIO_ASS_ISQ[0]}–${FISIO_ASS_ISQ[1]}% amarelo · &gt; ${FISIO_ASS_ISQ[1]}% vermelho.`,
+        'Respostas: Não/Não se aplica = verde · Leve/Sim = amarelo · Moderado/Grave = vermelho. 0 repetições ou 0 segundos = não realizado (ex.: CKCUEST).']),
+      sec('Achados e focos', ['<b>Dorsiflexão</b>: ADM boa na medida isolada mas limitação no salto/agachamento = limitação funcional ligada a outras compensações (ex.: quadril/controle), não falta de mobilidade do tornozelo.',
+        'Focos sugeridos por peso: alerta vale 3, atenção 1; achado confirmado pelo fisio vale o dobro. Achado descartado sai do peso.',
+        'Reavaliação sugerida: +4 ou +6 semanas (o fisio define). Comparação com a avaliação anterior em cada teste.',
+        'O sistema não diagnostica nem prevê lesão: mostra perfil, evolução e foco; a conclusão é do fisio.'])],
+    atendimento: [sec('Registro do dia', ['Atleta(s) (vários de uma vez para a mesma conduta), momento (antes/depois do treino/outro), finalidade (Tratamento, Prevenção, Recuperação), queixa, região, lado, lesão ligada e condutas.',
+        'Condutas = botões criados pelo próprio fisio (Meus botões de conduta), com rótulo, texto e finalidade.',
+        '<b>Atenção especial</b>: observação que vai para o relatório do dia (ligada à lesão mostra o dia e a etapa).']),
+      sec('PSE e classificação do treino', ['PSE (0–10) perguntada só ao atleta que passa no DM, no próprio atendimento.',
+        'Classificação pela média arredondada: até 4 = Leve · 5–6 = Moderado · 7 ou mais = Intenso. O fisio pode escolher outra classificação.']),
+      sec('Relatório do dia', ['Resumo, todos os atendimentos (momento, queixa, conduta, finalidade, PSE), atenção especial e departamento médico na situação daquele dia.',
+        'Saídas: Baixar PDF e Copiar/Compartilhar texto.']),
+      BIB(['Foster C et al. A new approach to monitoring exercise training. J Strength Cond Res, 2001 (PSE da sessão, escala CR-10).'])],
+    lesoes: [sec('Registro (padrão UEFA/COI)', ['Categoria Lesão ou Doença (doença fica separada nos indicadores), contexto (Treino, Jogo, Fora do clube, Anterior ao clube), minuto (jogo), mecanismo (sem contato, contato, sobrecarga), região, lado, tipo, <b>grau 1/2/3</b>, diagnóstico, médico e previsão de retorno.',
+        '<b>Recidiva</b>: mesma região e mesmo tipo até 2 meses depois do retorno (marcada automaticamente).', 'Lesões anteriores ao clube ficam no histórico, fora dos indicadores.']),
+      sec('Etapas e liberação', ['DM → Reabilitação → Transição em campo → Treino com restrição → Liberado. Critérios de cada etapa editáveis (Critérios das etapas).',
+        '<b>Liberação só pelo médico</b> (ou admin), garantida também no banco de dados.',
+        'Linha do tempo: etapas, atualizações, exames com anexo e atendimentos de tratamento.']), SIT,
+      sec('Indicadores', ['Dias fora = início até o retorno (ou até hoje). Treinos e jogos perdidos pelo calendário. Disponibilidade, por região, tipo e mecanismo.',
+        'Lesões por 1000 h de exposição: entram quando houver a exposição (minutos de GPS/jogo) consolidada.']),
+      BIB(['Fuller CW et al. Br J Sports Med, 2006 (definições: lesão, recidiva, gravidade por dias fora).', 'Bahr R et al. IOC consensus statement 2020. Br J Sports Med, 2020.',
+        'Ekstrand J, Hägglund M, Waldén M. Injury incidence and injury patterns in professional football: the UEFA injury study. Br J Sports Med, 2011.'])],
+    prevencao: [sec('Programação semanal', ['Preventivo específico de cada atleta: letras do catálogo por dia (segunda a sexta).',
+        '<b>2X/3X</b> = repetir o exercício no dia.', 'É <b>obrigação do atleta</b> nos dias estipulados: o CINQ mostra a prescrição, sem marcação de feito.',
+        `Ciclo de ${CICLO_PREV} dias: depois da reavaliação, Editar → Novo ciclo (o programa anterior vai para o histórico).`,
+        'Elenco sem programa: atletas ativos do elenco sem preventivo prescrito.', 'Importação: documento do Word com a tabela ATLETA | Seg | Ter | Qua | Qui | Sex.']),
+      sec('Catálogo de exercícios', ['Cada letra tem nome, região/foco e objetivo; cada dosagem é um exercício com sua(s) foto(s).', 'Importação: documento “Preventivo específico” do QFC (letras A–K, dosagens e fotos).']),
+      sec('Itens e ciclos', ['Itens individuais (ex.: vindos dos focos da avaliação ou de lesão anterior), com frequência escrita pelo fisio; quando tem “N x por semana”, vira meta e a adesão conta pelos atendimentos de prevenção.',
+        'Protocolos de grupo (todo o elenco ou por posição).']),
+      BIB(['van der Horst N et al. The preventive effect of the Nordic hamstring exercise on hamstring injuries in amateur soccer players: a randomized controlled trial. Am J Sports Med, 2015.',
+        'Harøy J et al. The Adductor Strengthening Programme prevents groin problems among male football players: a cluster-randomised controlled trial. Br J Sports Med, 2019.'])]
+  };
+  return (C[ab] || C.central).join('');
+}
+function fsReferencias(ab) {
+  modal(`<h2>Referências · ${esc(FS_ABAS.find(a => a[0] === ab)?.[1] || '')}</h2><p class="m">Critérios, cálculos e fontes usados nesta aba, para conferência técnica.</p>
+    <div class="fl-ref">${fsRefConteudo(ab)}</div><div class="mfoot"><span></span><button class="btn" id="fsrfc">Fechar</button></div>`, true);
+  $('#fsrfc').onclick = fechar;
+}
