@@ -15,6 +15,7 @@ const FUNCOES = {
   fisico: 'Preparação física / Fisiologia',
   fisio: 'Fisioterapia / DM',
   analise: 'Análise de desempenho',
+  leitura: 'Só leitura (todo o CINQ)',
   visualizacao: 'Visualização'
 };
 const DIAS = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
@@ -275,7 +276,7 @@ function shell() {
         ${EM_BREVE.map(l => `<button disabled title="Em construção">${l} <small>em breve</small></button>`).join('')}
         ${isAdmin() ? `<div class="sec">Administração</div><button data-p="comissao">Acessos da comissão</button>` : ''}
       </nav>
-      <div class="me"><div><b>${esc(S.perfil.nome)}</b>${esc(FUNCOES[S.perfil.funcao] || S.perfil.funcao)}${isAdmin() ? ' · admin' : ''}</div><button id="bsair">Sair</button></div>
+      <div class="me"><div><b>${esc(S.perfil.nome)}</b>${esc(S.perfil.cargo || FUNCOES[S.perfil.funcao] || S.perfil.funcao)}${isAdmin() ? ' · admin' : ''}</div><button id="bsair">Sair</button></div>
     </aside>
     <main class="main" id="main"></main>
   </div>`;
@@ -986,9 +987,9 @@ function pComissao() {
   $('#main').innerHTML = topo('CINQ · Administração', 'Acessos da comissão', 'Quem entra no CINQ e o que cada um pode fazer', '<button class="btn pri" id="bvinc">+ Liberar acesso</button>') + `
   <div class="note"><b>Como liberar um novo membro:</b> 1) No Supabase, em <a href="https://supabase.com/dashboard/project/xucaymymsctgbllwplbm/auth/users" target="_blank" rel="noopener">Authentication → Users</a>, clique em <i>Add user → Create new user</i>, informe o e-mail e uma senha provisória e deixe <i>Auto confirm</i> marcado. 2) Aqui, clique em <b>+ Liberar acesso</b> e informe o mesmo e-mail, o nome e a função. 3) Envie o link do CINQ e a senha provisória para a pessoa.</div>
   <div class="panel tablewrap"><table class="tb"><tr><th>Nome</th><th>E-mail</th><th>Função</th><th>Admin</th><th>Situação</th><th></th></tr>
-  ${S.perfis.map(p => `<tr><td><b>${esc(p.nome)}</b></td><td>${esc(p.email || '')}</td><td>${esc(FUNCOES[p.funcao] || p.funcao)}</td><td>${p.admin ? 'Sim' : '—'}</td><td>${p.ativo ? '<span class="badge s-Titular">Ativo</span>' : '<span class="badge s-Inativo">Bloqueado</span>'}</td><td>${p.id === S.perfil.id ? '<span class="m">você</span>' : `<button class="btn sm" data-pf="${p.id}">Editar</button>`}</td></tr>`).join('')}</table></div>
+  ${S.perfis.map(p => `<tr><td><b>${esc(p.nome)}</b></td><td>${esc(p.email || '')}</td><td>${esc(FUNCOES[p.funcao] || p.funcao)}${p.cargo ? `<br><small class="m">${esc(p.cargo)}</small>` : ''}</td><td>${p.admin ? 'Sim' : '—'}</td><td>${p.ativo ? '<span class="badge s-Titular">Ativo</span>' : '<span class="badge s-Inativo">Bloqueado</span>'}</td><td>${p.id === S.perfil.id ? '<span class="m">você</span>' : `<button class="btn sm" data-pf="${p.id}">Editar</button>`}</td></tr>`).join('')}</table></div>
   <div class="panel"><h2>O que cada função pode fazer</h2>
-    <div class="note" style="margin:0">Todas as funções <b>veem</b> o CINQ (dá para restringir por pessoa em “O que pode ver”). <b>Editam</b>: Calendário (sessões, exercícios e programação) e Mapa tático → Técnico/Auxiliar e Análise de desempenho; Histórico e Análise do adversário → Análise de desempenho; Fisioterapia/DM → Fisioterapia e Médico (liberação só o Médico); Fisiologia → Preparação física/Fisiologia; o administrador edita tudo; Técnico individual → quem tem acesso à pasta do atleta; elenco e acessos → administrador. <b>Visualização</b> só consulta e não vê dados de saúde.</div></div>`;
+    <div class="note" style="margin:0">Todas as funções <b>veem</b> o CINQ (dá para restringir por pessoa em “O que pode ver”). <b>Editam</b>: Calendário (sessões, exercícios e programação) e Mapa tático → Técnico/Auxiliar e Análise de desempenho; Histórico e Análise do adversário → Análise de desempenho; Fisioterapia/DM → Fisioterapia e Médico (liberação só o Médico); Fisiologia → Preparação física/Fisiologia; o administrador edita tudo; Técnico individual → quem tem acesso à pasta do atleta; elenco e acessos → administrador. <b>Só leitura</b> vê todo o CINQ, inclusive os dados de saúde, e não edita nada (no Técnico individual, só as pastas compartilhadas). <b>Visualização</b> só consulta e não vê dados de saúde.</div></div>`;
   $('#bvinc').onclick = () => formMembro({});
   document.querySelectorAll('[data-pf]').forEach(b => b.onclick = () => formMembro(S.perfis.find(p => p.id === b.dataset.pf)));
 }
@@ -1001,6 +1002,7 @@ function formMembro(p) {
     <label class="f"><span>E-mail do login *</span><input class="in" type="email" name="email" value="${esc(p.email || '')}" ${novo ? '' : 'readonly'} required></label>
     <label class="f"><span>Nome *</span><input class="in" name="nome" value="${esc(p.nome || '')}" required></label>
     <label class="f"><span>Função *</span><select class="in" name="funcao">${opts(Object.entries(FUNCOES), p.funcao || 'tecnico')}</select></label>
+    <label class="f"><span>Cargo (opcional: aparece junto do nome)</span><input class="in" name="cargo" value="${esc(p.cargo || '')}" placeholder="Ex.: Coordenador de futebol"></label>
     <label class="f row"><input type="checkbox" name="admin" ${p.admin ? 'checked' : ''}> <span style="margin:0">Administrador (gerencia elenco e acessos)</span></label>
     ${novo ? '' : `<label class="f row"><input type="checkbox" name="ativo" ${p.ativo ? 'checked' : ''}> <span style="margin:0">Acesso ativo (desmarque para bloquear)</span></label>`}
     <div class="mfoot"><span></span><div class="row"><button type="button" class="btn" id="pcanc">Cancelar</button><button class="btn pri" type="submit">Salvar</button></div></div>
@@ -1011,8 +1013,9 @@ function formMembro(p) {
     const f = formData(e.target);
     let res;
     if (novo) res = await sb.rpc('vincular_membro', { p_email: f.email, p_nome: f.nome, p_funcao: f.funcao, p_admin: !!f.admin });
-    else res = await sb.from('perfis').update({ nome: f.nome, funcao: f.funcao, admin: !!f.admin, ativo: !!f.ativo }).eq('id', p.id).select().single();
+    else res = await sb.from('perfis').update({ nome: f.nome, funcao: f.funcao, admin: !!f.admin, ativo: !!f.ativo, cargo: nul((f.cargo || '').trim()) }).eq('id', p.id).select().single();
     if (res.error) return toast(erroAmigavel(res.error), true);
+    if (novo && nul((f.cargo || '').trim())) { const c = await sb.from('perfis').update({ cargo: nul((f.cargo || '').trim()) }).eq('id', res.data.id).select().single(); if (c.error) return toast(erroAmigavel(c.error), true); res = c; }
     const d = res.data;
     S.perfis = (S.perfis.some(x => x.id === d.id) ? S.perfis.map(x => x.id === d.id ? d : x) : [...S.perfis, d]).sort((a, b) => a.nome.localeCompare(b.nome));
     fechar(); toast(novo ? `Acesso liberado para ${d.nome}.` : 'Acesso atualizado.'); pComissao();
