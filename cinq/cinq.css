@@ -701,3 +701,4 @@ img.av{object-position:50% 20%}.av.avz{overflow:hidden;padding:0}.av.avz img{wid
 .pvp-cat{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:0 22px}.pvp-ex{border:1px solid #dfe5ea;border-radius:8px;padding:8px;break-inside:avoid}.pvp-exh{display:flex;align-items:center;gap:8px;margin-bottom:6px}.pvp-exh .pv-letra{width:28px;height:28px;font-size:15px;flex-basis:28px}
 .pvp-parte{margin-bottom:6px;font-size:11px}.pvp-fotos{display:flex;gap:4px}.pvp-fotos .pv-foto{height:95px;max-width:120px}
 @media (max-width:700px){.pv-dias{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.fl-lote{max-height:60vh;overflow:auto}.fl-lt{width:56px;height:70px;object-fit:cover;border-radius:6px}.fl-lote select{min-width:200px}

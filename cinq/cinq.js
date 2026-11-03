@@ -88,6 +88,75 @@ function trocarFoto(a, depois) {
     } catch (e) { toast(erroAmigavel(e), true); } };
   inp.click();
 }
+// várias fotos de uma vez (ex.: fotos oficiais do clube com o nome do atleta na faixa): lê o nome (arquivo ou faixa da foto),
+// liga ao atleta para conferência, tira a faixa do nome, reduz e envia
+async function fotoLerNome(img) {
+  const W = img.naturalWidth, H = img.naturalHeight, cv = document.createElement('canvas'), cx = cv.getContext('2d');
+  cv.width = W; cv.height = H; cx.drawImage(img, 0, 0);
+  const px = (x, y) => cx.getImageData(Math.round(x * W), Math.round(y * H), 1, 1).data, az = c => c[2] > 110 && c[2] > c[0] + 50; // azul da faixa
+  const card = Math.abs(W / H - 0.8) < 0.08 && az(px(0.08, 0.93)) && az(px(0.45, 0.95));
+  if (!card || typeof ocrLer !== 'function') return { card, nome: '' };
+  const x0 = Math.round(W * 0.03), y0 = Math.round(H * 0.875), w = Math.round(W * 0.70), h = Math.round(H * 0.09), k = 2;
+  const o = document.createElement('canvas'); o.width = w * k; o.height = h * k; const ox = o.getContext('2d'); ox.drawImage(cv, x0, y0, w, h, 0, 0, w * k, h * k);
+  const d = ox.getImageData(0, 0, o.width, o.height); for (let i = 0; i < d.data.length; i += 4) { const v = (d.data[i] + d.data[i + 1] + d.data[i + 2]) / 3 > 175 ? 0 : 255; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; } ox.putImageData(d, 0, 0);
+  try { const r = await ocrLer(o, '7'); return { card, nome: (r.text || '').replace(/[^A-Za-zÀ-ÿ.\s]/g, ' ').replace(/\s+/g, ' ').trim().replace(/^(?:\S\s+)+/, '') }; } catch (e) { return { card, nome: '' }; }
+}
+function fotoSugere(nome) {
+  const t = fNormQ(nome).replace(/[^a-z\s]/g, ' ').trim(); if (!t) return '';
+  const ex = S.atletas.find(a => fNormQ(a.nome) === t); if (ex) return ex.id;
+  try { if (typeof flSugere === 'function') { const s = flSugere(nome).id; if (s) return s; } } catch (e) { /* sem fisiologia */ }
+  const tk = t.split(/\s+/), c = S.atletas.filter(a => fNormQ(a.nome).split(/\s+/).some(w => w.length > 2 && tk.includes(w)));
+  return c.length === 1 ? c[0].id : '';
+}
+async function fotoRecorte(img, card) {
+  const W = img.naturalWidth, H = card ? Math.round(img.naturalHeight * 0.83) : img.naturalHeight, k = Math.min(1, 800 / Math.max(W, H));
+  const cv = document.createElement('canvas'); cv.width = Math.round(W * k); cv.height = Math.round(H * k);
+  const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height); cx.drawImage(img, 0, 0, W, H, 0, 0, cv.width, cv.height);
+  return new Promise(ok => cv.toBlob(ok, 'image/jpeg', 0.88));
+}
+function fotosEmLote() {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/jpeg,image/png,image/webp'; inp.multiple = true;
+  inp.onchange = async () => {
+    const fs = [...inp.files]; if (!fs.length) return;
+    modal(`<h2>Atualizar fotos do elenco</h2><p class="m" id="flote">Lendo ${fs.length} foto${fs.length > 1 ? 's' : ''}… (o nome é lido na faixa da foto; leva alguns segundos)</p>`);
+    const itens = [];
+    for (const [k, f] of fs.entries()) {
+      const url = URL.createObjectURL(f), img = await new Promise((ok, err) => { const i = new Image(); i.onload = () => ok(i); i.onerror = err; i.src = url; }).catch(() => null);
+      if (!img) continue;
+      const doArq = f.name.replace(/\.[a-z]+$/i, '').replace(/[_-]+/g, ' '), lido = /whatsapp|^img|^dsc|^\d/i.test(doArq) ? await fotoLerNome(img) : { card: false, nome: doArq };
+      if (!lido.card && lido.nome === doArq) { const c = await fotoLerNome(img); lido.card = c.card; }
+      itens.push({ f, url, img, card: lido.card, nome: lido.nome, aid: fotoSugere(lido.nome) });
+      if ($('#flote')) $('#flote').textContent = `Lendo ${k + 1} de ${fs.length}…`;
+    }
+    itens.forEach(x => { if (x.aid && itens.filter(y => y.aid === x.aid).length > 1) x.dup = true; }); itens.forEach(x => { if (x.dup) x.aid = ''; }); // mesma sugestão para duas fotos: deixa para escolher
+    const ativos = S.atletas.filter(a => a.ativo).sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
+    modal(`<h2>Atualizar fotos do elenco</h2><p class="m">Confira o atleta de cada foto. A foto atual é substituída e o enquadramento volta ao padrão. Fotos no modelo do clube saem sem a faixa do nome.</p>
+      <div class="tablewrap fl-lote"><table class="tb"><thead><tr><th>Foto</th><th>Nome lido</th><th>Atleta do elenco</th><th>Tirar faixa</th></tr></thead><tbody>
+      ${itens.map((x, k) => `<tr><td><img src="${x.url}" alt="" class="fl-lt"></td><td>${esc(x.nome || '—')}</td><td><select class="in" data-lt="${k}">${opts(ativos.map(a => [a.id, a.nome]), x.aid, '— não atualizar —')}</select></td><td><input type="checkbox" data-ltc="${k}"${x.card ? ' checked' : ''}></td></tr>`).join('')}
+      </tbody></table></div><div class="mfoot"><span class="m" id="flten"></span><div class="row"><button class="btn" id="fltc">Cancelar</button><button class="btn pri" id="flts">Enviar fotos</button></div></div>`, true);
+    const conta = () => { const n = [...document.querySelectorAll('[data-lt]')].filter(s => s.value).length; $('#flten').textContent = `${n} de ${itens.length} ligadas a um atleta`; };
+    document.querySelectorAll('[data-lt]').forEach(s => s.onchange = conta); conta();
+    $('#fltc').onclick = () => { itens.forEach(x => URL.revokeObjectURL(x.url)); fechar(); };
+    $('#flts').onclick = async () => {
+      const sel = itens.map((x, k) => ({ ...x, aid: +$(`[data-lt="${k}"]`).value || null, card: $(`[data-ltc="${k}"]`).checked })).filter(x => x.aid);
+      const ids = sel.map(x => x.aid); if (new Set(ids).size !== ids.length) return toast('O mesmo atleta foi escolhido para duas fotos.', true);
+      if (!sel.length) return toast('Nenhuma foto ligada a um atleta.', true);
+      const b = $('#flts'); b.disabled = true; let n = 0;
+      for (const x of sel) {
+        b.textContent = `Enviando ${n + 1} de ${sel.length}…`;
+        try {
+          const a = S.atletas.find(y => y.id === x.aid), path = `atletas/${a.id}_${Date.now()}.jpg`, ant = a.foto_url;
+          const up = await sb.storage.from('fotos').upload(path, await fotoRecorte(x.img, x.card), { contentType: 'image/jpeg', upsert: true }); if (up.error) throw up.error;
+          const v = { foto_url: sb.storage.from('fotos').getPublicUrl(path).data.publicUrl, foto_x: null, foto_y: null, foto_zoom: null };
+          const { error } = await sb.from('atletas').update(v).eq('id', a.id); if (error) throw error; Object.assign(a, v); n++;
+          const m = ant && ant.match(/\/storage\/v1\/object\/public\/fotos\/(.+)$/); if (m) sb.storage.from('fotos').remove([decodeURIComponent(m[1])]).catch(() => {});
+        } catch (e) { toast(`${nomeAtl0(x.aid)}: ${erroAmigavel(e)}`, true); }
+      }
+      itens.forEach(x => URL.revokeObjectURL(x.url)); fechar(); toast(`${n} foto${n === 1 ? '' : 's'} atualizada${n === 1 ? '' : 's'}.`); try { ir(S.page); } catch (e) {} };
+  };
+  inp.click();
+}
+const nomeAtl0 = id => S.atletas.find(a => a.id === id)?.nome || '';
 function ajustarFoto(a, depois) {
   if (!a.foto_url) return trocarFoto(a, () => ajustarFoto(a, depois));
   let q = fotoQ(a); const url = esc(a.foto_url);
@@ -638,7 +707,7 @@ function pElenco() {
   const F = S.filtro;
   const lista = S.atletas.filter(a => (!F.q || a.nome.toLowerCase().includes(F.q.toLowerCase())) && (!F.pos || a.posicao === F.pos) && (!F.st || a.status === F.st))
     .sort((a, b) => POSICOES.indexOf(a.posicao) - POSICOES.indexOf(b.posicao) || a.nome.localeCompare(b.nome));
-  $('#main').innerHTML = topo('CINQ · Elenco profissional', 'Elenco', `${S.atletas.filter(a => a.status !== 'Inativo').length} atletas ativos`, isAdmin() ? '<button class="btn pri" id="bnovoat">+ Atleta</button>' : '') + `
+  $('#main').innerHTML = topo('CINQ · Elenco profissional', 'Elenco', `${S.atletas.filter(a => a.status !== 'Inativo').length} atletas ativos`, isAdmin() ? '<button class="btn" id="bfotos">Atualizar fotos</button><button class="btn pri" id="bnovoat">+ Atleta</button>' : '') + `
   <div class="filters">
     <input class="in" id="fq" placeholder="Buscar atleta…" value="${esc(F.q)}">
     <select class="in" id="fpos">${opts(POSICOES, F.pos, 'Todas as posições')}</select>
@@ -649,6 +718,7 @@ function pElenco() {
   $('#fpos').onchange = e => { F.pos = e.target.value; pElenco(); };
   $('#fst').onchange = e => { F.st = e.target.value; pElenco(); };
   if ($('#bnovoat')) $('#bnovoat').onclick = () => formAtleta({});
+  if ($('#bfotos')) $('#bfotos').onclick = fotosEmLote;
   document.querySelectorAll('[data-at]').forEach(el => el.onclick = () => verAtleta(S.atletas.find(x => x.id === +el.dataset.at)));
 }
 
