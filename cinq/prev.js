@@ -1,6 +1,6 @@
 /* CINQ · Preventivos (Fisioterapia/DM): catálogo de exercícios por letra (cada dosagem é um exercício, com foto),
    programação semanal por atleta (letras de segunda a sexta, com repetição 2X/3X), registro do que foi feito no dia
-   (adesão real) e folhas para imprimir. Importa os dois documentos do Word do fisioterapeuta. Carregado depois do dm.js. */
+   (o preventivo é obrigação do atleta: o CINQ só mostra a prescrição, sem marcação de feito) e folhas para imprimir. Importa os dois documentos do Word do fisioterapeuta. Carregado depois do dm.js. */
 'use strict';
 
 S.pv = { ok: false, cat: [], prog: [], feito: [], urls: {}, sub: 'programa' };
@@ -44,7 +44,7 @@ async function pvMarcarTodos(pid, d) {
   const { data, error } = await sb.from('fisio_prev_feito').insert(falta.map(i => ({ data: d, programa_id: pid, letra: i.l }))).select(); if (error) return toast(erroAmigavel(error), true);
   S.pv.feito.push(...data);
 }
-const pvChip = (p, d, i, pode) => { const f = pvFeito(p, d, i.l), clic = pode && d <= hoje();
+const pvChip = (p, d, i) => { const f = null, clic = false;
   return `<span class="pv-ch${f ? ' ok' : ''}${clic ? ' clic' : ''}"${clic ? ` data-pvf="${p.id}|${d}|${i.l}"` : ''} title="${esc([pvCat(i.l)?.nome, (pvCat(i.l)?.partes || []).map(x => x.dosagem).filter(Boolean).join(' · ')].filter(Boolean).join(' — ') || i.l)}${f ? ' · feito' : ''}">${esc(i.l)}${i.x > 1 ? `<sup>${i.x}x</sup>` : ''}</span>`; };
 function pvLigarChips(re) {
   document.querySelectorAll('[data-pvf]').forEach(c => c.onclick = async e => { e.stopPropagation(); const [pid, d, l] = c.dataset.pvf.split('|'); await pvMarcar(+pid, d, l); re(); });
@@ -65,25 +65,22 @@ pPrevencao = function () {
 function pvPrograma() {
   const pode = podeDM(), ini = S.dm.semana || (S.dm.semana = segunda(hoje())), h = hoje(), progs = pvAtivos();
   const datas = DIAS_PV.map(([n]) => addDays(ini, n - 1)), hojeP = progs.filter(p => pvDoDia(p, h).length);
-  const prevH = hojeP.reduce((t, p) => t + pvDoDia(p, h).length, 0), feitH = hojeP.reduce((t, p) => t + pvDoDia(p, h).filter(i => pvFeito(p, h, i.l)).length, 0);
-  let pS = 0, fS = 0; progs.forEach(p => { const a = pvAdesao(p, ini); pS += a.prev; fS += a.feitos; });
+  const prevH = hojeP.reduce((t, p) => t + pvDoDia(p, h).length, 0), semProg = S.atletas.filter(a => a.ativo && a.status !== 'Inativo' && !progs.some(p => p.atleta_id === a.id));
   const venc = progs.filter(p => pvRevisar(p) <= h), semCat = [...new Set(progs.flatMap(p => Object.values(p.dias || {}).flat().map(i => i.l)))].filter(l => !pvCat(l));
   const kpi = (l, v, s) => `<div class="card"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
-  $('#main').innerHTML = topo('Fisioterapia / DM', 'Prevenção', 'Programação semanal dos preventivos específicos: as letras de cada dia são os exercícios do catálogo. Clique na letra para marcar como feito.',
+  $('#main').innerHTML = topo('Fisioterapia / DM', 'Prevenção', 'Programação semanal dos preventivos específicos: as letras de cada dia são os exercícios do catálogo. O preventivo é obrigação do atleta nos dias estipulados.',
     `<button class="btn" id="pvgpdf">Imprimir grade</button>${pode ? '<button class="btn" id="pvimp">Importar programação (Word)</button><button class="btn pri" id="pvnovo">+ Programa</button>' : ''}`) + fsTabs('prevencao') + pvSub('programa') + `
   <div class="dm-dia"><button class="btn sm" id="pvsa">◀</button><b>Semana de ${fmt(ini)} a ${fmt(addDays(ini, 4))}</b><button class="btn sm" id="pvsp">▶</button>${ini !== segunda(h) ? '<button class="btn sm" id="pvsh">Esta semana</button>' : ''}</div>
   <div class="cards fs-kpis">${kpi('Atletas com programa', progs.length, `${progs.filter(p => !p.atleta_id).length ? progs.filter(p => !p.atleta_id).length + ' ainda fora do elenco do CINQ' : 'todos ligados ao elenco'}`)}
-    ${kpi(`Hoje (${['', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado', 'domingo'][pvDiaSem(h)]})`, `${feitH}/${prevH}`, prevH ? `exercícios feitos · ${hojeP.length} atletas` : 'sem preventivo programado')}
-    ${kpi('Adesão da semana', pS ? Math.round(fS / pS * 100) + '%' : '—', pS ? `${fS} de ${pS} exercícios até hoje` : 'nada previsto até hoje')}
+    ${kpi(`Hoje (${['', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado', 'domingo'][pvDiaSem(h)]})`, prevH ? `${hojeP.length} atletas` : '—', prevH ? `${prevH} exercícios prescritos` : 'sem preventivo programado')}
+    ${kpi('Elenco sem programa', semProg.length, semProg.length ? semProg.map(a => a.nome).slice(0, 3).join(', ') + (semProg.length > 3 ? '…' : '') : 'todos com programa')}
     ${kpi('Para revisar', venc.length, venc.length ? venc.map(pvNome).slice(0, 3).join(', ') + (venc.length > 3 ? '…' : '') : `ciclo de ${CICLO_PREV} dias em dia`)}</div>
   ${semCat.length ? `<div class="note">Letras usadas na programação que ainda não estão no catálogo: <b>${semCat.join(', ')}</b>.${pode ? ' Cadastre em “Catálogo de exercícios”.' : ''}</div>` : ''}
-  <div class="panel"><h2>Programação da semana <small class="m">verde = feito · clique na letra para marcar ou desmarcar · ✓ marca todos do dia</small></h2>
-    ${progs.length ? `<div class="tablewrap pv-wrap"><table class="tb pv-tab"><thead><tr><th>Atleta</th>${datas.map((d, k) => `<th class="${d === h ? 'pv-hoje' : ''}">${DIAS_PV[k][1]} <small>${fmt(d)}</small></th>`).join('')}<th>Adesão</th><th>Ciclo</th>${pode ? '<th></th>' : ''}</tr></thead><tbody>
-      ${progs.map(p => { const a = pvAdesao(p, ini), s = p.atleta_id ? situacao(p.atleta_id).sit : 'Liberado', nv = diasEntre(h, pvRevisar(p));
+  <div class="panel"><h2>Programação da semana <small class="m">passe o mouse na letra para ver o exercício e a dosagem</small></h2>
+    ${progs.length ? `<div class="tablewrap pv-wrap"><table class="tb pv-tab"><thead><tr><th>Atleta</th>${datas.map((d, k) => `<th class="${d === h ? 'pv-hoje' : ''}">${DIAS_PV[k][1]} <small>${fmt(d)}</small></th>`).join('')}<th>Ciclo</th>${pode ? '<th></th>' : ''}</tr></thead><tbody>
+      ${progs.map(p => { const s = p.atleta_id ? situacao(p.atleta_id).sit : 'Liberado', nv = diasEntre(h, pvRevisar(p));
         return `<tr><td><b>${esc(pvNome(p))}</b>${p.atleta_id ? sitBadge(s) : ' <small class="m">fora do elenco</small>'}</td>
-        ${datas.map(d => { const it = pvDoDia(p, d), todos = it.length && it.every(i => pvFeito(p, d, i.l));
-          return `<td class="${d === h ? 'pv-hoje' : ''}">${it.map(i => pvChip(p, d, i, pode)).join('')}${pode && it.length && !todos && d <= h ? `<button class="pv-tudo" data-pvt="${p.id}|${d}" title="marcar todos como feitos">✓</button>` : ''}</td>`; }).join('')}
-        <td class="pv-ad">${a.pct == null ? '<span class="m">—</span>' : `<b class="${a.pct >= 80 ? 'fl-l-ok' : a.pct >= 50 ? 'fl-l-at' : 'fl-l-al'}">${a.pct}%</b><small class="m">${a.feitos}/${a.prev}</small>`}</td>
+        ${datas.map(d => `<td class="${d === h ? 'pv-hoje' : ''}">${pvDoDia(p, d).map(i => pvChip(p, d, i)).join('')}</td>`).join('')}
         <td class="sm">${fmt(p.inicio)} → ${fmt(pvRevisar(p))}${nv < 0 ? ' <span class="badge s-Inativo">revisar</span>' : nv <= 7 ? ` <span class="badge dm-rt">${nv} d</span>` : ''}</td>
         ${pode ? `<td class="dm-act"><button class="btn sm" data-pvfolha="${p.id}">Folha</button><button class="btn sm" data-pvedit="${p.id}">Editar</button></td>` : `<td><button class="btn sm" data-pvfolha="${p.id}">Folha</button></td>`}</tr>`; }).join('')}
     </tbody></table></div>` : `<p class="empty">Nenhuma programação ainda.${pode ? ' Use “Importar programação (Word)” com o documento da programação semanal, ou “+ Programa”.' : ''}</p>`}
@@ -95,7 +92,6 @@ function pvPrograma() {
   $('#pvgpdf').onclick = () => imprimirFl(pvGradeHTML(), `Preventivos_QFC_${ini}`);
   document.querySelectorAll('[data-pvfolha]').forEach(b => b.onclick = () => { const p = S.pv.prog.find(x => x.id === +b.dataset.pvfolha); imprimirFl(pvFolhaHTML(p), `Preventivo_${pvNome(p).replace(/\s+/g, '_')}`); });
   if (!pode) return;
-  pvLigarChips(pvPrograma);
   $('#pvnovo').onclick = () => pvFormProg();
   $('#pvimp').onclick = pvImportarProg;
   document.querySelectorAll('[data-pvedit]').forEach(b => b.onclick = () => pvFormProg(S.pv.prog.find(x => x.id === +b.dataset.pvedit)));
@@ -279,12 +275,11 @@ pCentral = function () {
     if (!document.querySelector('[data-fsaba="central"].on')) return;
     document.querySelectorAll('.pv-central').forEach(x => x.remove());
     const h = hoje(), progs = pvAtivos().filter(p => pvDoDia(p, h).length), pode = podeDM(); if (!progs.length) return;
-    const prev = progs.reduce((t, p) => t + pvDoDia(p, h).length, 0), feit = progs.reduce((t, p) => t + pvDoDia(p, h).filter(i => pvFeito(p, h, i.l)).length, 0);
+    const prev = progs.reduce((t, p) => t + pvDoDia(p, h).length, 0);
     const el = document.querySelector('.fs-kpis'); if (!el) return;
-    el.insertAdjacentHTML('afterend', `<div class="panel pv-central"><h2>Preventivo de hoje <small class="m">${feit} de ${prev} exercícios feitos · ${progs.length} atletas · clique na letra para marcar</small><button class="btn sm" id="pvcen">Abrir programação</button></h2>
-      <div class="pv-hl">${progs.map(p => { const it = pvDoDia(p, h), todos = it.every(i => pvFeito(p, h, i.l)); return `<div class="pv-hi${todos ? ' ok' : ''}"><b>${esc(pvNome(p))}</b><span>${it.map(i => pvChip(p, h, i, pode)).join('')}${pode && !todos ? `<button class="pv-tudo" data-pvt="${p.id}|${h}" title="marcar todos">✓</button>` : ''}</span></div>`; }).join('')}</div></div>`);
+    el.insertAdjacentHTML('afterend', `<div class="panel pv-central"><h2>Preventivo de hoje <small class="m">${progs.length} atletas · ${prev} exercícios prescritos · obrigação do atleta</small><button class="btn sm" id="pvcen">Abrir programação</button></h2>
+      <div class="pv-hl">${progs.map(p => `<div class="pv-hi"><b>${esc(pvNome(p))}</b><span>${pvDoDia(p, h).map(i => pvChip(p, h, i)).join('')}</span></div>`).join('')}</div></div>`);
     $('#pvcen').onclick = () => { S.fisio.aba = 'prevencao'; S.pv.sub = 'programa'; pFisio(); window.scrollTo(0, 0); };
-    if (pode) pvLigarChips(pinta);
   };
   if (S.pv.ok) pinta(); else carregarPrev().then(pinta).catch(() => {});
 };
