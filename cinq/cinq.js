@@ -58,9 +58,33 @@ function abrirDesenho(src, titulo) {
   if (!lb) { lb = document.createElement('div'); lb.id = 'lightbox'; document.body.appendChild(lb); lb.onclick = () => lb.remove(); }
   lb.innerHTML = `<div class="lb-top"><b>${esc(titulo || '')}</b><button class="btn sm">Fechar ✕</button></div><img src="${esc(src)}" alt="Desenho do exercício">`;
 }
-const fotoH = h => { const a = S.atletas.find(x => x.id === h.atleta_id); return foto({ nome: h.nome, foto_url: h.foto_url || a?.foto_url }); };
+const fotoH = h => { const a = S.atletas.find(x => x.id === h.atleta_id); return foto({ ...(a || {}), nome: h.nome, foto_url: h.foto_url || a?.foto_url }); };
 const iniciais = n => String(n || '?').trim().slice(0, 1).toUpperCase();
-const foto = a => a.foto_url ? `<img class="av" src="${esc(a.foto_url)}" alt="">` : `<div class="av">${esc(iniciais(a.nome))}</div>`;
+// enquadramento da foto: ponto de foco (padrão: centro na horizontal, parte de cima na vertical) e zoom, ajustados na ficha
+const fotoQ = a => ({ x: a?.foto_x ?? 50, y: a?.foto_y ?? 20, z: +a?.foto_zoom || 1 });
+const fotoImgSt = a => { const q = fotoQ(a); return `object-position:${q.x}% ${q.y}%${q.z > 1 ? `;transform:scale(${q.z});transform-origin:${q.x}% ${q.y}%` : ''}`; };
+const foto = a => !a.foto_url ? `<div class="av">${esc(iniciais(a.nome))}</div>` : fotoQ(a).z > 1 ? `<span class="av avz"><img src="${esc(a.foto_url)}" alt="" style="${fotoImgSt(a)}"></span>` : `<img class="av" src="${esc(a.foto_url)}" alt="" style="${fotoImgSt(a)}">`;
+// versão em fundo (usada nos cards: sai certo também na imagem PNG)
+const fotoFundo = (a, url = a?.foto_url) => { const q = fotoQ(a); return `<i class="fbg" style="background-image:url('${esc(url)}');background-position:${q.x}% ${q.y}%;transform:scale(${q.z});transform-origin:${q.x}% ${q.y}%"></i>`; };
+function ajustarFoto(a, depois) {
+  let q = fotoQ(a); const url = esc(a.foto_url);
+  modal(`<h2>Ajustar foto · ${esc(a.nome)}</h2><p class="m">Arraste a foto dentro da moldura para posicionar e use o zoom. Vale para todo o CINQ (elenco, mapa, DM, cards).</p>
+    <div class="aj-wrap"><div><span class="aj-c aj-fr" data-aj="c"><img src="${url}" alt=""></span><small class="m">Elenco, mapa e listas</small></div>
+      <div><span class="aj-r aj-fr" data-aj="r"><img src="${url}" alt=""></span><small class="m">Card do atleta</small></div></div>
+    <label class="f"><span>Zoom</span><input type="range" id="ajz" min="1" max="3" step="0.05" value="${q.z}"></label>
+    <div class="mfoot"><button class="btn" id="ajp">Voltar ao padrão</button><div class="row"><button class="btn" id="ajc">Cancelar</button><button class="btn pri" id="ajs">Salvar</button></div></div>`);
+  const pinta = () => document.querySelectorAll('.aj-fr img').forEach(i => { i.style.cssText = `object-position:${q.x}% ${q.y}%;transform:scale(${q.z});transform-origin:${q.x}% ${q.y}%`; });
+  pinta();
+  document.querySelectorAll('.aj-fr').forEach(fr => fr.onpointerdown = e => { e.preventDefault(); fr.setPointerCapture(e.pointerId); const x0 = e.clientX, y0 = e.clientY, q0 = { ...q }, w = fr.clientWidth, h = fr.clientHeight;
+    fr.onpointermove = m => { const cl = v => Math.round(Math.max(0, Math.min(100, v))); q.x = cl(q0.x - (m.clientX - x0) / w * 100 / q.z * 1.6); q.y = cl(q0.y - (m.clientY - y0) / h * 100 / q.z * 1.6); pinta(); };
+    fr.onpointerup = () => { fr.onpointermove = null; }; });
+  $('#ajz').oninput = e => { q.z = +e.target.value; pinta(); };
+  $('#ajp').onclick = () => { q = { x: 50, y: 20, z: 1 }; $('#ajz').value = 1; pinta(); };
+  $('#ajc').onclick = () => depois ? depois() : fechar();
+  $('#ajs').onclick = async () => { const v = { foto_x: q.x, foto_y: q.y, foto_zoom: q.z };
+    const { error } = await sb.from('atletas').update(v).eq('id', a.id); if (error) return toast(erroAmigavel(error), true);
+    Object.assign(a, v); const at = S.atletas.find(x => x.id === a.id); if (at) Object.assign(at, v); toast('Enquadramento salvo.'); try { ir(S.page); } catch (e) {} depois ? depois() : fechar(); };
+}
 
 function toast(msg, bad = false) {
   const t = $('#toast'); t.textContent = msg; t.className = 'toast' + (bad ? ' bad' : ''); t.hidden = false;
@@ -625,9 +649,10 @@ function verAtleta(a) {
     ${a.observacoes ? `<div class="k">Observações</div><p class="pre">${esc(a.observacoes)}</p>` : ''}
     ${blocoH}
   </div>
-  <div class="mfoot"><div class="row">${isAdmin() ? '<button class="btn" id="medcad">Editar cadastro</button>' : ''}${podeHistorico() ? `<button class="btn" id="medhist">${h ? 'Editar histórico' : 'Adicionar histórico'}</button>` : ''}</div><button class="btn pri" id="mf">Fechar</button></div>`);
+  <div class="mfoot"><div class="row">${isAdmin() ? '<button class="btn" id="medcad">Editar cadastro</button>' : ''}${isAdmin() && a.foto_url ? '<button class="btn" id="medfoto">Ajustar foto</button>' : ''}${podeHistorico() ? `<button class="btn" id="medhist">${h ? 'Editar histórico' : 'Adicionar histórico'}</button>` : ''}</div><button class="btn pri" id="mf">Fechar</button></div>`);
   $('#mf').onclick = fechar;
   if ($('#medcad')) $('#medcad').onclick = () => formAtleta(a);
+  if ($('#medfoto')) $('#medfoto').onclick = () => ajustarFoto(a, () => verAtleta(a));
   if ($('#medhist')) $('#medhist').onclick = () => formHistorico(h || { atleta_id: a.id, nome: a.nome, posicao: a.posicao });
 }
 

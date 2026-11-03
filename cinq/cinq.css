@@ -649,3 +649,26 @@ select.in.sm{padding:3px 6px;font-size:12px;width:auto}
 .fl-mk-s{display:inline-block;width:2px;height:12px;background:#e0a526;vertical-align:middle;margin-right:4px}.fl-mkleg{margin:0 0 8px}
 .ind-tabs .fl-refb{margin:auto 0 auto 8px;border:1px solid var(--line);border-radius:8px;padding:5px 11px;color:var(--ink);font-size:12.5px;background:#fff;flex:0 0 auto}
 .fl-ref .dm-h4{margin-top:14px}.fl-refl{margin:4px 0 0;padding-left:18px;font-size:13px;line-height:1.5}.fl-refl li{margin:3px 0}
+/* enquadramento da foto */
+img.av{object-position:50% 20%}.av.avz{overflow:hidden;padding:0}.av.avz img{width:100%;height:100%;object-fit:cover;display:block}
+.fbg{position:absolute;inset:0;background-size:cover;background-repeat:no-repeat;display:block}
+.aj-wrap{display:flex;gap:28px;justify-content:center;align-items:flex-end;margin:10px 0 16px;flex-wrap:wrap}.aj-wrap>div{display:flex;flex-direction:column;align-items:center;gap:6px}
+.aj-fr{display:block;overflow:hidden;background:#e9eef1;cursor:grab;touch-action:none;border:3px solid #e0a526}.aj-fr:active{cursor:grabbing}.aj-fr img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;user-select:none}
+.aj-c{width:170px;height:170px;border-radius:50%}.aj-r{width:150px;height:190px;border-radius:12px}
+/* cards: foto com enquadramento */
+.flk-cab>.flk-av{position:relative;width:52px;height:52px;flex:0 0 52px;border-radius:50%;overflow:hidden;background:#fff;border:2px solid #e0a526}
+.fbg.flk-escbg{background-size:contain;background-position:center;transform:none;margin:5px}
+.flk-sonda{display:none}
+.flk-atleta .flk-hero{display:flex;gap:14px;align-items:stretch;background:linear-gradient(135deg,#13295b,#1d3f7a);color:#fff;padding:14px}
+.flk-atleta .flk-ft{position:relative;width:120px;height:150px;flex:0 0 120px;border-radius:12px;overflow:hidden;border:3px solid #e0a526;background:#fff}
+.flk-atleta .flk-id{display:flex;flex-direction:column;justify-content:flex-end;min-width:0;flex:1;position:relative}
+.flk-atleta .flk-id .flk-logo{position:absolute;top:0;right:0;width:34px;height:34px}
+.flk-atleta .flk-id b{font-size:19px;line-height:1.15;padding-right:36px}.flk-atleta .flk-id small{font-size:13px;opacity:.85;margin-top:2px}
+.flk-atleta .flk-dt{font-size:11.5px;margin-top:10px;opacity:.9;font-weight:700;line-height:1.5}
+.flk-atleta.flk-hd .flk-hero{display:block;position:relative;padding:0;height:250px}
+.flk-atleta.flk-hd .flk-ft{position:absolute;inset:0;width:auto;height:auto;border:0;border-radius:0}
+.flk-atleta.flk-hd .flk-id{position:absolute;left:0;right:0;bottom:0;padding:40px 14px 12px;background:linear-gradient(transparent,rgba(13,25,55,.92))}
+.flk-atleta.flk-hd .flk-id .flk-logo{top:auto;bottom:calc(100% - 40px);right:12px}
+.flk-ns{padding:8px 14px 2px}.flk-n{margin:10px 0 12px}.flk-nl{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px}
+.flk-nl span{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#4d5a64;font-weight:700}.flk-nl b{font-size:22px;color:#13295b}.flk-nl small{font-size:11px;font-weight:600;color:#74808a}
+.flk-atleta .flk-t{height:11px}

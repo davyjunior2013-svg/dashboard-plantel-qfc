@@ -836,15 +836,23 @@ const FL_CK = { comissao: [['dist', 'Distância', 'm', 0], ['mmin', 'm/min', '',
   ['vmax', 'Vel. máxima', 'km/h', 1], ['n_acel', 'Acelerações', '', 0], ['n_desac', 'Desacelerações', '', 0], ['pl', 'Player Load', 'UA', 0], ['plmin', 'PL/min', '', 2]],
   atleta: [['dist', 'Distância', 'm', 0], ['hsr_total', 'Alta velocidade (HSR)', 'm', 0], ['sprint', 'Sprint', 'm', 0], ['vmax', 'Velocidade máxima', 'km/h', 1], ['pl', 'Player Load', 'UA', 0]] };
 function flCard(s, r, tot, modelo) {
-  const a = r.atleta_id && S.atletas.find(x => x.id === r.atleta_id), e = flVEntrada(r), x = flExpo(e), C = flCfg('vmax');
+  const a = r.atleta_id && S.atletas.find(x => x.id === r.atleta_id), e = flVEntrada(r), x = flExpo(e);
   const hs = r.atleta_id ? flLinhasAt(r.atleta_id).filter(y => y.s.tipo === s.tipo).map(y => y.g) : [];
-  const barra = ([k, l, u, d]) => { const v = +r[k] || 0, gm = flMedia(tot, k), base = hs.length >= 3 ? Math.max(...hs.map(g => +g[k] || 0), v) : Math.max(...tot.map(g => +g[k] || 0), v), w = base ? v / base * 100 : 0, mk = base && gm != null ? Math.min(100, gm / base * 100) : null;
-    return `<div class="flk-b"><span>${l}</span><div class="flk-t"><i style="width:${w}%"></i>${mk != null ? `<em style="left:${mk}%" title="média do grupo: ${flFmt(gm, d)}"></em>` : ''}</div><b>${flFmt(r[k], d)}${u ? ` <small>${u}</small>` : ''}${k === 'vmax' && e?.ref ? ` <small>${Math.round(e.v / e.ref * 100)}%</small>${x?.vel ? ' 🔔' : ''}` : ''}</b></div>`; };
-  return `<div class="flk flk-${modelo}"><div class="flk-cab"><img src="${esc(a?.foto_url || LOGO)}" alt="" class="${a?.foto_url ? '' : 'flk-esc'}"><div><b>${esc(flTitulo(r.nome_origem))}</b><small>${esc(flPos(r) || '—')}</small></div><img src="${LOGO}" alt="" class="flk-logo"></div>
-    <div class="flk-sub"><span>${dataBR(s.data)} · ${esc(s.tipo)}${s.md?.length ? ' · ' + esc(flMdTxt(s)) : ''}</span><span>${flDur(r.duracao_s)}</span></div>
-    <div class="flk-bs">${FL_CK[modelo].map(barra).join('')}</div>
-    ${modelo === 'atleta' && x?.vel ? `<div class="flk-sino">🔔 Chegou a ${Math.round(x.pct)}% da sua velocidade máxima</div>` : ''}
-    <div class="flk-rod">${hs.length >= 3 ? 'barra = em relação ao seu maior valor' : 'barra = em relação ao maior do grupo'} · traço = média do grupo</div></div>`;
+  const esc0 = (k, v) => { const gm = flMedia(tot, k), base = hs.length >= 3 ? Math.max(...hs.map(g => +g[k] || 0), v) : Math.max(...tot.map(g => +g[k] || 0), v); return { gm, w: base ? v / base * 100 : 0, mk: base && gm != null ? Math.min(100, gm / base * 100) : null }; };
+  const pctV = k => k === 'vmax' && e?.ref ? ` <small>${Math.round(e.v / e.ref * 100)}%</small>${x?.vel ? ' 🔔' : ''}` : '';
+  const trilho = (b, d) => `<div class="flk-t"><i style="width:${b.w}%"></i>${b.mk != null ? `<em style="left:${b.mk}%" title="média do grupo: ${flFmt(b.gm, d)}"></em>` : ''}</div>`;
+  const ft = a?.foto_url ? fotoFundo(a) : `<i class="fbg flk-escbg" style="background-image:url('${LOGO}')"></i>`;
+  const sonda = a?.foto_url ? `<img class="flk-sonda" src="${esc(a.foto_url)}" alt="" onload="if(this.naturalWidth>=300)this.closest('.flk').classList.add('flk-hd')">` : '';
+  const rod = `<div class="flk-rod">${hs.length >= 3 ? 'barra = em relação ao seu maior valor' : 'barra = em relação ao maior do grupo'} · traço = média do grupo</div>`;
+  const dt = `${dataBR(s.data)} · ${esc(s.tipo)}${s.md?.length ? ' · ' + esc(flMdTxt(s)) : ''}`;
+  if (modelo === 'atleta') return `<div class="flk flk-atleta">${sonda}<div class="flk-hero"><span class="flk-ft">${ft}</span>
+      <div class="flk-id"><img src="${LOGO}" alt="" class="flk-logo"><b>${esc(flTitulo(r.nome_origem))}</b><small>${esc(flPos(r) || '—')}</small><span class="flk-dt">${dt}<br>${flDur(r.duracao_s)}</span></div></div>
+    <div class="flk-ns">${FL_CK.atleta.map(([k, l, u, d]) => { const v = +r[k] || 0, b = esc0(k, v); return `<div class="flk-n"><div class="flk-nl"><span>${l}</span><b>${flFmt(r[k], d)}${u ? ` <small>${u}</small>` : ''}${pctV(k)}</b></div>${trilho(b, d)}</div>`; }).join('')}</div>
+    ${x?.vel ? `<div class="flk-sino">🔔 Chegou a ${Math.round(x.pct)}% da sua velocidade máxima</div>` : ''}${rod}</div>`;
+  const barra = ([k, l, u, d]) => { const v = +r[k] || 0, b = esc0(k, v); return `<div class="flk-b"><span>${l}</span>${trilho(b, d)}<b>${flFmt(r[k], d)}${u ? ` <small>${u}</small>` : ''}${pctV(k)}</b></div>`; };
+  return `<div class="flk flk-comissao"><div class="flk-cab"><span class="flk-av">${ft}</span><div><b>${esc(flTitulo(r.nome_origem))}</b><small>${esc(flPos(r) || '—')}</small></div><img src="${LOGO}" alt="" class="flk-logo"></div>
+    <div class="flk-sub"><span>${dt}</span><span>${flDur(r.duracao_s)}</span></div>
+    <div class="flk-bs">${FL_CK.comissao.map(barra).join('')}</div>${rod}</div>`;
 }
 function pCards() {
   const c = S.fl.ck, sess = [...S.fl.sess].sort((a, b) => flOrdS(b, a)), s = flSessao(c.sel) || sess[0];
