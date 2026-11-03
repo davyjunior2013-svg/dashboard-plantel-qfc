@@ -672,3 +672,12 @@ img.av{object-position:50% 20%}.av.avz{overflow:hidden;padding:0}.av.avz img{wid
 .flk-ns{padding:8px 14px 2px}.flk-n{margin:10px 0 12px}.flk-nl{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px}
 .flk-nl span{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#4d5a64;font-weight:700}.flk-nl b{font-size:22px;color:#13295b}.flk-nl small{font-size:11px;font-weight:600;color:#74808a}
 .flk-atleta .flk-t{height:11px}
+/* CMJ no modelo do software do salto */
+.fl-cmjcab{margin:0 0 4px;font-size:12.5px;color:#4d5a64}.fl-cmjcab b{color:#13295b}
+.fl-cswc{fill:#e3e8ec;opacity:.9}.fl-cref{stroke:#13295b;stroke-width:1.4;stroke-dasharray:8 3 2 3}
+.fl-crefb{fill:#13295b}.dc-svg text.fl-creft{fill:#fff;font-size:11px;font-weight:800}
+.fl-c1{stroke:#e0a526;stroke-width:1.4;stroke-dasharray:6 4}.fl-c2{stroke:#d64545;stroke-width:1.4;stroke-dasharray:6 4}
+.dc-svg text.fl-clab{font-size:10.5px;fill:#74808a;font-weight:700}.dc-svg text.fl-c1t{fill:#9a6200}.dc-svg text.fl-c2t{fill:#b42318}
+.fl-cl{fill:none;stroke:#1d3f7a;stroke-width:2.2}.dc-svg text.fl-cval{font-size:12px;font-weight:800;fill:#15202b}
+.fl-cmjg .fl-lg-r{background:#13295b}.fl-lg-s{background:#e3e8ec;height:10px!important}.fl-lg-1{background:#e0a526}.fl-lg-2{background:#d64545}
+.flp-cmjg{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 22px}.flp-cmjg .flp-box{padding:8px 10px}

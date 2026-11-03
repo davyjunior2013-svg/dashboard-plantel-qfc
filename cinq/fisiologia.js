@@ -592,18 +592,31 @@ function formCMJ(d) {
     }, Object.fromEntries(r.map(x => [x.nome_origem, x.posicao])));
   };
 }
-// gráfico do CMJ com a referência e as faixas de ±1 e ±2 DP
-function flSvgCmj(chave, ini, fim) {
-  const cs = S.fl.cmj.filter(c => flChaveC(c) === chave && (!ini || c.data >= ini) && (!fim || c.data <= fim)).sort((a, b) => a.data.localeCompare(b.data)); if (!cs.length) return '<p class="empty">Sem CMJ no período.</p>';
-  const W = 900, H = 240, pl = 40, pr = 16, pt = 14, pb = 28, b = cs.map((c, i) => ({ i, c, st: flCmjStats(c), L: flLeitura(c) }));
-  const vals = b.flatMap(x => [x.c.cmj, x.st.ref != null && x.st.sd ? x.st.ref - 2 * x.st.sd : null, x.st.ref != null && x.st.sd ? x.st.ref + 2 * x.st.sd : x.st.ref].filter(v => v != null).map(Number));
-  const mn = Math.floor(Math.min(...vals) - 1), mx = Math.ceil(Math.max(...vals) + 1), x = i => cs.length === 1 ? (pl + W - pr) / 2 : pl + i * (W - pl - pr) / (cs.length - 1), y = v => pt + (mx - v) * (H - pt - pb) / (mx - mn || 1);
-  const comSd = b.filter(q => q.st.sd), faixa = (k, cl) => comSd.length > 1 ? `<polygon class="${cl}" points="${comSd.map(q => `${x(q.i)},${y(q.st.ref + k * q.st.sd)}`).join(' ')} ${comSd.slice().reverse().map(q => `${x(q.i)},${y(q.st.ref - k * q.st.sd)}`).join(' ')}"/>` : '';
-  const comRef = b.filter(q => q.st.ref != null), passo = Math.ceil(cs.length / 12);
-  return `<svg viewBox="0 0 ${W} ${H}" class="dc-svg fl-svg">${[mn, Math.round((mn + mx) / 2), mx].map(v => `<line x1="${pl}" x2="${W - pr}" y1="${y(v)}" y2="${y(v)}" class="dc-g"/><text x="${pl - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`).join('')}
-    ${faixa(2, 'fl-banda2')}${faixa(1, 'fl-banda')}${comRef.length > 1 ? `<polyline class="fl-ref" points="${comRef.map(q => `${x(q.i)},${y(q.st.ref)}`).join(' ')}"/>` : ''}
-    <polyline points="${cs.map((c, i) => `${x(i)},${y(c.cmj)}`).join(' ')}" class="dc-l"/>${b.map(q => `<circle cx="${x(q.i)}" cy="${y(q.c.cmj)}" r="4.5" class="fl-pt-${q.L.cor}"><title>${fmt(q.c.data)}: ${flFmt(q.c.cmj, 2)} cm · ${q.L.cq}</title></circle>${q.i % passo === 0 ? `<text x="${x(q.i)}" y="${H - 8}" text-anchor="middle">${fmt(q.c.data)}</text>` : ''}`).join('')}</svg>
-    <p class="m fl-leg"><i class="fl-lg fl-lg-l"></i>CMJ <i class="fl-lg fl-lg-r"></i>referência (média das últimas ${flCfg('prontidao').n_ref}) <i class="fl-lg fl-lg-b1"></i>±1 DP <i class="fl-lg fl-lg-b2"></i>±2 DP · ponto: verde normal, amarelo atenção, vermelho alerta, cinza em formação</p>`;
+// gráfico do CMJ no modelo do software do salto: referência atual do atleta e linhas retas de ±SWC, ±1 DP e ±2 DP
+// (referência = a usada na leitura do último salto: média das últimas n_ref avaliações anteriores)
+function flSvgCmj(chave, ini, fim, o = {}) {
+  const todos = S.fl.cmj.filter(c => flChaveC(c) === chave).sort((a, b) => a.data.localeCompare(b.data));
+  const cs = todos.filter(c => (!ini || c.data >= ini) && (!fim || c.data <= fim)); if (!cs.length) return '<p class="empty">Sem CMJ no período.</p>';
+  const ult = cs[cs.length - 1], st = flCmjStats(ult), R = flCfg('prontidao'), ref = st.ref, sd = st.sd, swc = st.swc;
+  const W = o.W || 900, H = o.H || 300, pl = 44, pr = 64, pt = 26, pb = 30;
+  const lin = ref == null ? [] : [['+2 DP', ref + 2 * sd, 'fl-c2'], ['+1 DP', ref + sd, 'fl-c1'], ['−1 DP', ref - sd, 'fl-c1'], ['−2 DP', ref - 2 * sd, 'fl-c2']].filter(l => sd);
+  const vals = [...cs.map(c => +c.cmj), ...lin.map(l => l[1]), ...(ref != null ? [ref + (swc || 0), ref - (swc || 0)] : [])];
+  let mn = Math.min(...vals), mx = Math.max(...vals); const pad = Math.max(0.6, (mx - mn) * 0.12); mn = Math.floor((mn - pad) * 2) / 2; mx = Math.ceil((mx + pad) * 2) / 2;
+  const d0 = ini || cs[0].data, d1 = fim && fim > ult.data ? fim : ult.data, t0 = parse(d0).getTime() - 864e5, t1 = Math.max(parse(d1).getTime() + 864e5, t0 + 3 * 864e5);
+  const x = d => pl + (parse(d).getTime() - t0) / (t1 - t0) * (W - pl - pr), y = v => pt + (mx - v) / (mx - mn || 1) * (H - pt - pb);
+  const passoY = mx - mn > 8 ? 1 : 0.5, ty = []; for (let v = Math.ceil(mn / passoY) * passoY; v <= mx + 1e-9; v += passoY) ty.push(+v.toFixed(1));
+  const nd = Math.round((t1 - t0) / 864e5), px = Math.max(1, Math.ceil(nd / 8)), tx = [...Array(Math.floor(nd / px) + 1)].map((_, k) => ymd(new Date(t0 + 864e5 + k * px * 864e5))).filter(d => parse(d).getTime() <= t1);
+  const L = cs.map(c => ({ c, L: flLeitura(c) }));
+  const cab = ref == null ? `Referência em formação (${st.n}/${R.n_min} avaliações)` : `Ref. (média) = ${flFmt(ref, 2)} cm${sd ? ` · DP = ${flFmt(sd, 2)}` : ''} · SWC = ${flFmt(swc, 2)}${st.fonte === 'software' ? ' · referência do software' : ` · ${st.n} avaliações`}`;
+  return `<div class="fl-cmjg"><p class="fl-cmjcab"><b>${esc(o.nome || flNomeAt(ult))}</b> · ${cab}</p><svg viewBox="0 0 ${W} ${H}" class="dc-svg fl-svg">
+    ${ty.map(v => `<line x1="${pl}" x2="${W - pr}" y1="${y(v)}" y2="${y(v)}" class="dc-g"/><text x="${pl - 6}" y="${y(v) + 4}" text-anchor="end">${flFmt(v, passoY < 1 ? 1 : 0)}</text>`).join('')}
+    ${tx.map(d => `<text x="${x(d)}" y="${H - 8}" text-anchor="middle">${fmt(d)}</text>`).join('')}
+    ${ref != null && swc ? `<rect x="${pl}" width="${W - pl - pr}" y="${y(ref + swc)}" height="${Math.max(1, y(ref - swc) - y(ref + swc))}" class="fl-cswc"/><text x="${W - pr + 4}" y="${y(ref + swc) + 3}" class="fl-clab">+SWC</text><text x="${W - pr + 4}" y="${y(ref - swc) + 9}" class="fl-clab">−SWC</text>` : ''}
+    ${lin.map(([t, v, cl]) => `<line x1="${pl}" x2="${W - pr}" y1="${y(v)}" y2="${y(v)}" class="${cl}"/><text x="${W - pr + 4}" y="${y(v) + 4}" class="fl-clab ${cl}t">${t}</text>`).join('')}
+    ${ref != null ? `<line x1="${pl}" x2="${W - pr}" y1="${y(ref)}" y2="${y(ref)}" class="fl-cref"/><rect x="${pl + 2}" y="${y(ref) - 9}" width="44" height="18" rx="3" class="fl-crefb"/><text x="${pl + 24}" y="${y(ref) + 4}" text-anchor="middle" class="fl-creft">${flFmt(ref, 2)}</text>` : ''}
+    <polyline points="${cs.map(c => `${x(c.data)},${y(c.cmj)}`).join(' ')}" class="fl-cl"/>
+    ${L.map(({ c, L: l }) => `<circle cx="${x(c.data)}" cy="${y(c.cmj)}" r="5" class="fl-pt-${l.cor}"><title>${fmt(c.data)}: ${flFmt(c.cmj, 2)} cm · ${esc(l.cq)}</title></circle><text x="${x(c.data)}" y="${y(c.cmj) - 10}" text-anchor="middle" class="fl-cval">${flFmt(c.cmj, 2)}</text>`).join('')}</svg>
+    ${o.semLeg ? '' : `<p class="m fl-leg"><i class="fl-lg fl-lg-r"></i>referência (média das últimas ${R.n_ref}) <i class="fl-lg fl-lg-s"></i>±SWC <i class="fl-lg fl-lg-1"></i>±1 DP <i class="fl-lg fl-lg-2"></i>±2 DP · ponto: verde normal, amarelo atenção, vermelho alerta, cinza em formação · linhas = referência atual do atleta</p>`}</div>`;
 }
 function flEvolucaoCMJ(chave) {
   const cs = S.fl.cmj.filter(c => flChaveC(c) === chave).sort((a, b) => a.data.localeCompare(b.data)); if (!cs.length) return;
@@ -917,7 +930,8 @@ function relCmjHTML(d) {
     <div class="flp-ks">${[['Avaliados', cs.length], ['Média do grupo', flFmt(flMedia(cs, 'cmj'), 1) + ' cm'], ['Verde', n('vd')], ['Amarelo', n('am')], ['Vermelho', n('vm')]].map(([l, v]) => `<div class="flp-k"><small>${l}</small><b>${v}</b></div>`).join('')}</div>
     <table class="tb fl-tab"><thead><tr><th></th><th>Atleta</th><th>Posição</th><th>CMJ (cm)</th><th>Ref. (cm)</th><th>DP</th><th>SWC</th><th>Δ (cm)</th><th>Δ (%)</th><th>z</th><th>Leitura</th><th>Motivos</th></tr></thead><tbody>
     ${L.map(({ c, s }) => `<tr><td><i class="fl-sem fl-${s.cor}"></i></td><td><b>${esc(flNomeAt(c))}</b></td><td>${esc(flPos(c))}</td><td><b>${flFmt(c.cmj, 2)}</b></td><td>${flFmt(s.L.st.ref, 2)}</td><td>${flFmt(s.L.st.sd, 2)}</td><td>${flFmt(s.L.st.swc, 2)}</td><td>${s.L.d == null ? '—' : (s.L.d > 0 ? '+' : '') + flFmt(s.L.d, 2)}</td><td>${s.L.d == null ? '—' : (s.L.pct > 0 ? '+' : '') + flFmt(s.L.pct, 1)}</td><td>${s.L.z == null ? '—' : flFmt(s.L.z, 1)}</td><td>${esc(s.L.cq)}</td><td>${esc(s.motivos.join(' · '))}</td></tr>`).join('')}
-    </tbody></table><p class="flp-nota">Referência = média das últimas ${R.n_ref} avaliações do atleta; SWC = 0,2 × DP; faixas com ${R.n_min} avaliações ou mais. Normal até −1 DP · atenção entre −1 e −2 DP · alerta abaixo de −2 DP; a queda só conta quando também passa do maior entre o SWC e o ruído do salto (${flFmt(R.ruido_pct, 1)}%). O semáforo junta o salto, a situação no DM e a carga do dia anterior; a decisão é do fisiologista.</p></section>`;
+    </tbody></table><p class="flp-nota">Referência = média das últimas ${R.n_ref} avaliações do atleta; SWC = 0,2 × DP; faixas com ${R.n_min} avaliações ou mais. Normal até −1 DP · atenção entre −1 e −2 DP · alerta abaixo de −2 DP; a queda só conta quando também passa do maior entre o SWC e o ruído do salto (${flFmt(R.ruido_pct, 1)}%). O semáforo junta o salto, a situação no DM e a carga do dia anterior; a decisão é do fisiologista.</p></section>${(() => { const pg = []; for (let k = 0; k < cs.length; k += 6) pg.push(cs.slice(k, k + 6));
+    return pg.map(g => `<section class="flp-pg">${flCab('EVOLUÇÃO DO CMJ', d, 'referência e faixas de ±SWC, ±1 DP e ±2 DP')}<div class="flp-cmjg">${g.map(c => `<div class="flp-box">${flSvgCmj(flChaveC(c), null, d, { W: 560, H: 250, semLeg: true })}</div>`).join('')}</div><p class="flp-nota">Linhas = referência atual de cada atleta (média das últimas ${R.n_ref} avaliações) · faixa cinza ±SWC · amarelo ±1 DP · vermelho ±2 DP.</p></section>`).join(''); })()}`;
 }
 async function imprimirFl(html, nome) {
   document.querySelectorAll('#print-area').forEach(x => x.remove());
@@ -966,7 +980,8 @@ function flRefConteudo(ab) {
         `Faixas aparecem com <b>${R.n_min}</b> avaliações ou mais. Antes disso: “em formação” (se o relatório do software foi colado, usa a referência e o SWC dele).`]),
       sec('Leitura', [`<b>Normal</b>: até −1 DP · <b>Atenção</b>: entre −1 e −2 DP · <b>Alerta</b>: abaixo de −2 DP.`,
         `Por ser 1 salto, uma queda só conta quando também passa do <b>maior entre o SWC e o ruído do salto (${n(R.ruido_pct, 1)}% da referência)</b>.`,
-        'Média do grupo = média simples dos saltos do dia.']),
+        'Média do grupo = média simples dos saltos do dia.',
+        'Gráfico (modelo do software do salto): linhas retas da referência atual do atleta (a usada na leitura do último salto), faixa ±SWC e linhas de ±1 DP e ±2 DP; cada ponto com o valor e a cor da leitura daquele dia (calculada com a referência daquele dia).']),
       sec('Semáforo', ['<b>Vermelho</b>: CMJ em alerta ou atleta em DM/restrito.',
         '<b>Amarelo</b>: CMJ em atenção, recém-liberado (até 14 dias) ou distância do dia anterior acima de 120% da média do próprio atleta (mínimo 4 sessões).',
         '<b>Verde</b>: nenhum dos anteriores. O sistema sinaliza; a decisão é do fisiologista.']),
