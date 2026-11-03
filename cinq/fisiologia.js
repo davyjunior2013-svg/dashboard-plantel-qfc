@@ -323,8 +323,9 @@ function flDados(s) {
       if (lib) dest.push(['Recém-liberado', r, `liberado em ${fmt(lib.data_retorno)} (${tituloLesao(lib)})`]); } });
   return { tot, per, durMax, maior, dest, med: Object.fromEntries(FL_MET.map(m => [m[0], flMedia(tot, m[0])])) };
 }
-const flBarras = (tot, k, d = 0, suf = '', cor = '') => { const mx = Math.max(1, ...tot.map(r => +r[k] || 0));
-  return tot.map(r => `<div class="bar fl-bar${cor}"><span>${esc(flNomeAt(r))}</span><div><i style="width:${(+r[k] || 0) / mx * 100}%"></i></div><b>${k === 'duracao_s' ? flDur(r[k]) : flFmt(r[k], d) + suf}</b></div>`).join(''); };
+// barras: régua = maior valor do grupo na sessão; risco = média do grupo
+const flBarras = (tot, k, d = 0, suf = '', cor = '') => { const mx = Math.max(1, ...tot.map(r => +r[k] || 0)), md = flMedia(tot, k), mk = md == null ? '' : `<em class="fl-mk" style="left:${md / mx * 100}%" title="média do grupo: ${k === 'duracao_s' ? flDur(md) : flFmt(md, d) + suf}"></em>`;
+  return tot.map(r => `<div class="bar fl-bar${cor}"><span>${esc(flNomeAt(r))}</span><div><i style="width:${(+r[k] || 0) / mx * 100}%"></i>${mk}</div><b>${k === 'duracao_s' ? flDur(r[k]) : flFmt(r[k], d) + suf}</b></div>`).join(''); };
 function flTabela(s, D, pdf) {
   return `<table class="tb fl-tab"><thead><tr><th>Atleta</th><th>${s.tipo === 'Jogo' ? 'Minutos' : 'Duração'}</th><th>Total (m)</th><th>m/min</th><th>HSR 19,8–25,2</th><th>Sprint ≥25,2</th><th>HSR total</th><th>Nº spr.</th><th>Vmáx</th><th>% vmáx</th><th>Acc (m)</th><th>Nº acc</th><th>Dcc (m)</th><th>Nº dcc</th><th>PL</th><th>PL/min</th></tr></thead><tbody>
     ${D.tot.map(r => { const h = pdf ? null : flHist(r, s);
@@ -374,6 +375,7 @@ function pPosTreino() {
       <p class="m fl-nota">${FL_LIMIARES}. % vmáx = em relação à maior velocidade válida do atleta (treinos, jogos e teste); 🔔 = ${flCfg('vmax').pct}% ou mais.</p></div>
     ${D.dest.length ? `<div class="panel"><h2>Destaques <small class="m">o sistema sinaliza, o fisiologista decide</small></h2><div class="dc-al">${D.dest.map(([t, r, x, gid]) => `<div class="dc-ali n-${/Tempo|DM|Recém|confirmar|MD-1/.test(t) ? 'al' : 'at'}"><span class="dc-tp">${esc(t)}</span><b>${esc(flNomeAt(r))}</b><span class="m">${esc(x)}</span>${gid && pode ? `<span class="row fl-vc"><button class="btn sm pri" data-vok="${gid}">É real</button><button class="btn sm" data-vfalso="${gid}">Falso pico</button></span>` : ''}</div>`).join('')}</div></div>` : ''}
     ${flAquec(s)}
+    <p class="m fl-nota fl-mkleg"><em class="fl-mk-s"></em> risco = média do grupo na sessão · barra cheia = maior valor do grupo</p>
     <div class="grid2"><div class="panel"><h2>Distância total (m)</h2><div class="fs-bars">${flBarras(D.tot, 'dist')}</div></div><div class="panel"><h2>Distância relativa (m/min)</h2><div class="fs-bars">${flBarras(D.tot, 'mmin')}</div></div>
       <div class="panel"><h2>HSR total ≥19,8 (m)</h2><div class="fs-bars">${flBarras(D.tot, 'hsr_total')}</div></div><div class="panel"><h2>Velocidade máxima (km/h)</h2><div class="fs-bars">${flBarras(D.tot, 'vmax', 2)}</div></div>
       <div class="panel"><h2>Sprint ≥25,2 (m)</h2><div class="fs-bars">${flBarras(D.tot, 'sprint')}</div></div><div class="panel"><h2>Player Load (UA)</h2><div class="fs-bars">${flBarras(D.tot, 'pl', 0, '', ' fl-pl')}</div></div>
@@ -919,10 +921,99 @@ async function imprimirFl(html, nome) {
   setTimeout(() => { window.print(); setTimeout(() => { w.remove(); st.remove(); document.body.classList.remove('imprimindo'); document.title = t; }, 500); }, 150);
 }
 
+/* ============ REFERÊNCIAS (critérios e cálculos de cada aba, para conferência técnica) ============ */
+function flRefConteudo(ab) {
+  const V = flCfg('vmax'), A = flCfg('acwr'), R = flCfg('prontidao'), n = (v, d = 0) => flFmt(v, d);
+  const sec = (t, itens) => `<h4 class="dm-h4">${t}</h4><ul class="fl-refl">${itens.map(i => `<li>${i}</li>`).join('')}</ul>`;
+  const LIM = sec('Limiares do GPS (definidos no OpenField)', [
+    '<b>HSR 19,8–25,2 km/h</b>: distância na faixa de velocidade 5 (coluna “Distância alta intensidade” / Velocity Band 5).',
+    '<b>Sprint ≥ 25,2 km/h</b>: distância na faixa 6 (“Distância sprint” / Velocity Band 6). <b>Nº sprints</b> = Sprint Efforts (nº de entradas acima de 25,2 km/h).',
+    '<b>HSR total ≥ 19,8 km/h</b> = faixa 5 + faixa 6 (High Speed Distance).',
+    '<b>Aceleração</b> ≥ +3 m/s² e <b>desaceleração</b> ≤ −3 m/s² (distância e número de esforços).',
+    '<b>Player Load (UA)</b>: carga do acelerômetro triaxial da Catapult (soma das variações da aceleração nos 3 eixos). <b>PL/min</b> = coluna “Carga minuto” (ou PL ÷ minutos).',
+    'Distância relativa = metros por minuto da sessão (coluna “Metros/min”).']);
+  const BIB = l => sec('Referências bibliográficas', l);
+  const C = {
+    pos: [sec('Fonte e cálculos', [
+        'Fonte: CSV de sessão do Catapult (OpenField). A linha “Session” é o total; as demais são as partes. Sem linha “Session”, o total é a soma das partes.',
+        'Média do grupo = média simples dos atletas com dado na sessão. Duração da parte = maior duração entre os atletas.',
+        'Setas na tabela: diferença ≥ 10% em relação à média do próprio atleta nas sessões anteriores do <b>mesmo tipo</b> (mínimo 3 sessões).',
+        'Destaques: “acima/abaixo do habitual” = diferença ≥ 30% dessa média (distância, HSR total, sprint); “tempo menor” = menos de 90% da maior duração da sessão (não vale para jogo); DM e recém-liberado (até 14 dias do retorno) vêm da Fisioterapia/DM.',
+        `% vmáx e 🔔: ver a aba Velocidade (🔔 = ${n(V.pct)}% ou mais da referência).`,
+        'Gráficos de barras: barra cheia = maior valor do grupo na sessão; risco = média do grupo.']), LIM,
+      sec('Jogo', ['3 arquivos: aquecimento, 1º e 2º tempo. Total do jogo = 1º + 2º tempo (somas; vmáx = maior das partes; m/min e PL/min = total ÷ minutos).',
+        'Aquecimento fica separado: não entra no total, na carga, no ACWR nem na exposição à velocidade.',
+        '1º × 2º tempo: cada métrica ÷ minutos jogados na parte; Δ = (2º − 1º) ÷ 1º. Destaque com queda ou aumento de 10% ou mais.']),
+      sec('Partes do GPS × exercícios', ['Cada parte do GPS é ligada a um exercício do treino do calendário (sugestão pela ordem, ajustável).',
+        'Referência de metodologia do QFC: espaço grande → resistência → distância; médio → velocidade → sprint; pequeno → força → acelerações/desacelerações. A célula destacada é a métrica-alvo do exercício.',
+        'Espaço = comprimento × largura do plano; m²/jogador = área ÷ nº de jogadores. Limites numéricos entre grande, médio e pequeno ainda a definir com o treinador e o fisiologista.']),
+      BIB(['Bradley PS et al. High-intensity running in English FA Premier League soccer matches. J Sports Sci, 2009 (limiares de alta intensidade e sprint em tempo-movimento).',
+        'Boyd LJ, Ball K, Aughey RJ. The reliability of MinimaxX accelerometers for measuring physical activity in Australian football. Int J Sports Physiol Perform, 2011 (Player Load).',
+        'Harper DJ, Carling C, Kiely J. High-intensity acceleration and deceleration demands in elite team sports competitive match play: a systematic review. Sports Med, 2019.'])],
+    prontidao: [sec('Coleta', ['CMJ, 1 salto por dia, software Elite Jump, antes do treino.']),
+      sec('Cálculo da referência (por atleta)', [
+        `Referência = média das últimas <b>${R.n_ref}</b> avaliações anteriores ao dia (o salto do dia não entra).`,
+        'DP = desvio padrão amostral dessas avaliações. <b>SWC = 0,2 × DP</b> (menor mudança relevante; efeito “pequeno” de Cohen).',
+        'z = (CMJ do dia − referência) ÷ DP. Δ% = (CMJ − referência) ÷ referência.',
+        `Faixas aparecem com <b>${R.n_min}</b> avaliações ou mais. Antes disso: “em formação” (se o relatório do software foi colado, usa a referência e o SWC dele).`]),
+      sec('Leitura', [`<b>Normal</b>: até −1 DP · <b>Atenção</b>: entre −1 e −2 DP · <b>Alerta</b>: abaixo de −2 DP.`,
+        `Por ser 1 salto, uma queda só conta quando também passa do <b>maior entre o SWC e o ruído do salto (${n(R.ruido_pct, 1)}% da referência)</b>.`,
+        'Média do grupo = média simples dos saltos do dia.']),
+      sec('Semáforo', ['<b>Vermelho</b>: CMJ em alerta ou atleta em DM/restrito.',
+        '<b>Amarelo</b>: CMJ em atenção, recém-liberado (até 14 dias) ou distância do dia anterior acima de 120% da média do próprio atleta (mínimo 4 sessões).',
+        '<b>Verde</b>: nenhum dos anteriores. O sistema sinaliza; a decisão é do fisiologista.']),
+      BIB(['Claudino JG et al. The countermovement jump to monitor neuromuscular status: a meta-analysis. J Sci Med Sport, 2017.',
+        'Hopkins WG. Measures of reliability in sports medicine and science. Sports Med, 2000 (erro típico e menor mudança relevante).'])],
+    velocidade: [sec('Referência de velocidade máxima (por atleta)', [
+        'Referência = <b>maior marca válida</b> do atleta até a data, em treinos, jogos e no teste de velocidade (sessão do tipo “Teste”, 30–40 m).',
+        `Precisa de ${n(V.n_min)} sessões do atleta ou de um teste; antes disso, “em formação”.`,
+        `Marca que passa a referência anterior em mais de <b>${n(V.salto_conf, 1)}%</b> fica “a confirmar” (possível pico falso do GPS) e só vira referência quando o fisiologista confirma. “Falso pico” sai da referência.`,
+        'O % de cada sessão usa a referência válida até aquela data (o histórico não muda quando surge um recorde novo).']),
+      sec('Exposição (🔔)', [`Exposição = sessão em que alguma parte teve pico ≥ <b>${n(V.pct)}%</b> da referência (aquecimento do jogo não conta).`,
+        `Jogo com <b>${n(V.jogo_min)} min</b> ou mais também conta como exposição.`,
+        `Alerta quando o atleta passa de <b>${n(V.dias)} dias</b> sem exposição. Contagem na semana (segunda a domingo) e nas últimas 4 semanas.`,
+        'Exposição em MD-1 aparece separada, para discussão com a comissão.',
+        'Limite: o CSV traz só a velocidade máxima de cada parte, então a contagem é por sessão/parte, não por número de esforços dentro da parte.']),
+      BIB(['Malone S et al. High chronic training loads and exposure to bouts of maximal velocity running reduce injury risk in elite Gaelic football. J Sci Med Sport, 2017.'])],
+    carga: [sec('Período e filtros', ['Só a linha total de cada sessão (jogo = 1º + 2º tempo; aquecimento fora).',
+        '<b>Por atleta</b>: soma do período ou média por sessão. Taxas (PL/min e m/min) = total ÷ minutos do período.',
+        '<b>Por sessão</b>: média do grupo em cada sessão; “soma do período” = soma dessas médias.',
+        'Filtros de posição, atleta, MD e tipo se aplicam a essas tabelas.']), LIM,
+      sec('ACWR (semana aguda ÷ crônica)', [
+        '<b>Aguda</b> = soma dos últimos 7 dias; <b>crônica</b> = soma dos últimos 28 dias ÷ 4 (média semanal). ACWR = aguda ÷ crônica.',
+        'Média simples, dias corridos (rolling), modelo acoplado (os 7 dias agudos fazem parte dos 28). Referência usada pelo fisiologista: K-Sport.',
+        `Zona ok: <b>${n(A.min, 2)} a ${n(A.max, 2)}</b>; acima ou abaixo = alerta.`,
+        'Métricas: distância, HSR 19,8–25,2, sprint, HSR total, acc + dcc (nº) e Player Load. Usa todas as sessões (filtros de MD e tipo não se aplicam).',
+        '“Em formação” até o atleta ter 28 dias desde a primeira sessão no CINQ.',
+        'Uso: contexto para a decisão da carga, não previsão de lesão.']),
+      BIB(['Gabbett TJ. The training–injury prevention paradox: should athletes be training smarter and harder? Br J Sports Med, 2016.',
+        'Hulin BT et al. The acute:chronic workload ratio predicts injury: high chronic workload may decrease injury risk in elite rugby league players. Br J Sports Med, 2016.',
+        'Impellizzeri FM et al. Acute:chronic workload ratio: conceptual issues and fundamental pitfalls. Int J Sports Physiol Perform, 2020 (limitações do indicador).'])],
+    evolucao: [sec('Gráficos', ['Cada ponto = uma sessão (linha total; jogo = 1º + 2º tempo).',
+        '<b>Média do grupo</b> = média dos atletas presentes na sessão. <b>Posição</b> = média dos atletas daquela posição.',
+        'Taxas (PL/min, m/min) da posição/grupo = total ÷ minutos. % da vel. máxima = vmáx da sessão ÷ referência válida na data.',
+        '🔔 = exposição à velocidade máxima na sessão (critério da aba Velocidade).',
+        `ACWR dia a dia: mesmo cálculo da aba Carga; zona verde = ${n(A.min, 2)} a ${n(A.max, 2)}.`,
+        'CMJ: referência e faixas de ±1 e ±2 DP calculadas a cada avaliação (critério da aba Prontidão).'])],
+    cards: [sec('Barras', ['<b>Barra</b> = valor do atleta na sessão em relação ao <b>maior valor dele</b> em sessões do mesmo tipo (treino com treino, jogo com jogo), a partir de 3 sessões. Antes disso, em relação ao maior valor do grupo na sessão (o rodapé do card indica qual).',
+        '<b>Risco</b> = média do grupo na sessão, na mesma régua.',
+        `Vel. máxima mostra o % da referência e 🔔 a partir de ${n(V.pct)}%.`]),
+      sec('Modelos', ['<b>Comissão</b>: distância, m/min, HSR 19,8–25,2, sprint ≥25,2, HSR total, nº sprints, vmáx, acelerações, desacelerações, PL e PL/min.',
+        '<b>Atleta</b>: distância, HSR total, sprint, vmáx (%) e PL.']), LIM]
+  };
+  return (C[ab] || C.pos).join('');
+}
+function flReferencias(ab) {
+  modal(`<h2>Referências · ${esc(FL_ABAS.find(a => a[0] === ab)?.[1] || '')}</h2><p class="m">Critérios, cálculos e fontes usados nesta aba, para conferência técnica. Os números ajustáveis aparecem com o valor atual (botão Parâmetros).</p>
+    <div class="fl-ref">${flRefConteudo(ab)}</div><div class="mfoot"><span></span><button class="btn" id="flrfc">Fechar</button></div>`, true);
+  $('#flrfc').onclick = fechar;
+}
+
 /* ============ abas e encaixe no sistema ============ */
 const FL_PAG = { pos: () => pPosTreino(), prontidao: () => pProntidao(), velocidade: () => pVelocidade(), carga: () => pCargaFl(), evolucao: () => pEvolucao(), cards: () => pCards() };
-const flTabs = ab => `<div class="ind-tabs fs-tabs">${FL_ABAS.map(([k, l]) => `<button data-flaba="${k}" class="${k === ab ? 'on' : ''}">${l}</button>`).join('')}<span class="fl-teste">versão de teste</span></div>`;
-const ligarFlTabs = () => document.querySelectorAll('[data-flaba]').forEach(b => b.onclick = () => { S.fl.aba = b.dataset.flaba; pFisiologia(); window.scrollTo(0, 0); });
+const flTabs = ab => `<div class="ind-tabs fs-tabs">${FL_ABAS.map(([k, l]) => `<button data-flaba="${k}" class="${k === ab ? 'on' : ''}">${l}</button>`).join('')}<span class="fl-teste">versão de teste</span><button class="fl-refb" data-flref="${ab}" title="critérios, cálculos e referências desta aba">📘 Referências</button></div>`;
+const ligarFlTabs = () => { document.querySelectorAll('[data-flaba]').forEach(b => b.onclick = () => { S.fl.aba = b.dataset.flaba; pFisiologia(); window.scrollTo(0, 0); });
+  document.querySelectorAll('[data-flref]').forEach(b => b.onclick = () => flReferencias(b.dataset.flref)); };
 async function pFisiologia() {
   if (!S.fl.ok) $('#main').innerHTML = topo('Fisiologia', FL_ABAS.find(a => a[0] === S.fl.aba)?.[1] || '', '') + flTabs(S.fl.aba) + '<div class="panel empty">Carregando…</div>';
   try { await carregarFl(); if (typeof carregarDM === 'function') await carregarDM().catch(() => {}); } catch (e) { $('#main .panel').innerHTML = esc(erroAmigavel(e)); return; }
