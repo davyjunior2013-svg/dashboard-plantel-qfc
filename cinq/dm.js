@@ -17,7 +17,7 @@ const MECANISMOS = ['Sem contato', 'Contato', 'Sobrecarga', 'Não informado'];
 const TIPOS_LESAO = ['Muscular', 'Ligamentar', 'Tendínea', 'Articular', 'Contusão', 'Fratura', 'Outra'];
 const CICLO_PREV = 45; // dias: cada atleta fica no máximo 1 mês e meio com o preventivo, depois reavalia e atualiza os exercícios
 const REGIOES = ['Posterior de coxa', 'Anterior de coxa', 'Adutores', 'Panturrilha', 'Joelho', 'Tornozelo', 'Pé', 'Quadril', 'Virilha', 'Lombar', 'Tronco', 'Ombro', 'Cervical', 'MMII', 'MMSS'];
-const podeDM = () => isAdmin() || ['fisio', 'medico', 'analise'].includes(S.perfil?.funcao);
+const podeDM = () => isAdmin() || ['fisio', 'medico'].includes(S.perfil?.funcao);
 const podeLiberar = () => isAdmin() || S.perfil?.funcao === 'medico';
 const classifPSE = m => m == null ? null : Math.round(m) <= 4 ? 'Leve' : Math.round(m) <= 6 ? 'Moderado' : 'Intenso';
 const ladoTxtDM = l => ({ D: 'direito', E: 'esquerdo', Bilateral: 'bilateral' }[l] || '');

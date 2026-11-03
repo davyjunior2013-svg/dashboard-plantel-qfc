@@ -1,4 +1,4 @@
-/* CINQ · Fisiologia v2 (em teste com o fisiologista)
+/* CINQ · Fisiologia
    Pós-treino: CSV de sessão do Catapult (OpenField) → relatório no padrão do Departamento de Saúde e Performance, com HSR
    (19,8–25,2), Sprint (≥25,2), HSR total (≥19,8), Player Load e PL/min, % da velocidade máxima de referência e o sino (🔔).
    Jogo: 3 arquivos (aquecimento, 1º e 2º tempo); total = 1º + 2º tempo, aquecimento separado. Tags MD+5…MD-5 por sessão.
@@ -12,7 +12,7 @@ S.fl = { ok: false, sess: [], gps: [], cmj: [], vinc: [], cfg: {}, aba: 'pos', s
   ev: { per: '4sem', ref: null, modo: 'atletas', ats: [], pos: '', met: 'dist', md: '', tipo: '' },
   ck: { sel: null, modelo: 'comissao', vis: 'todos', at: null } };
 const FL_ABAS = [['pos', 'Pós-treino'], ['prontidao', 'Prontidão'], ['velocidade', 'Velocidade 🔔'], ['carga', 'Carga'], ['evolucao', 'Evolução'], ['cards', 'Cards']];
-const podeFisl = () => isAdmin() || ['fisico', 'analise'].includes(S.perfil?.funcao);
+const podeFisl = () => isAdmin() || S.perfil?.funcao === 'fisico';
 const flN = v => v == null || v === '' || isNaN(v) ? null : Number(v);
 const flFmt = (v, d = 0) => v == null || !isFinite(v) ? '—' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
 const flDur = s => { if (s == null) return '—'; const m = Math.floor(s / 60), r = Math.round(s % 60); return r ? `${m}min${String(r).padStart(2, '0')}s` : `${m} min`; };
@@ -1019,7 +1019,7 @@ function flReferencias(ab) {
 
 /* ============ abas e encaixe no sistema ============ */
 const FL_PAG = { pos: () => pPosTreino(), prontidao: () => pProntidao(), velocidade: () => pVelocidade(), carga: () => pCargaFl(), evolucao: () => pEvolucao(), cards: () => pCards() };
-const flTabs = ab => `<div class="ind-tabs fs-tabs">${FL_ABAS.map(([k, l]) => `<button data-flaba="${k}" class="${k === ab ? 'on' : ''}">${l}</button>`).join('')}<span class="fl-teste">versão de teste</span><button class="fl-refb" data-flref="${ab}" title="critérios, cálculos e referências desta aba">📘 Referências</button></div>`;
+const flTabs = ab => `<div class="ind-tabs fs-tabs">${FL_ABAS.map(([k, l]) => `<button data-flaba="${k}" class="${k === ab ? 'on' : ''}">${l}</button>`).join('')}<span class="fl-sep"></span><button class="fl-refb" data-flref="${ab}" title="critérios, cálculos e referências desta aba">📘 Referências</button></div>`;
 const ligarFlTabs = () => { document.querySelectorAll('[data-flaba]').forEach(b => b.onclick = () => { S.fl.aba = b.dataset.flaba; pFisiologia(); window.scrollTo(0, 0); });
   document.querySelectorAll('[data-flref]').forEach(b => b.onclick = () => flReferencias(b.dataset.flref)); };
 async function pFisiologia() {

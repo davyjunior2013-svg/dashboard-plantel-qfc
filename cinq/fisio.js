@@ -6,7 +6,7 @@
 
 S.fisio = { ok: false, av: [], vinc: [], aba: 'central' };
 const podeLerFisio = () => !!S.perfil && S.perfil.funcao !== 'visualizacao';
-const podeFisio = () => isAdmin() || ['fisio', 'medico', 'analise'].includes(S.perfil?.funcao);
+const podeFisio = () => isAdmin() || ['fisio', 'medico'].includes(S.perfil?.funcao);
 const FS_ABAS = [['central', 'Central'], ['avaliacoes', 'Avaliações'], ['atendimento', 'Atendimento'], ['lesoes', 'Lesões'], ['prevencao', 'Prevenção']];
 const fsTabs = ab => `<div class="ind-tabs fs-tabs">${FS_ABAS.map(([k, l]) => `<button data-fsaba="${k}" class="${k === ab ? 'on' : ''}">${l}</button>`).join('')}</div>`;
 const ligarAbasFs = () => document.querySelectorAll('[data-fsaba]').forEach(b => b.onclick = () => { S.fisio.aba = b.dataset.fsaba; pFisio(); window.scrollTo(0, 0); });
