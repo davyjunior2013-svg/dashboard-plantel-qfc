@@ -11,7 +11,7 @@ S.fl = { ok: false, sess: [], gps: [], cmj: [], vinc: [], cfg: {}, aba: 'pos', s
   cf: { per: 'semana', ref: null, pos: '', at: '', md: '', tipo: '', vis: 'atleta', modo: 'soma', met: 'dist' },
   ev: { per: '4sem', ref: null, modo: 'atletas', ats: [], pos: '', met: 'dist', md: '', tipo: '' },
   ck: { sel: null, modelo: 'comissao', vis: 'todos', at: null } };
-const FL_ABAS = [['pos', 'Pós-treino'], ['prontidao', 'Prontidão'], ['velocidade', 'Velocidade 🔔'], ['carga', 'Carga'], ['evolucao', 'Evolução'], ['cards', 'Cards']];
+const FL_ABAS = [['pos', 'Pós-treino'], ['prontidao', 'Prontidão'], ['velocidade', 'Velocidade 🔔'], ['carga', 'Carga'], ['evolucao', 'Evolução'], ['cards', 'Relatório de treino']];
 const podeFisl = () => isAdmin() || S.perfil?.funcao === 'fisico';
 const flN = v => v == null || v === '' || isNaN(v) ? null : Number(v);
 const flFmt = (v, d = 0) => v == null || !isFinite(v) ? '—' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -871,7 +871,7 @@ function pCards() {
   const c = S.fl.ck, sess = [...S.fl.sess].sort((a, b) => flOrdS(b, a)), s = flSessao(c.sel) || sess[0];
   const tot = s ? flTotais(s.id).sort((a, b) => flOrdPos(flPos(a)) - flOrdPos(flPos(b)) || flNomeAt(a).localeCompare(flNomeAt(b), 'pt')) : [];
   const um = c.vis === 'individual' ? tot.find(r => r.nome_origem === c.at) || tot[0] : null;
-  $('#main').innerHTML = topo('Fisiologia', 'Cards', 'Card de cada atleta na sessão: modelo da comissão (completo) ou do atleta (simples, para mandar para ele).',
+  $('#main').innerHTML = topo('Fisiologia', 'Relatório de treino', 'Card de cada atleta na sessão: modelo da comissão (completo) ou do atleta (simples, para mandar para ele).',
     s ? `<button class="btn" id="flkpdf">Baixar PDF</button><button class="btn pri" id="flkpng">Baixar ${c.vis === 'todos' ? 'imagens' : 'imagem'} (PNG)</button>` : '') + flTabs('cards') + (!s ? '<div class="panel empty">Nenhuma sessão importada ainda.</div>' : `
     <div class="dm-dia fl-filtros"><select class="in" id="flksel">${sess.map(x => `<option value="${x.id}"${x.id === s.id ? ' selected' : ''}>${esc(flSessOpt(x))}</option>`).join('')}</select>
       <div class="ind-tabs fl-modo"><button data-km="comissao" class="${c.modelo === 'comissao' ? 'on' : ''}">Comissão</button><button data-km="atleta" class="${c.modelo === 'atleta' ? 'on' : ''}">Atleta</button></div>
