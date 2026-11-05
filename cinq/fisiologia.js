@@ -850,7 +850,7 @@ function pEvolucao() {
 // Traço = média do grupo na sessão.
 const FL_CK = { comissao: [['dist', 'Distância', 'm', 0], ['mmin', 'm/min', '', 0], ['ai', 'Alta intensidade 19,8–25,2', 'm', 0], ['sprint', 'Sprint ≥25,2', 'm', 0], ['n_sprints', 'Nº sprints', '', 0],
   ['vmax', 'Vel. máxima', 'km/h', 1], ['n_acel', 'Acelerações', '', 0], ['n_desac', 'Desacelerações', '', 0], ['pl', 'Player Load', 'UA', 0], ['plmin', 'PL/min', '', 2]],
-  atleta: [['dist', 'Distância', 'm', 0], ['ai', 'Alta intensidade', 'm', 0], ['sprint', 'Sprint', 'm', 0], ['vmax', 'Velocidade máxima', 'km/h', 1], ['pl', 'Player Load', 'UA', 0]] };
+  atleta: [['dist', 'Distância total', 'm', 0], ['ai', 'Alta intensidade', 'm', 0], ['n_sprints', 'Nº de sprints', '', 0], ['vmax', 'Velocidade máxima', 'km/h', 1]] };
 function flCard(s, r, tot, modelo) {
   const a = r.atleta_id && S.atletas.find(x => x.id === r.atleta_id), e = flVEntrada(r), x = flExpo(e);
   const hs = r.atleta_id ? flLinhasAt(r.atleta_id).filter(y => y.s.tipo === s.tipo).map(y => y.g) : [];
@@ -1024,7 +1024,7 @@ function flRefConteudo(ab) {
         '<b>Risco</b> = média do grupo na sessão, na mesma régua.',
         `Vel. máxima mostra o % da referência e 🔔 a partir de ${n(V.pct)}%.`]),
       sec('Modelos', ['<b>Comissão</b>: distância, m/min, alta intensidade 19,8–25,2, sprint ≥25,2, nº sprints, vmáx, acelerações, desacelerações, PL e PL/min.',
-        '<b>Atleta</b>: distância, alta intensidade, sprint, vmáx (%) e PL.']), LIM]
+        '<b>Atleta</b>: distância total, alta intensidade, nº de sprints e velocidade máxima (com % da referência e 🔔).']), LIM]
   };
   return (C[ab] || C.pos).join('');
 }
