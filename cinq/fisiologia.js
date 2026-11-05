@@ -325,7 +325,7 @@ function flDados(s) {
 }
 // barras: régua = maior valor do grupo na sessão; risco = média do grupo
 const flBarras = (tot, k, d = 0, suf = '', cor = '') => { const mx = Math.max(1, ...tot.map(r => +r[k] || 0)), md = flMedia(tot, k), mk = md == null ? '' : `<em class="fl-mk" style="left:${md / mx * 100}%" title="média do grupo: ${k === 'duracao_s' ? flDur(md) : flFmt(md, d) + suf}"></em>`;
-  return tot.map(r => `<div class="bar fl-bar${cor}"><span>${esc(flNomeAt(r))}</span><div><i style="width:${(+r[k] || 0) / mx * 100}%"></i>${mk}</div><b>${k === 'duracao_s' ? flDur(r[k]) : flFmt(r[k], d) + suf}</b></div>`).join(''); };
+  return [...tot].sort((a, b) => (+b[k] || 0) - (+a[k] || 0) || flNomeAt(a).localeCompare(flNomeAt(b), 'pt')).map(r => `<div class="bar fl-bar${cor}"><span>${esc(flNomeAt(r))}</span><div><i style="width:${(+r[k] || 0) / mx * 100}%"></i>${mk}</div><b>${k === 'duracao_s' ? flDur(r[k]) : flFmt(r[k], d) + suf}</b></div>`).join(''); };
 function flTabela(s, D, pdf) {
   return `<table class="tb fl-tab"><thead><tr><th>Atleta</th><th>${s.tipo === 'Jogo' ? 'Minutos' : 'Duração'}</th><th>Total (m)</th><th>m/min</th><th>Alta int. 19,8–25,2</th><th>Sprint ≥25,2</th><th>Nº spr.</th><th>Vmáx</th><th>% vmáx</th><th>Acc (m)</th><th>Nº acc</th><th>Dcc (m)</th><th>Nº dcc</th><th>PL</th><th>PL/min</th></tr></thead><tbody>
     ${D.tot.map(r => { const h = pdf ? null : flHist(r, s);
