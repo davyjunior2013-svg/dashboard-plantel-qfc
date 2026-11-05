@@ -1,3 +1,5 @@
+// minutos da atividade: realizado (GPS) quando houver, senão o planejado
+const exMin = e => e.duracao_real ?? e.duracao_min;
 /* CINQ · Resumo do ciclo de treinos
    Um ciclo é a sequência de dias seguidos com sessões de trabalho (treino, avaliação, recuperação).
    Ele fecha quando o dia seguinte é folga, amistoso ou jogo, ou não tem sessão (domingo sem nada conta como folga).
@@ -58,7 +60,7 @@ function calcularCiclos() {
 
     // fim real da última sessão: hora + tempo dos exercícios (ou 2 h)
     const ult = c.sessoes[c.sessoes.length - 1];
-    const min = exDe(ult.id).reduce((a, e) => a + (e.duracao_min || 0), 0) || 120;
+    const min = exDe(ult.id).reduce((a, e) => a + (exMin(e) || 0), 0) || 120;
     const [hh, mm] = String(ult.hora || '18:00').split(':').map(Number);
     const fimUlt = new Date(parse(ult.data)); fimUlt.setHours(hh, mm + min, 0, 0);
     const dow = parse(prox).getDay();
@@ -98,7 +100,7 @@ function analisarCiclo(c) {
       if (score >= 2) porP[p.id].push(e);
     });
   });
-  const peso = e => e.duracao_min || 1, temTempo = ex.some(e => e.duracao_min);
+  const peso = e => exMin(e) || 1, temTempo = ex.some(e => exMin(e));
   const momentos = MOMENTOS.map(m => {
     const ps = MODELO.filter(p => p.m === m), exs = new Set(ps.flatMap(p => porP[p.id]));
     return { m, cobertos: ps.filter(p => porP[p.id].length).length, total: ps.length, carga: [...exs].reduce((a, e) => a + peso(e), 0) };
@@ -141,7 +143,7 @@ function analisarCiclo(c) {
   if (semTexto.length) checks.push({ n: 'warn', t: `${semTexto.map(e => `${fmt(e._s.data)} · ${e.nome}${e.numero_plano ? ' (plano ' + e.numero_plano + ')' : ''}`).join('; ')}: sem objetivo nem descrição no PDF, ficou fora da análise.` });
   const semMedida = espacos.filter(x => !x.md).length;
   if (semMedida) checks.push({ n: 'info', t: `${semMedida} atividade${semMedida > 1 ? 's' : ''} sem medida de espaço no plano: a checagem espaço × dia fica incompleta.` });
-  const semTempo = ex.filter(e => !e.duracao_min).length;
+  const semTempo = ex.filter(e => !exMin(e)).length;
   if (semTempo) checks.push({ n: 'info', t: `${semTempo} de ${ex.length} exercícios sem tempo preenchido: o equilíbrio entre momentos está sendo calculado pelo número de exercícios, não pelos minutos.` });
   const semBal = ex.filter(e => !e.balanco).length;
   if (ex.length && semBal === ex.length) checks.push({ n: 'info', t: 'Nenhum exercício tem balanço registrado: a leitura de “como foi” depende das observações da comissão.' });
@@ -166,7 +168,7 @@ function analisarCiclo(c) {
 
 /* ---------- Tela ---------- */
 function htmlResumo(c, a) {
-  const tempo = c.exercicios.reduce((x, e) => x + (e.duracao_min || 0), 0);
+  const tempo = c.exercicios.reduce((x, e) => x + (exMin(e) || 0), 0);
   const status = c.fechado ? '<span class="badge t-Recuperação">Fechado</span>' : '<span class="badge t-Amistoso">Em andamento</span>';
   const linhaP = p => { const n = a.porP[p.id].length; return `<li><b>${esc(p.nome)}</b> <span class="m">${n} exercício${n > 1 ? 's' : ''}: ${esc([...new Set(a.porP[p.id].map(e => e.nome))].join(', '))}</span></li>`; };
   return `<div class="ciclo" id="ciclo-${c.id}">

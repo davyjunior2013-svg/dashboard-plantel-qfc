@@ -37,9 +37,11 @@ function flPrep(g) {
   if (g.plmin == null && g.pl != null && g.duracao_s) g.plmin = g.pl / (g.duracao_s / 60);
   return g;
 }
+// o Supabase devolve no máximo 1000 linhas por consulta: busca em páginas
+async function flTudo(q) { const out = []; for (let i = 0; ; i += 1000) { const r = await q().range(i, i + 999); if (r.error) return r; out.push(...r.data); if (r.data.length < 1000) return { data: out, error: null }; } }
 async function carregarFl(forcar) {
   if (S.fl.ok && !forcar) return;
-  const [s, g, c, v, cf] = await Promise.all([sb.from('fisl_sessoes').select('*').order('data').order('hora'), sb.from('fisl_gps').select('*'),
+  const [s, g, c, v, cf] = await Promise.all([sb.from('fisl_sessoes').select('*').order('data').order('hora'), flTudo(() => sb.from('fisl_gps').select('*').order('id')),
     sb.from('fisl_cmj').select('*').order('data'), sb.from('fisl_vinculos').select('*'), sb.from('fisl_config').select('*')]);
   for (const r of [s, g, c, v, cf]) if (r.error) throw r.error;
   S.fl.sess = s.data.map(x => ({ ...x, md: x.md || [] })); S.fl.gps = g.data.map(flPrep); S.fl.cmj = c.data; S.fl.vinc = v.data; S.fl.cfg = Object.fromEntries(cf.data.map(x => [x.chave, x.valor])); S.fl.ok = true;
@@ -1057,3 +1059,65 @@ ir = function (p) {
   pFisiologia(); window.scrollTo(0, 0);
 };
 if (document.getElementById('main') && S.perfil) { navFisiologia(); if (S.page === 'fisiologia') ir('fisiologia'); }
+
+/* ============ REALIZADO (GPS) NAS ATIVIDADES DO CALENDÁRIO ============
+   Cada parte do GPS ligada a um exercício (Pós-treino → Partes do GPS × exercícios) vira o realizado da atividade:
+   tempo da parte e média do grupo nas métricas. Planejado (tempo do plano) fica separado. */
+S.flr = {};
+async function flRealCarregar(ids) {
+  ids = [...new Set(ids)].filter(id => !S.flr[id]); if (!ids.length || typeof podeLerFisio !== 'function' || !podeLerFisio()) return;
+  const ss = await sb.from('fisl_sessoes').select('id,data,tipo,sessao_id,periodos,duracao_s').in('sessao_id', ids); if (ss.error) throw ss.error;
+  const sids = ss.data.map(x => x.id);
+  const rs = sids.length ? await flTudo(() => sb.from('fisl_gps').select('id,sessao_id,periodo,atleta_id,duracao_s,dist,ai,sprint,n_sprints,vmax,n_acel,n_desac,pl').in('sessao_id', sids).order('id')) : { data: [] };
+  if (rs.error) throw rs.error;
+  ids.forEach(id => { const se = ss.data.filter(x => x.sessao_id === id); S.flr[id] = { sess: se, rows: rs.data.filter(r => se.some(x => x.id === r.sessao_id)) }; });
+}
+function flRealCalc(calId) {
+  const c = S.flr[calId]; if (!c || !c.sess.length) return null;
+  const R = { ex: {}, total: 0, emEx: 0, outras: 0, n: 0 };
+  for (const s of c.sess) {
+    const tot = c.rows.filter(r => r.sessao_id === s.id && r.periodo === 0);
+    R.total += s.duracao_s || Math.max(0, ...tot.map(r => r.duracao_s || 0)); R.n = Math.max(R.n, tot.length);
+    (s.periodos || []).forEach((p, k) => {
+      if (p.num === 9 || p.num === 0) return;
+      const e = flExDaParte({ ...s, sessao_id: calId }, p, k), rs = c.rows.filter(r => r.sessao_id === s.id && r.periodo === p.num);
+      const dur = Math.max(0, ...rs.map(r => r.duracao_s || 0)); if (!rs.length) return; if (!e) { R.outras += dur; return; }
+      const o = R.ex[e.id] || (R.ex[e.id] = { dur: 0, at: {}, sug: false });
+      o.dur += dur; R.emEx += dur; if (p.exercicio_id === undefined) o.sug = true;
+      rs.forEach(r => { const k2 = r.atleta_id || 'x' + r.id, a = o.at[k2] || (o.at[k2] = { dur: 0, dist: 0, ai: 0, sprint: 0, n_sprints: 0, accdcc: 0, pl: 0, vmax: 0 });
+        a.dur += r.duracao_s || 0; ['dist', 'ai', 'sprint', 'n_sprints', 'pl'].forEach(m => a[m] += +r[m] || 0); a.accdcc += (+r.n_acel || 0) + (+r.n_desac || 0); a.vmax = Math.max(a.vmax, +r.vmax || 0); });
+    });
+  }
+  Object.values(R.ex).forEach(o => { const L = Object.values(o.at), md = m => L.length ? L.reduce((x, a) => x + a[m], 0) / L.length : null, min = o.dur / 60;
+    o.n = L.length; o.m = { dist: md('dist'), ai: md('ai'), sprint: md('sprint'), n_sprints: md('n_sprints'), accdcc: md('accdcc'), pl: md('pl'), vmax: md('vmax') };
+    o.m.mmin = min ? o.m.dist / min : null; o.m.plmin = min ? o.m.pl / min : null; });
+  return R;
+}
+const flMinTxt = s => s == null ? '—' : `${Math.round(s / 60)}'`;
+function flRealPinta(calId) {
+  const R = flRealCalc(calId); if (!R || !document.getElementById('modal') || document.getElementById('modal').hidden) return;
+  exDe(calId).forEach(e => { const card = document.getElementById('ex' + e.id); if (!card) return; card.querySelector('.fl-real')?.remove();
+    const o = R.ex[e.id], alvo = METRICA_DIRECAO[e.direcionamento], cl = m => alvo === m ? ' class="fl-alvo"' : '';
+    const plan = e.duracao_min ? `${e.duracao_min}'` : '—', real = o ? Math.round(o.dur / 60) : null, dif = o && e.duracao_min ? real - e.duracao_min : null;
+    const html = o ? `<div class="fl-real"><div class="fl-real-t"><span>⏱ Planejado <b>${plan}</b></span><span>Realizado (GPS) <b>${real}'</b></span>${dif != null && dif !== 0 ? `<span class="m">${dif > 0 ? '+' : ''}${dif}' em relação ao planejado</span>` : ''}<small class="m">média do grupo · ${o.n} atletas${o.sug ? ' · ligação sugerida pela ordem' : ''}</small></div>
+      <div class="fl-real-m"><span${cl('Distância')}><small>Distância</small>${flFmt(o.m.dist)} m</span><span${cl('Distância')}><small>m/min</small>${flFmt(o.m.mmin)}</span><span><small>Alta int.</small>${flFmt(o.m.ai)} m</span><span${cl('Sprint')}><small>Sprint</small>${flFmt(o.m.sprint)} m</span><span${cl('Sprint')}><small>Nº sprints</small>${flFmt(o.m.n_sprints, 1)}</span><span${cl('Acc/Dcc')}><small>Acc + Dcc</small>${flFmt(o.m.accdcc, 1)}</span><span><small>Player Load</small>${flFmt(o.m.pl)}</span><span><small>PL/min</small>${flFmt(o.m.plmin, 2)}</span><span><small>Vel. máx.</small>${flFmt(o.m.vmax, 1)} km/h</span></div></div>`
+      : `<div class="fl-real fl-real-v"><span>⏱ Planejado <b>${plan}</b> · Realizado: sem parte do GPS ligada a esta atividade (Fisiologia → Pós-treino → Partes do GPS × exercícios)</span></div>`;
+    (card.querySelector('.ex-aviso') || card.querySelector('.exc-top')).insertAdjacentHTML('afterend', html); });
+  const pan = [...document.querySelectorAll('#modal .panel')].find(p => p.querySelector('h2')?.textContent.trim() === 'Resumo do treino');
+  if (pan) { pan.querySelector('.fl-real-r')?.remove();
+    pan.querySelector('.metric-grid').insertAdjacentHTML('afterend', `<div class="metric-grid fl-real-r"><div><b>${flMinTxt(R.total)}</b><span>Realizado total (GPS)</span></div><div><b>${flMinTxt(R.emEx)}</b><span>Em atividades</span></div><div><b>${flMinTxt(R.outras)}</b><span>Outras partes do GPS (ex.: aquecimento)</span></div><div><b>${flMinTxt(Math.max(0, R.total - R.emEx - R.outras))}</b><span>Pausas e transições</span></div><div><b>${R.n}</b><span>Atletas com GPS</span></div></div>`); }
+}
+// minutos realizados nas atividades: usados no resumo do ciclo
+function flRealAplica(calId) { const R = flRealCalc(calId); exDe(calId).forEach(e => { const o = R?.ex[e.id]; e.duracao_real = o ? Math.round(o.dur / 60) : null; }); }
+async function flRealGlobal() {
+  if (typeof podeLerFisio !== 'function' || !podeLerFisio()) return;
+  const lim = addDays(hoje(), -120), ids = S.sessoes.filter(x => x.data >= lim && x.data <= hoje() && exDe(x.id).length).map(x => x.id);
+  try { await flRealCarregar(ids); } catch (e) { return; }
+  ids.forEach(flRealAplica);
+  if (['inicio', 'calendario'].includes(S.page) && $('#modal')?.hidden !== false) ir(S.page);
+}
+const _verSessaoFl = verSessao;
+verSessao = function (id, foco) { _verSessaoFl(id, foco); if (S.flr[id]) flRealPinta(id); flRealCarregar([id]).then(() => { flRealAplica(id); flRealPinta(id); }).catch(() => {}); };
+if (document.getElementById('main') && S.perfil) flRealGlobal();
+const _shellFlr = shell;
+shell = function () { _shellFlr(); setTimeout(flRealGlobal, 0); };
