@@ -237,7 +237,7 @@ async function pFisio() {
   const cols = []; avaliados.forEach(a => ult[a.id].T.forEach(t => { if (!cols.includes(t.nome)) cols.push(t.nome); }));
   const kpi = (l, v, s) => `<div class="card"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
   $('#main').innerHTML = topo('Fisioterapia', 'Avaliações', 'Relatórios do Phast lidos automaticamente: testes, evolução e focos de cada atleta.',
-    podeFisio() ? '<button class="btn pri" id="fimp">+ Importar avaliações (Phast)</button>' : '') + `
+    `<button class="btn" id="frelg">Relatório geral (PDF)</button>${podeFisio() ? '<button class="btn pri" id="fimp">+ Importar avaliações (Phast)</button>' : ''}`) + `
   ${fsTabs('avaliacoes')}
   <div class="cards fs-kpis">
     ${kpi('Avaliados', `${avaliados.length}/${ativos.length}`, 'atletas ativos com avaliação')}
@@ -261,6 +261,7 @@ async function pFisio() {
     <div class="panel"><h2>Sem avaliação <small class="m">${sem.length}</small></h2>${sem.length ? `<div class="fs-sem">${sem.map(a => `<span class="chip">${esc(a.nome)}</span>`).join('')}</div>` : '<p class="empty">Todos os atletas ativos já foram avaliados.</p>'}</div>
   </div>`;
   if ($('#fimp')) $('#fimp').onclick = escolherPhast;
+  if ($('#frelg')) $('#frelg').onclick = () => { if (!avaliados.length) return toast('Nenhuma avaliação ainda.', true); imprimirFl(relAvalHTML(ativos, ult, cols, focos, sem, vencidas, proximas), `Relatorio_geral_avaliacoes_${h}`); };
   ligarAbasFs();
   if ($('#fsbusca')) $('#fsbusca').oninput = e => { const q = fNorm(e.target.value); document.querySelectorAll('.fs-mapa tr[data-fa]').forEach(tr => { tr.hidden = !!q && !tr.dataset.busca.includes(q); }); };
   $('#main').querySelectorAll('[data-fa]').forEach(el => el.onclick = () => fichaFisio(+el.dataset.fa));
@@ -479,3 +480,25 @@ verAtleta = function (a) {
   }).catch(() => {});
 };
 if (document.getElementById('main') && S.perfil) { navFisio(); if (S.page === 'fisio') ir('fisio'); }
+
+/* ============ relatório geral das avaliações (PDF A4 paisagem, padrão do Departamento de Saúde e Performance) ============ */
+function relAvalHTML(ativos, ult, cols, focos, sem, vencidas, proximas) {
+  const h = hoje(), av = ativos.filter(a => ult[a.id]), cab = t => flCab(t, h, `${av.length} de ${ativos.length} atletas avaliados`);
+  const card = (l, v) => `<div class="flp-k"><small>${l}</small><b>${v}</b></div>`, pg = (t, c) => `<section class="flp-pg">${cab(t)}${c}</section>`;
+  const fat = (n, arr) => { const o = []; for (let i = 0; i < arr.length; i += n) o.push(arr.slice(i, i + n)); return o; };
+  const nCor = (v, c) => v.T.filter(t => t.cor === c).length, tot = c => av.reduce((x, a) => x + nCor(ult[a.id], c), 0);
+  const legenda = `<p class="flp-nota">${dotF('ok')} dentro da referência &nbsp; ${dotF('at')} atenção &nbsp; ${dotF('al')} alerta &nbsp; ${dotF('na')} não realizado &nbsp; ${dotF('')} sem referência · última avaliação de cada atleta (Phast). O CINQ não faz diagnóstico nem prevê lesão: organiza os testes e sugere focos; a decisão é do fisioterapeuta.</p>`;
+  const p1 = pg('RELATÓRIO GERAL | AVALIAÇÕES FÍSICAS', `<h3>VISÃO DO ELENCO</h3><div class="flp-ks">${card('Avaliados', `${av.length}/${ativos.length}`)}${card('Sem avaliação', sem.length)}${card('Reavaliação vencida', vencidas.length)}${card('Vencem em 7 dias', proximas.length)}${card('Testes em alerta', tot('al'))}${card('Testes em atenção', tot('at'))}</div>
+    <div class="flp-g2"><div class="flp-box"><h4>Focos do grupo <small>(atletas com cada foco)</small></h4>${focos.length ? `<div class="bars fs-bars">${focos.map(([f, n]) => `<div class="bar"><span>${esc(f)}</span><i style="width:${Math.round(n / av.length * 100)}%"></i><b>${n}</b></div>`).join('')}</div>` : '<p class="flp-nota">—</p>'}</div>
+      <div class="flp-box"><h4>Reavaliações</h4>${vencidas.length ? `<p><b>Vencidas:</b> ${vencidas.map(a => `${esc(a.nome)} (${dataBR(ult[a.id].proxima_reavaliacao)})`).join(' · ')}</p>` : '<p class="flp-nota">Nenhuma reavaliação vencida.</p>'}${proximas.length ? `<p><b>Próximos 7 dias:</b> ${proximas.map(a => `${esc(a.nome)} (${dataBR(ult[a.id].proxima_reavaliacao)})`).join(' · ')}</p>` : ''}
+        <h4 style="margin-top:12px">Sem avaliação (${sem.length})</h4><p>${sem.length ? sem.map(a => esc(a.nome)).join(' · ') : 'Todos os atletas ativos já foram avaliados.'}</p></div></div>`);
+  const mapa = fat(13, av).map((g, i, all) => pg(`MAPA DO ELENCO${all.length > 1 ? ` (${i + 1}/${all.length})` : ''}`, `<table class="tb fl-tab fs-rmapa"><colgroup><col style="width:110px"><col style="width:78px">${cols.map(() => '<col>').join('')}<col style="width:190px"></colgroup><thead><tr><th>Atleta</th><th>Avaliação</th>${cols.map(c => `<th>${esc(curtoTeste(c))}</th>`).join('')}<th>Focos</th></tr></thead><tbody>
+    ${g.map(a => { const v = ult[a.id], fo = focosDe(v.achados, v.revisao || {}); return `<tr><td><b>${esc(a.nome)}</b><br><small>${esc(a.posicao || '')}</small></td><td>${dataBR(v.data)}<br><small>${esc(v.motivo || '')}</small></td>${cols.map(c => { const t = v.T.find(x => x.nome === c); return `<td class="c">${t ? dotF(t.cor) : '—'}</td>`; }).join('')}<td>${fo.slice(0, 2).map(esc).join(' · ') || '—'}</td></tr>`; }).join('')}</tbody></table>${legenda}`));
+  const det = fat(4, av).map((g, i, all) => pg(`AVALIAÇÃO POR ATLETA${all.length > 1 ? ` (${i + 1}/${all.length})` : ''}`, `<div class="flp-g2">${g.map(a => { const v = ult[a.id], rev = v.revisao || {}, fo = focosDe(v.achados, rev), ach = v.achados.filter(x => x.nivel !== 'info' && rev[x.chave] !== 'descartado');
+      return `<div class="flp-box fs-rat"><h4>${esc(a.nome)} <small>· ${esc(a.posicao || '')} · ${dataBR(v.data)}${v.motivo ? ' · ' + esc(v.motivo) : ''}</small></h4>
+        <p class="fs-rcont">${dotF('al')} ${nCor(v, 'al')} em alerta &nbsp; ${dotF('at')} ${nCor(v, 'at')} em atenção &nbsp; · reavaliação: ${v.proxima_reavaliacao ? dataBR(v.proxima_reavaliacao) : '—'}</p>
+        ${fo.length ? `<p><b>Focos:</b> ${fo.map(esc).join(' · ')}</p>` : ''}
+        ${ach.length ? `<ul>${ach.slice(0, 5).map(x => `<li>${dotF(x.nivel)} <b>${esc(x.titulo)}</b>${rev[x.chave] === 'confirmado' ? ' ✓' : ''}</li>`).join('')}${ach.length > 5 ? `<li class="flp-nota">+ ${ach.length - 5} achado(s) na ficha</li>` : ''}</ul>` : '<p class="flp-nota">Sem achados em atenção ou alerta.</p>'}
+        <p><b>Conclusão:</b> ${esc(v.conclusao || '—')}</p></div>`; }).join('')}</div><p class="flp-nota">✓ = achado confirmado pelo fisioterapeuta; achados descartados não aparecem.</p>`));
+  return [p1, ...mapa, ...det].join('');
+}
