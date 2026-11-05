@@ -887,7 +887,7 @@ function pCards() {
   if ($('#flkat')) $('#flkat').onchange = e => { c.at = e.target.value; pCards(); };
   const lista = um ? [um] : tot;
   $('#flkpdf').onclick = () => { const pg = []; for (let i = 0; i < lista.length; i += 4) pg.push(lista.slice(i, i + 4));
-    imprimirFl(pg.map(p => `<section class="flp-pg">${flCab(c.modelo === 'atleta' ? 'RELATÓRIO DE TREINO' : 'RELATÓRIO DE TREINO · COMISSÃO', s.data, `${s.tipo}${s.md?.length ? ' | ' + flMdTxt(s) : ''}`)}<div class="flk-grid flk-pdf">${p.map(r => flCard(s, r, tot, c.modelo)).join('')}</div></section>`).join(''), `Relatorio_de_treino_${s.tipo}_QFC_${s.data}`); };
+    imprimirFl(pg.map(p => `<section class="flp-pg">${flCab('RELATÓRIO DE TREINO · ATLETAS', s.data, `${s.tipo}${s.md?.length ? ' | ' + flMdTxt(s) : ''}`)}<div class="flk-grid flk-pdf">${p.map(r => flCard(s, r, tot, c.modelo)).join('')}</div></section>`).join(''), `Relatorio_de_treino_${s.tipo}_QFC_${s.data}`); };
   $('#flkpng').onclick = async () => {
     const b = $('#flkpng'); b.disabled = true; b.textContent = 'Gerando…';
     try { const grupos = []; for (let i = 0; i < lista.length; i += um ? 1 : 8) grupos.push(lista.slice(i, i + (um ? 1 : 8)));
