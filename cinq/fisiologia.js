@@ -1111,13 +1111,27 @@ function flRealPinta(calId) {
 function flRealAplica(calId) { const R = flRealCalc(calId); exDe(calId).forEach(e => { const o = R?.ex[e.id]; e.duracao_real = o ? Math.round(o.dur / 60) : null; }); }
 async function flRealGlobal() {
   if (typeof podeLerFisio !== 'function' || !podeLerFisio()) return;
-  const lim = addDays(hoje(), -120), ids = S.sessoes.filter(x => x.data >= lim && x.data <= hoje() && exDe(x.id).length).map(x => x.id);
+  const lim = addDays(hoje(), -120), ids = S.sessoes.filter(x => x.data >= lim && x.data <= hoje() && x.tipo !== 'Folga').map(x => x.id);
   try { await flRealCarregar(ids); } catch (e) { return; }
   ids.forEach(flRealAplica);
-  if (['inicio', 'calendario'].includes(S.page) && $('#modal')?.hidden !== false) ir(S.page);
+  if (['inicio', 'calendario'].includes(S.page) && $('#modal')?.hidden !== false) ir(S.page); else if (S.page === 'calendario') flSeloSemana();
 }
 const _verSessaoFl = verSessao;
 verSessao = function (id, foco) { _verSessaoFl(id, foco); if (S.flr[id]) flRealPinta(id); flRealCarregar([id]).then(() => { flRealAplica(id); flRealPinta(id); }).catch(() => {}); };
 if (document.getElementById('main') && S.perfil) flRealGlobal();
 const _shellFlr = shell;
 shell = function () { _shellFlr(); setTimeout(flRealGlobal, 0); };
+
+// selo na caixinha do dia (Calendário): ✓ Realizado · tempo total do GPS; treino que já passou sem GPS = "sem GPS" (cinza)
+function flSeloSemana() {
+  document.querySelectorAll('#main .week .ses[data-ses]').forEach(el => {
+    const id = +el.dataset.ses, ses = S.sessoes.find(x => x.id === id), c = S.flr[id]; el.querySelector('.fl-selo')?.remove();
+    if (!ses || ses.tipo === 'Folga' || !c) return;
+    let html = '';
+    if (c.sess.length) { const R = flRealCalc(id); html = `<span class="fl-selo ok">✓ Realizado${R && R.total ? ' · ' + flMinTxt(R.total) : ''}</span>`; }
+    else if (ses.data < hoje()) html = '<span class="fl-selo sem">sem GPS</span>';
+    if (html) el.insertAdjacentHTML('beforeend', `<div class="fl-selo-l">${html}</div>`);
+  });
+}
+const _pCalendarioFlr = pCalendario;
+pCalendario = function () { _pCalendarioFlr(); flSeloSemana(); };
