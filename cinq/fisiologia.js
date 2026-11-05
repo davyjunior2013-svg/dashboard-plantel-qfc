@@ -887,12 +887,12 @@ function pCards() {
   if ($('#flkat')) $('#flkat').onchange = e => { c.at = e.target.value; pCards(); };
   const lista = um ? [um] : tot;
   $('#flkpdf').onclick = () => { const pg = []; for (let i = 0; i < lista.length; i += 4) pg.push(lista.slice(i, i + 4));
-    imprimirFl(pg.map(p => `<section class="flp-pg">${flCab(c.modelo === 'atleta' ? 'CARDS DOS ATLETAS' : 'CARDS · COMISSÃO', s.data, `${s.tipo}${s.md?.length ? ' | ' + flMdTxt(s) : ''}`)}<div class="flk-grid flk-pdf">${p.map(r => flCard(s, r, tot, c.modelo)).join('')}</div></section>`).join(''), `Cards_${s.tipo}_QFC_${s.data}`); };
+    imprimirFl(pg.map(p => `<section class="flp-pg">${flCab(c.modelo === 'atleta' ? 'RELATÓRIO DE TREINO' : 'RELATÓRIO DE TREINO · COMISSÃO', s.data, `${s.tipo}${s.md?.length ? ' | ' + flMdTxt(s) : ''}`)}<div class="flk-grid flk-pdf">${p.map(r => flCard(s, r, tot, c.modelo)).join('')}</div></section>`).join(''), `Relatorio_de_treino_${s.tipo}_QFC_${s.data}`); };
   $('#flkpng').onclick = async () => {
     const b = $('#flkpng'); b.disabled = true; b.textContent = 'Gerando…';
     try { const grupos = []; for (let i = 0; i < lista.length; i += um ? 1 : 8) grupos.push(lista.slice(i, i + (um ? 1 : 8)));
-      for (const [k, g] of grupos.entries()) { const nome = um ? `Card_${flTitulo(um.nome_origem).replace(/\s+/g, '_')}_${s.data}` : `Cards_${s.data}_${k + 1}`;
-        await flPNG(`<div class="flk-exp${um ? ' um' : ''}">${um ? '' : `<div class="flk-expcab"><img src="${LOGO}" alt=""><b>QFC · ${esc(s.tipo)} de ${dataBR(s.data)}${s.md?.length ? ' · ' + esc(flMdTxt(s)) : ''}</b></div>`}<div class="flk-grid">${g.map(r => flCard(s, r, tot, c.modelo)).join('')}</div></div>`, nome); }
+      for (const [k, g] of grupos.entries()) { const nome = um ? `Relatorio_de_treino_${flTitulo(um.nome_origem).replace(/\s+/g, '_')}_${s.data}` : `Relatorio_de_treino_${s.data}_${k + 1}`;
+        await flPNG(`<div class="flk-exp${um ? ' um' : ''}">${um ? '' : `<div class="flk-expcab"><img src="${LOGO}" alt=""><b>QFC · Relatório de treino · ${esc(s.tipo)} de ${dataBR(s.data)}${s.md?.length ? ' · ' + esc(flMdTxt(s)) : ''}</b></div>`}<div class="flk-grid">${g.map(r => flCard(s, r, tot, c.modelo)).join('')}</div></div>`, nome); }
       toast(grupos.length > 1 ? `${grupos.length} imagens baixadas.` : 'Imagem baixada.');
     } catch (e) { toast(e.message || 'Não consegui gerar a imagem.', true); }
     b.disabled = false; b.textContent = `Baixar ${c.vis === 'todos' ? 'imagens' : 'imagem'} (PNG)`; };
