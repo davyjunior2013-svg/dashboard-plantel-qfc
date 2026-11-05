@@ -158,6 +158,38 @@ function fotosEmLote() {
   inp.click();
 }
 const nomeAtl0 = id => S.atletas.find(a => a.id === id)?.nome || '';
+// exclusão definitiva (admin): apaga o atleta e tudo ligado a ele (histórico, GPS, CMJ, saúde, técnico individual, preventivos e arquivos)
+const EXC_TABS = [['historico', 'Histórico'], ['fisl_gps', 'Linhas de GPS'], ['fisl_cmj', 'Saltos (CMJ)'], ['fisio_avaliacoes', 'Avaliações fisio'], ['fisio_atendimentos', 'Atendimentos'],
+  ['fisio_lesoes', 'Lesões'], ['fisio_notas', 'Notas do DM'], ['fisio_prevencao', 'Itens de prevenção'], ['fisio_prev_programa', 'Programas de preventivo'], ['fisio_pse', 'PSE'],
+  ['individual_analises', 'Análises (técnico individual)']];
+async function excluirAtleta(a) {
+  modal(`<h2>Excluir definitivamente · ${esc(a.nome)}</h2><p class="m" id="exl">Conferindo o que existe…</p>`);
+  const cont = [];
+  for (const [t, l] of EXC_TABS) { const q = await sb.from(t).select('*', { count: 'exact', head: true }).eq('atleta_id', a.id); if (!q.error && q.count) cont.push([l, q.count]); }
+  const pastas = [['fisio', `${a.id}`], ['fisio', `lesoes/${a.id}`], ['individual', `${a.id}`]], arqs = [];
+  for (const [b, pre] of pastas) { const r = await sb.storage.from(b).list(pre, { limit: 1000 }); (Array.isArray(r.data) ? r.data : []).filter(x => x.id).forEach(x => arqs.push([b, `${pre}/${x.name}`])); }
+  const mf = a.foto_url && a.foto_url.match(/\/storage\/v1\/object\/public\/fotos\/(.+)$/); if (mf) arqs.push(['fotos', decodeURIComponent(mf[1])]);
+  modal(`<h2>Excluir definitivamente · ${esc(a.nome)}</h2>
+    <div class="note"><b>Não dá para desfazer.</b> O atleta some de todo o CINQ, junto com tudo o que está ligado a ele.</div>
+    <ul>${['Cadastro do atleta', ...cont.map(([l, n]) => `${l}: ${n}`), arqs.length ? `Arquivos: ${arqs.length} (foto, PDFs e anexos)` : ''].filter(Boolean).map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+    <p class="m">As sessões de GPS e os jogos continuam; sai só a linha deste atleta. As súmulas da federação não são alteradas.</p>
+    <label class="f"><span>Para confirmar, digite o nome do atleta: <b>${esc(a.nome)}</b></span><input class="in" id="exn" autocomplete="off"></label>
+    <div class="mfoot"><span></span><div class="row"><button class="btn" id="exc">Cancelar</button><button class="btn dan" id="exs" disabled>Excluir definitivamente</button></div></div>`);
+  $('#exc').onclick = fechar;
+  $('#exn').oninput = e => { $('#exs').disabled = e.target.value.trim().toLowerCase() !== a.nome.trim().toLowerCase(); };
+  $('#exs').onclick = async () => {
+    const b = $('#exs'); b.disabled = true; b.textContent = 'Excluindo…';
+    try {
+      for (const t of ['historico', 'fisl_gps', 'fisl_cmj']) { const { error } = await sb.from(t).delete().eq('atleta_id', a.id); if (error) throw error; }
+      const { error } = await sb.from('atletas').delete().eq('id', a.id); if (error) throw error;
+      for (const bk of [...new Set(arqs.map(x => x[0]))]) await sb.storage.from(bk).remove(arqs.filter(x => x[0] === bk).map(x => x[1])).catch(() => {});
+      S.atletas = S.atletas.filter(x => x.id !== a.id); S.historico = S.historico.filter(h => h.atleta_id !== a.id);
+      S.mapa.forEach(m => { if (m.atleta_id === a.id) m.atleta_id = null; });
+      if (S.fl) S.fl.ok = false; if (S.dm) S.dm.ok = false;
+      fechar(); toast(`${a.nome} excluído do CINQ.`); ir('elenco');
+    } catch (e) { b.disabled = false; b.textContent = 'Excluir definitivamente'; toast(erroAmigavel(e), true); }
+  };
+}
 function ajustarFoto(a, depois) {
   if (!a.foto_url) return trocarFoto(a, () => ajustarFoto(a, depois));
   let q = fotoQ(a); const url = esc(a.foto_url);
@@ -776,7 +808,8 @@ function formAtleta(a) {
       <div class="row"><button type="button" class="btn" id="acanc">Cancelar</button><button class="btn pri" type="submit">Salvar</button></div></div>
   </form>`);
   $('#acanc').onclick = fechar;
-  if ($('#adel')) $('#adel').onclick = async () => {
+  if ($('#adel') && !a.ativo) $('#adel').onclick = () => excluirAtleta(a);
+  else if ($('#adel')) $('#adel').onclick = async () => {
     if (!confirm(`Remover ${a.nome} do elenco? Ele sai das listas, mas o histórico é mantido.`)) return;
     const { data, error } = await sb.from('atletas').update({ ativo: false, status: 'Inativo', data_saida: a.data_saida || hoje() }).eq('id', a.id).select().single();
     if (error) return toast(erroAmigavel(error), true);
