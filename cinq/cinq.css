@@ -788,3 +788,8 @@ img.av{object-position:50% 20%}.av.avz{overflow:hidden;padding:0}.av.avz img{wid
 .golp-tf{display:flex;flex-direction:column;gap:2px;font-size:9.5px;color:#5d6b78;margin-top:4px;padding-top:4px;border-top:1px solid #eef1f3}
 .golp-m{font-size:10px;color:#74808a;margin:4px 0}
 .golp-rod{margin-top:14px;font-size:8.5px;color:#9aa6b0;text-align:center}
+/* Carga: gráfico por dia com escala e linha */
+.fl-gd{overflow-x:auto}.fl-gd svg{width:100%;height:auto;display:block}
+.fl-gd-g{stroke:#e8edf1;stroke-width:1}.fl-gd-y{font-size:11px;fill:#8a96a0}.fl-gd-x{font-size:11px;fill:#5d6b78}.fl-gd-md{font-size:10px;font-weight:700;fill:#13295b}
+.fl-gd-b{fill:var(--accent);opacity:.85}.fl-gd-j{fill:#e5484d;opacity:.85}.fl-gd-v{font-size:11px;font-weight:700;fill:#15202b}
+.fl-gd-l{fill:none;stroke:#e0a526;stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}.fl-gd-p{fill:#fff;stroke:#e0a526;stroke-width:2.5}

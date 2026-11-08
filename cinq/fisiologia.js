@@ -741,6 +741,25 @@ function flAcwr(aid, dia, k) {
   });
 }
 const flZona = r => { const A = flCfg('acwr'); return r == null ? '' : r > A.max ? 'alto' : r < A.min ? 'baixo' : 'ok'; };
+// gráfico por dia: escala a partir de perto do menor valor (diferença visível), colunas + linha de tendência
+function flGrafDia(porDia, met) {
+  const vs = porDia.filter(p => p.v != null).map(p => p.v); if (!vs.length) return '<p class="empty">Sem dados no período.</p>';
+  const mx = Math.max(...vs), mn = Math.min(...vs), rng = mx - mn || mx || 1;
+  const passo = (() => { const r = (mx - Math.max(0, mn - rng * .4)) / 4, e = Math.pow(10, Math.floor(Math.log10(r || 1))), f = r / e; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * e; })();
+  let base = Math.max(0, Math.floor((mn - rng * .4) / passo) * passo); if (vs.length === 1 || mx === mn) base = 0;
+  const topo = Math.ceil(mx / passo) * passo + (Math.ceil(mx / passo) * passo - mx < passo * .25 ? passo : 0);
+  const n = porDia.length, cw = Math.max(44, Math.min(110, 1000 / n)), L = 56, R = 12, T = 22, H = 170, B = 40, W = L + n * cw + R;
+  const y = v => T + H - (v - base) / (topo - base) * H, bw = Math.min(cw * .58, 40);
+  const fx = v => flFmt(v, met[3]), ticks = []; for (let t = base; t <= topo + 1e-9; t += passo) ticks.push(t);
+  const pts = porDia.map((p, i) => p.v == null ? null : [L + i * cw + cw / 2, y(p.v)]).filter(Boolean);
+  const sem = s => parse(s).toLocaleDateString('pt-BR', { weekday: 'short' }).slice(0, 3);
+  return `<div class="fl-gd"><svg viewBox="0 0 ${W} ${T + H + B}" style="min-width:${Math.min(W, 640)}px" role="img" aria-label="${esc(met[1])} por dia">
+    ${ticks.map(t => `<line x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}" class="fl-gd-g"/><text x="${L - 6}" y="${y(t) + 4}" text-anchor="end" class="fl-gd-y">${fx(t)}</text>`).join('')}
+    ${porDia.map((p, i) => { const cx = L + i * cw + cw / 2; return `${p.v != null ? `<rect x="${cx - bw / 2}" y="${y(p.v)}" width="${bw}" height="${T + H - y(p.v)}" rx="4" class="${p.t?.tipo === 'Jogo' ? 'fl-gd-j' : 'fl-gd-b'}"><title>${fmt(p.d)} · ${fx(p.v)}</title></rect><text x="${cx}" y="${y(p.v) - 14}" text-anchor="middle" class="fl-gd-v">${fx(p.v)}</text>` : ''}
+      <text x="${cx}" y="${T + H + 16}" text-anchor="middle" class="fl-gd-x">${sem(p.d)} ${fmt(p.d).slice(0, 2)}</text>${p.md ? `<text x="${cx}" y="${T + H + 30}" text-anchor="middle" class="fl-gd-x fl-gd-md">${esc(p.md)}</text>` : ''}`; }).join('')}
+    ${pts.length > 1 ? `<polyline points="${pts.map(q => q.join(',')).join(' ')}" class="fl-gd-l"/>` : ''}${pts.map(q => `<circle cx="${q[0]}" cy="${q[1]}" r="4" class="fl-gd-p"/>`).join('')}
+  </svg></div><p class="m fl-nota">Escala a partir de ${fx(base)} para destacar a diferença entre os dias · linha = tendência (onda de alta e baixa)${porDia.some(p => p.t?.tipo === 'Jogo') ? ' · vermelho = jogo' : ''}.</p>`;
+}
 function pCargaFl() {
   const f = S.fl.cf, [ini, fim] = flIntervalo(f), { ss, rs } = flFiltrar(f, ini, fim), A = flCfg('acwr'), met = FL_CM.find(m => m[0] === f.met) || FL_CM[0];
   const cab = FL_CM.map(m => `<th>${m[1]}${m[2] && m[2] !== '' ? ` <small>(${m[2]})</small>` : ''}</th>`).join('');
@@ -763,7 +782,6 @@ function pCargaFl() {
   // barras por dia (média do grupo da métrica escolhida)
   const dias = diasEntre(ini, fim) <= 42 ? [...Array(diasEntre(ini, fim) + 1)].map((_, k) => addDays(ini, k)) : [];
   const porDia = dias.map(d => { const x = rs.filter(r => flSessao(r.sessao_id)?.data === d); return { d, v: x.length ? (FL_TAXA[met[0]] ? flAgg(x, met[0]) : flMedia(x, met[0])) : null, t: ss.find(s => s.data === d), md: ss.filter(s => s.data === d).flatMap(s => s.md || [])[0] }; });
-  const mx = Math.max(1, ...porDia.map(p => p.v || 0));
   // ACWR na data final do período (ou hoje)
   const dRef = fim < hoje() ? fim : hoje(), atsA = flAtsGps().filter(a => (!f.pos || a.posicao === f.pos) && (!f.at || a.id === +f.at));
   const acw = atsA.map(a => ({ a, v: FL_ACWR.map(([k]) => flAcwr(a.id, dRef, k)) }));
@@ -773,7 +791,7 @@ function pCargaFl() {
       <div class="ind-tabs fl-modo"><button data-cv="atleta" class="${f.vis === 'atleta' ? 'on' : ''}">Por atleta</button><button data-cv="sessao" class="${f.vis === 'sessao' ? 'on' : ''}">Por sessão</button></div>
       ${f.vis === 'atleta' ? `<div class="ind-tabs fl-modo"><button data-cmo="soma" class="${f.modo === 'soma' ? 'on' : ''}">Soma</button><button data-cmo="media" class="${f.modo === 'media' ? 'on' : ''}">Média/sessão</button></div>` : ''}
       <span class="m">${ss.length} ${ss.length === 1 ? 'sessão' : 'sessões'} · ${new Set(rs.map(r => r.nome_origem)).size} atletas</span></div>
-    ${dias.length ? `<div class="panel"><h2>${esc(met[1])} por dia <small class="m">média do grupo · escolha a métrica:</small> <select class="in sm" id="flcmet">${opts(FL_CM.map(m => [m[0], m[1]]), f.met)}</select></h2><div class="dc-cols fl-cols">${porDia.map(p => `<div class="dc-col"><div class="dc-stk" style="height:${(p.v || 0) / mx * 100}%"><i class="${p.t?.tipo === 'Jogo' ? 'f-t' : 'f-p'}" style="flex:1"></i></div><b>${p.v ? flFmt(p.v, met[3]) : ''}</b><span>${parse(p.d).toLocaleDateString('pt-BR', { weekday: 'short' }).slice(0, 3)} ${fmt(p.d).slice(0, 2)}${p.md ? `<br><small>${esc(p.md)}</small>` : ''}</span></div>`).join('')}</div></div>` : `<div class="m fl-nota">Métrica para ordenar: <select class="in sm" id="flcmet">${opts(FL_CM.map(m => [m[0], m[1]]), f.met)}</select></div>`}
+    ${dias.length ? `<div class="panel"><h2>${esc(met[1])} por dia <small class="m">média do grupo · escolha a métrica:</small> <select class="in sm" id="flcmet">${opts(FL_CM.map(m => [m[0], m[1]]), f.met)}</select></h2>${flGrafDia(porDia, met)}</div>` : `<div class="m fl-nota">Métrica para ordenar: <select class="in sm" id="flcmet">${opts(FL_CM.map(m => [m[0], m[1]]), f.met)}</select></div>`}
     <div class="panel">${corpo}<p class="m fl-nota">${FL_LIMIARES}.</p></div>
     <div class="panel"><h2>ACWR 7:28 em ${fmt(dRef)} <small class="m">carga dos últimos 7 dias ÷ média semanal das últimas 4 semanas · ok entre ${flFmt(A.min, 2)} e ${flFmt(A.max, 2)}</small></h2>
       ${acw.length ? `<div class="tablewrap"><table class="tb fl-tab"><thead><tr><th>Atleta</th><th>Posição</th>${FL_ACWR.map(([, l]) => `<th>${l}</th>`).join('')}</tr></thead><tbody>
@@ -863,8 +881,8 @@ function flCard(s, r, tot, modelo) {
   const dt = `${dataBR(s.data)} · ${esc(s.tipo)}${s.md?.length ? ' · ' + esc(flMdTxt(s)) : ''}`;
   if (modelo === 'atleta') return `<div class="flk flk-atleta">${sonda}<div class="flk-hero"><span class="flk-ft">${ft}</span>
       <div class="flk-id"><img src="${LOGO}" alt="" class="flk-logo"><b>${esc(flTitulo(r.nome_origem))}</b><small>${esc(flPos(r) || '—')}</small><span class="flk-dt">${dt}<br>${flDur(r.duracao_s)}</span></div></div>
-    <div class="flk-ns">${FL_CK.atleta.map(([k, l, u, d]) => { const v = +r[k] || 0, b = esc0(k, v); return `<div class="flk-n"><div class="flk-nl"><span>${l}</span><b>${flFmt(r[k], d)}${u ? ` <small>${u}</small>` : ''}${pctV(k)}</b></div>${trilho(b, d)}</div>`; }).join('')}</div>
-    ${x?.vel ? `<div class="flk-sino">🔔 Chegou a ${Math.round(x.pct)}% da sua velocidade máxima</div>` : ''}${rod}</div>`;
+    <div class="flk-ns">${FL_CK.atleta.map(([k, l, u, d]) => { const v = +r[k] || 0, b = esc0(k, v); return `<div class="flk-n"><div class="flk-nl"><span>${l}</span><b>${flFmt(r[k], d)}${u ? ` <small>${u}</small>` : ''}</b></div>${trilho(b, d)}</div>`; }).join('')}</div>
+    ${rod}</div>`;
   const barra = ([k, l, u, d]) => { const v = +r[k] || 0, b = esc0(k, v); return `<div class="flk-b"><span>${l}</span>${trilho(b, d)}<b>${flFmt(r[k], d)}${u ? ` <small>${u}</small>` : ''}${pctV(k)}</b></div>`; };
   return `<div class="flk flk-comissao"><div class="flk-cab"><span class="flk-av">${ft}</span><div><b>${esc(flTitulo(r.nome_origem))}</b><small>${esc(flPos(r) || '—')}</small></div><img src="${LOGO}" alt="" class="flk-logo"></div>
     <div class="flk-sub"><span>${dt}</span><span>${flDur(r.duracao_s)}</span></div>
