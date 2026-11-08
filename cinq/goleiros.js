@@ -55,11 +55,12 @@ const golObsUlt = (T, id) => { for (let i = T.length - 1; i >= 0; i--) if (T[i].
 /* ---------- página ---------- */
 async function pGoleiros() {
   S.gol.ref = S.gol.ref || golRefHoje();
-  const pode = podeGol(), tr = golTrein();
+  const pode = podeGol();
   const acoes = `<button class="btn" id="golpdf">Baixar PDF</button>${pode ? '<button class="btn" id="golaj">Ajustes</button><button class="btn pri" id="goladd">+ Adicionar relatório</button>' : ''}`;
-  const cab = topo('Departamento de Goleiros', 'Goleiros', tr ? `Preparador de goleiros: ${tr}` : 'Treinamento dos goleiros', acoes);
-  $('#main').innerHTML = cab + '<div class="panel empty">Carregando…</div>';
+  const cabF = () => { const tr = golTrein(); return topo('Departamento de Goleiros', 'Goleiros', tr ? `Preparador de goleiros: ${tr}` : 'Treinamento dos goleiros', acoes); };
+  $('#main').innerHTML = cabF() + '<div class="panel empty">Carregando…</div>';
   try { await carregarGol(); } catch (e) { $('#main .panel').innerHTML = esc(erroAmigavel(e)); return; }
+  const cab = cabF();
   const f = golFaixa(), T = S.gol.tr, st = golStats(T), gks = golGoleiros(), u = S.gol.ult;
   const sit = a => typeof situacao === 'function' && S.dm?.ok ? situacao(a.id).sit : 'Liberado';
   const per = `<div class="gol-per"><div class="gol-seg"><button data-per="semana" class="${S.gol.per === 'semana' ? 'on' : ''}">Semana</button><button data-per="mes" class="${S.gol.per === 'mes' ? 'on' : ''}">Mês</button></div>
