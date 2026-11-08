@@ -2,11 +2,14 @@
    Um relatório por treino (data, turno, duração, quem treinou, atividades com nome/tipo/descrição,
    observação opcional por goleiro e observação geral). A página mostra os goleiros, os KPIs do período
    (semana ou mês) e a lista de treinos; o PDF junta os treinos do período.
-   Escrita: Preparação de goleiros (funcao 'goleiros') e admin. Leitura: toda a comissão. */
-FUNCOES.goleiros = 'Preparação de goleiros';
+   Escrita: Treinador de goleiros (funcao 'goleiros') e admin. Leitura: toda a comissão. */
+FUNCOES.goleiros = 'Treinador de goleiros';
 S.gol = { ok: false, per: 'semana', ref: null, tr: [], ult: null, bib: [], cfg: {} };
 const podeGol = () => isAdmin() || S.perfil?.funcao === 'goleiros';
-const golGoleiros = () => S.atletas.filter(a => a.ativo && a.status !== 'Inativo' && a.posicao === 'Goleiro').sort((a, b) => (a.numero ?? 99) - (b.numero ?? 99) || a.nome.localeCompare(b.nome, 'pt'));
+const golElenco = () => S.atletas.filter(a => a.ativo && a.status !== 'Inativo' && a.posicao === 'Goleiro').sort((a, b) => (a.numero ?? 99) - (b.numero ?? 99) || a.nome.localeCompare(b.nome, 'pt'));
+// goleiros que treinam com o grupo sem ser do elenco profissional (Ajustes): id negativo, ficam só neste módulo
+const golExtrasCfg = () => Array.isArray(S.gol.cfg.extras) ? S.gol.cfg.extras : [];
+const golGoleiros = () => [...golElenco(), ...golExtrasCfg().filter(x => x.ativo !== false).map(x => ({ id: x.id, nome: x.nome, foto_url: x.foto || null, numero: null, posicao: 'Goleiro', ativo: true, extra: true }))];
 const golTipos = () => Array.isArray(S.gol.cfg.tipos) ? S.gol.cfg.tipos : [];
 const golTrein = () => S.gol.cfg.treinador || '';
 const GOL_DS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
@@ -41,8 +44,8 @@ async function carregarGol() {
   S.gol.ult = u.data.sort((a, b) => golOrdT(b).localeCompare(golOrdT(a)))[0] || null;
 }
 
-function golStats(T) {
-  const gks = golGoleiros(), n = T.length, min = T.reduce((s, t) => s + (+t.dur || 0), 0);
+function golStats(T, gks = golGoleiros()) {
+  const n = T.length, min = T.reduce((s, t) => s + (+t.dur || 0), 0);
   const gk = Object.fromEntries(gks.map(a => { const fe = T.filter(t => (t.presentes || []).includes(a.id)); return [a.id, { n: fe.length, min: fe.reduce((s, t) => s + (+t.dur || 0), 0) }]; }));
   const tipos = {}; let nAt = 0; T.forEach(t => (t.ativ || []).forEach(x => { nAt++; if (x.tipo) tipos[x.tipo] = (tipos[x.tipo] || 0) + 1; }));
   const marc = Object.values(tipos).reduce((s, v) => s + v, 0);
@@ -57,12 +60,12 @@ async function pGoleiros() {
   S.gol.ref = S.gol.ref || golRefHoje();
   const pode = podeGol();
   const acoes = `<button class="btn" id="golpdf">Baixar PDF</button>${pode ? '<button class="btn" id="golaj">Ajustes</button><button class="btn pri" id="goladd">+ Adicionar relatório</button>' : ''}`;
-  const cabF = () => { const tr = golTrein(); return topo('Departamento de Goleiros', 'Goleiros', tr ? `Preparador de goleiros: ${tr}` : 'Treinamento dos goleiros', acoes); };
+  const cabF = () => { const tr = golTrein(); return topo('Departamento de Goleiros', 'Goleiros', tr ? `Treinador de goleiros: ${tr}` : 'Treinamento dos goleiros', acoes); };
   $('#main').innerHTML = cabF() + '<div class="panel empty">Carregando…</div>';
   try { await carregarGol(); } catch (e) { $('#main .panel').innerHTML = esc(erroAmigavel(e)); return; }
   const cab = cabF();
   const f = golFaixa(), T = S.gol.tr, st = golStats(T), gks = golGoleiros(), u = S.gol.ult;
-  const sit = a => typeof situacao === 'function' && S.dm?.ok ? situacao(a.id).sit : 'Liberado';
+  const sit = a => !a.extra && typeof situacao === 'function' && S.dm?.ok ? situacao(a.id).sit : 'Liberado';
   const per = `<div class="gol-per"><div class="gol-seg"><button data-per="semana" class="${S.gol.per === 'semana' ? 'on' : ''}">Semana</button><button data-per="mes" class="${S.gol.per === 'mes' ? 'on' : ''}">Mês</button></div>
     <button class="btn sm" id="golprev">◀</button><b>${esc(f.txt)}</b><button class="btn sm" id="golnext">▶</button>${S.gol.ref !== golRefHoje() ? '<button class="btn sm" id="golhoje">Atual</button>' : ''}</div>`;
   const kpi = (l, v, s) => `<div class="card"><div class="l">${l}</div><div class="v">${v}</div>${s ? `<div class="s">${s}</div>` : ''}</div>`;
@@ -73,7 +76,7 @@ async function pGoleiros() {
     ${kpi('Mais trabalhado', st.tipos.length ? esc(st.tipos[0][0]) : '—', st.tipos.length ? `${st.tipos[0][2]}% das atividades${st.tipos[1] ? ` · depois ${esc(st.tipos[1][0])}` : ''}` : st.nAt ? 'marque o tipo nas atividades' : '')}</div>`;
   const gkCard = a => { const g = st.gk[a.id], o = golObsUlt(T, a.id), s = sit(a), pct = st.n ? g.n / st.n * 100 : 0;
     return `<div class="gol-k"><div class="gol-kf">${a.foto_url ? fotoFundo(a) : `<i class="fbg flk-escbg" style="background-image:url('${LOGO}')"></i>`}
-      <div class="gol-kn">${a.numero ? `<em>${a.numero}</em>` : ''}<b>${esc(a.nome)}</b>${s !== 'Liberado' ? `<span class="gol-dm">${esc(s)}</span>` : ''}</div></div>
+      <div class="gol-kn">${a.numero ? `<em>${a.numero}</em>` : ''}<b>${esc(a.nome)}</b>${s !== 'Liberado' ? `<span class="gol-dm">${esc(s)}</span>` : ''}${a.extra ? '<span class="gol-ext">Fora do elenco profissional</span>' : ''}</div></div>
       <div class="gol-kb"><div class="gol-kl"><span>Presença</span><b>${g.n}/${st.n}</b></div><div class="gol-bar"><i style="width:${pct}%"></i></div>
       <div class="gol-kl"><span>Minutos</span><b>${g.min ? g.min + "'" : '—'}</b></div>
       ${o ? `<p class="gol-ko" title="${esc(o.txt)}">“${esc(o.txt)}” <small>${fmt(o.data)}</small></p>` : ''}</div></div>`; };
@@ -87,7 +90,7 @@ async function pGoleiros() {
       ${st.tipos.length > 1 ? `<h3 class="gol-h3">Distribuição por tipo</h3><div class="gol-tps">${st.tipos.map(([t, v, p]) => `<div><span>${esc(t)}</span><div class="gol-bar"><i style="width:${p}%"></i></div><b>${p}%</b></div>`).join('')}</div>` : ''}</div>`;
   document.querySelectorAll('[data-per]').forEach(b => b.onclick = () => { S.gol.per = b.dataset.per; S.gol.ref = golRefHoje(); pGoleiros(); });
   $('#golprev').onclick = () => golMove(-1); $('#golnext').onclick = () => golMove(1); if ($('#golhoje')) $('#golhoje').onclick = () => { S.gol.ref = golRefHoje(); pGoleiros(); };
-  $('#golpdf').onclick = () => T.length ? golPDF(T, f) : toast('Nenhum treino neste período.', true);
+  $('#golpdf').onclick = () => T.length ? golPDFEscolher(T, f) : toast('Nenhum treino neste período.', true);
   document.querySelectorAll('.gol-tr').forEach(b => b.onclick = () => golVer(T.find(x => x.id === +b.dataset.t)));
   if (!pode) return;
   $('#goladd').onclick = () => golForm(null);
@@ -106,7 +109,7 @@ function golVer(t) {
     ${t.nota ? `<h3 class="gol-h3">Observação geral</h3><p>${esc(t.nota).replace(/\n/g, '<br>')}</p>` : ''}
     <div class="mfoot">${pode ? '<button class="btn dan" id="golvdel">Excluir</button>' : '<span></span>'}<div class="row"><button class="btn" id="golvpdf">PDF deste treino</button>${pode ? '<button class="btn" id="golved">Editar</button>' : ''}<button class="btn pri" id="golvx">Fechar</button></div></div>`, true);
   $('#golvx').onclick = fechar;
-  $('#golvpdf').onclick = () => { fechar(); golPDF([t], { txt: `${GOL_DL[d.getDay()]}, ${dataBR(t.data)} · ${t.turno}`, curto: t.data, um: true }); };
+  $('#golvpdf').onclick = () => { fechar(); golPDF([t], { txt: `${GOL_DL[d.getDay()]}, ${dataBR(t.data)} · ${t.turno}`, curto: t.data, um: true }, (t.presentes || []).slice()); };
   if (!pode) return;
   $('#golved').onclick = () => golForm(t);
   $('#golvdel').onclick = async () => { if (!confirm(`Excluir o relatório do treino de ${dataBR(t.data)} (${t.turno})?`)) return;
@@ -166,19 +169,39 @@ function golForm(t) {
   desenha();
 }
 
-/* ---------- ajustes: preparador, tipos e biblioteca ---------- */
+/* ---------- ajustes: treinador, goleiros fora do elenco, tipos e biblioteca ---------- */
+// reduz a foto para um quadrado de 320 px (fica guardada junto do ajuste)
+function golFotoArq(file) {
+  return new Promise((ok, no) => { const im = new Image(); im.onload = () => { const l = Math.min(im.width, im.height), c = document.createElement('canvas'); c.width = c.height = 320;
+    c.getContext('2d').drawImage(im, (im.width - l) / 2, Math.max(0, (im.height - l) / 2 - (im.height - l) * .2), l, l, 0, 0, 320, 320); URL.revokeObjectURL(im.src); ok(c.toDataURL('image/jpeg', .82)); };
+    im.onerror = no; im.src = URL.createObjectURL(file); });
+}
 function golAjustes() {
-  modal(`<h2>Ajustes do Departamento de Goleiros</h2>
-    <label class="f"><span>Preparador de goleiros</span><input class="in" id="gatr" value="${esc(golTrein())}"></label>
+  const E = JSON.parse(JSON.stringify(golExtrasCfg()));
+  const desenha = () => {
+    const tr = $('#gatr') ? $('#gatr').value : golTrein(), ti = $('#gati') ? $('#gati').value : golTipos().join('\n');
+    modal(`<h2>Ajustes do Departamento de Goleiros</h2>
+    <label class="f"><span>Treinador de goleiros</span><input class="in" id="gatr" value="${esc(tr)}"></label>
+    <div class="f"><span>Goleiros fora do elenco profissional <small class="m">treinam com o grupo; aparecem só neste módulo</small></span>
+      <div class="gol-exs">${E.map((x, k) => `<div class="gol-ex"><label class="gol-exf" title="Trocar foto">${x.foto ? `<img src="${esc(x.foto)}" alt="">` : `<span>${esc(iniciais(x.nome || '?'))}</span>`}<input type="file" accept="image/*" data-exf="${k}" hidden></label>
+        <input class="in" data-exn="${k}" value="${esc(x.nome || '')}" placeholder="Nome"><label class="m gol-exa"><input type="checkbox" data-exa="${k}"${x.ativo !== false ? ' checked' : ''}> treinando</label><button type="button" class="btn sm dan" data-exd="${k}" title="Remover">✕</button></div>`).join('') || '<p class="m">Nenhum.</p>'}</div>
+      <button type="button" class="btn sm" id="gaexn">+ Goleiro fora do elenco</button></div>
     <label class="f"><span>Tipos de atividade <small class="m">um por linha · alimentam o “mais trabalhado” e a distribuição</small></span>
-      <textarea class="in" id="gati" rows="8" placeholder="Ex.:\nVelocidade\nQuedas\nJogo com os pés\nBola aérea\nPreventivo / aquecimento">${esc(golTipos().join('\n'))}</textarea></label>
+      <textarea class="in" id="gati" rows="7" placeholder="Ex.:\nVelocidade\nQuedas\nJogo com os pés\nBola aérea\nPreventivo / aquecimento">${esc(ti)}</textarea></label>
     <div class="mfoot"><button class="btn" id="gabib">Biblioteca de atividades (${S.gol.bib.length})</button><div class="row"><button class="btn" id="gac">Cancelar</button><button class="btn pri" id="gas">Salvar</button></div></div>`);
-  $('#gac').onclick = fechar;
-  $('#gabib').onclick = golBiblioteca;
-  $('#gas').onclick = async () => {
-    const L = [...new Set($('#gati').value.split('\n').map(x => x.trim()).filter(Boolean))], tr = $('#gatr').value.trim();
-    const { error } = await sb.from('gol_config').upsert([{ chave: 'tipos', valor: L }, { chave: 'treinador', valor: tr }]); if (error) return toast(erroAmigavel(error), true);
-    S.gol.cfg.tipos = L; S.gol.cfg.treinador = tr; fechar(); toast('Ajustes salvos.'); pGoleiros(); };
+    const le = () => document.querySelectorAll('[data-exn]').forEach(i => { const k = +i.dataset.exn; E[k].nome = i.value.trim(); E[k].ativo = document.querySelector(`[data-exa="${k}"]`).checked; });
+    $('#gaexn').onclick = () => { le(); const id = -1 - Math.max(0, ...E.map(x => -x.id)); E.push({ id, nome: '', foto: null, ativo: true }); desenha(); };
+    document.querySelectorAll('[data-exd]').forEach(b => b.onclick = () => { le(); const k = +b.dataset.exd; if (!confirm(`Remover ${E[k].nome || 'este goleiro'}? Ele deixa de aparecer nos relatórios (para só esconder, desmarque “treinando”).`)) return; E.splice(k, 1); desenha(); });
+    document.querySelectorAll('[data-exf]').forEach(i => i.onchange = async () => { le(); const f = i.files[0]; if (!f) return; try { E[+i.dataset.exf].foto = await golFotoArq(f); } catch (e) { return toast('Não consegui ler a imagem.', true); } desenha(); });
+    $('#gac').onclick = fechar;
+    $('#gabib').onclick = golBiblioteca;
+    $('#gas').onclick = async () => { le();
+      if (E.some(x => !x.nome)) return toast('Dê um nome a cada goleiro fora do elenco.', true);
+      const L = [...new Set($('#gati').value.split('\n').map(x => x.trim()).filter(Boolean))], t = $('#gatr').value.trim();
+      const { error } = await sb.from('gol_config').upsert([{ chave: 'tipos', valor: L }, { chave: 'treinador', valor: t }, { chave: 'extras', valor: E }]); if (error) return toast(erroAmigavel(error), true);
+      S.gol.cfg.tipos = L; S.gol.cfg.treinador = t; S.gol.cfg.extras = E; fechar(); toast('Ajustes salvos.'); pGoleiros(); };
+  };
+  desenha();
 }
 function golBiblioteca() {
   const tipos = golTipos();
@@ -196,9 +219,19 @@ function golBiblioteca() {
 }
 
 /* ---------- PDF (A4 retrato) ---------- */
-function golPDF(T, f) {
+// escolhe quem aparece no PDF: já vêm marcados só os goleiros que treinaram no período
+function golPDFEscolher(T, f) {
+  const gks = golGoleiros(), st = golStats(T, gks);
+  modal(`<h2>Goleiros no PDF</h2><p class="m">${esc(f.txt)} · marcados os que treinaram no período. Quem ficar desmarcado não aparece no relatório.</p>
+    <div class="gol-fp">${gks.map(a => `<button type="button" class="gol-pc${st.gk[a.id].n ? ' on' : ''}" data-gs="${a.id}">${foto(a)}${golPrim(a)} <small class="m">${st.gk[a.id].n}/${st.n}</small></button>`).join('')}</div>
+    <div class="mfoot"><span></span><div class="row"><button class="btn" id="gsc">Cancelar</button><button class="btn pri" id="gsp">Gerar PDF</button></div></div>`);
+  document.querySelectorAll('[data-gs]').forEach(b => b.onclick = () => b.classList.toggle('on'));
+  $('#gsc').onclick = fechar;
+  $('#gsp').onclick = () => { const sel = [...document.querySelectorAll('[data-gs].on')].map(b => +b.dataset.gs); if (!sel.length) return toast('Escolha ao menos um goleiro.', true); fechar(); golPDF(T, f, sel); };
+}
+function golPDF(T, f, sel) {
   if (!T.length) return;
-  const gks = golGoleiros(), st = golStats(T), tr = golTrein();
+  const gks = golGoleiros().filter(a => !sel || sel.includes(a.id)), st = golStats(T, gks), tr = golTrein();
   const ftG = a => a.foto_url ? `<span class="golp-ft">${fotoFundo(a)}</span>` : `<span class="golp-ft golp-ini">${esc(iniciais(a.nome))}</span>`;
   const box = (v, l) => `<div><b>${v}</b><span>${l}</span></div>`;
   const treino = t => { const d = parse(t.data), fora = gks.filter(a => !(t.presentes || []).includes(a.id)), obs = gks.filter(a => t.obs?.[a.id]);
@@ -207,9 +240,9 @@ function golPDF(T, f) {
         <div class="golp-tf">${fora.length ? `<span>Não treinou: <b>${fora.map(golPrim).join(', ')}</b></span>` : `<span>Treinaram os ${gks.length} goleiros</span>`}${obs.map(a => `<span><b>${golPrim(a)}:</b> ${esc(t.obs[a.id])}</span>`).join('')}${t.nota ? `<span><b>Obs.:</b> ${esc(t.nota)}</span>` : ''}</div></div></div>`; };
   const html = `<section class="golp">
     <div class="golp-cab"><img src="${LOGO}" alt=""><div class="golp-ct"><small>QFC · DEPARTAMENTO DE GOLEIROS</small><h1>Relatório de treinamento</h1></div>
-      <div class="golp-cp"><b>${esc(f.um ? f.txt : (S.gol.per === 'mes' ? f.txt : 'Semana ' + f.txt))}</b>${tr ? `<span>Preparador: ${esc(tr)}</span>` : ''}</div></div>
+      <div class="golp-cp"><b>${esc(f.um ? f.txt : (S.gol.per === 'mes' ? f.txt : 'Semana ' + f.txt))}</b>${tr ? `<span>Treinador de goleiros: ${esc(tr)}</span>` : ''}</div></div>
     ${f.um ? '' : `<div class="golp-k">${box(st.n, 'treinos')}${box(st.min ? st.min + "'" : '—', 'minutos no total')}${box(st.media ? st.media + "'" : '—', 'média por treino')}${box(st.pres != null ? st.pres + '%' : '—', 'presença média')}</div>`}
-    <div class="golp-g">${gks.map(a => { const g = st.gk[a.id]; return `<div>${ftG(a)}<b>${esc(a.nome)}</b><small>${g.n}/${st.n} treinos${g.min ? ` · ${g.min}'` : ''}</small></div>`; }).join('')}</div>
+    <div class="golp-g" style="grid-template-columns:repeat(${Math.min(5, Math.max(gks.length, 3))},1fr)">${gks.map(a => { const g = st.gk[a.id]; return `<div>${ftG(a)}<b>${esc(a.nome)}</b><small>${g.n}/${st.n} treinos${g.min ? ` · ${g.min}'` : ''}</small></div>`; }).join('')}</div>
     ${!f.um && st.tipos.length ? `<div class="golp-tp"><h2>Distribuição por tipo de atividade</h2>${st.tipos.map(([t, v, p]) => `<div><span>${esc(t)}</span><i><s style="width:${p}%"></s></i><b>${p}%</b></div>`).join('')}</div>` : ''}
     <h2 class="golp-h2">${f.um ? 'Treino' : 'Treinos do período'}</h2>${T.map(treino).join('')}
     <div class="golp-rod">CINQ · Centro de Inteligência do QFC · gerado em ${new Date().toLocaleDateString('pt-BR')}</div></section>`;

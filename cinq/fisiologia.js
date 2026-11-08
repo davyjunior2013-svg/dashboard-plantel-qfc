@@ -71,15 +71,15 @@ function flSugereMD(data) {
 const flMdSel = (id, v) => `<select class="in fl-md" id="${id}">${opts(MD_TAGS, v || '', '—')}</select>`;
 
 /* ============ velocidade máxima de referência e o sino ============ */
-// percorre as sessões do atleta em ordem: referência = maior marca válida até a data. Marca que passa a anterior em mais de
-// salto_conf% fica "a confirmar" (possível falso pico do GPS) e só entra na referência depois de confirmada.
+// percorre as sessões do atleta em ordem: referência = maior marca até a data (treino, jogo ou teste). Nova marca maior vira
+// referência automaticamente ao subir o GPS; só sai se o fisiologista marcar "Falso pico".
 function flVH(aid) {
   return flCache('vh', aid, () => {
     const C = flCfg('vmax'), lista = []; let ref = null, refS = null, n = 0, teste = false;
     for (const x of flLinhasAt(aid)) {
       const v = +x.g.vmax; if (!v) continue;
       const antes = ref, validoAntes = antes && (teste || n >= C.n_min);
-      let st = x.g.vmax_status === 'falso' ? 'falso' : antes && v > antes * (1 + C.salto_conf / 100) && x.g.vmax_status !== 'ok' ? 'pendente' : 'ok';
+      let st = x.g.vmax_status === 'falso' ? 'falso' : 'ok';
       let recorde = false;
       if (st === 'ok') { if (!ref || v > ref) { recorde = !!validoAntes; ref = v; refS = x.s; } n++; if (x.s.tipo === 'Teste') teste = true; }
       const valida = teste || n >= C.n_min;
@@ -108,7 +108,7 @@ const flPctTxt = r => { const e = flVEntrada(r); if (!e) return '—'; if (e.st 
   const p = e.v / e.ref * 100; return `${Math.round(p)}%${p >= flCfg('vmax').pct ? ' <span class="fl-sino" title="exposição à velocidade máxima">🔔</span>' : ''}${e.recorde ? ' <span class="badge fl-rec">recorde</span>' : ''}`; };
 async function flMarcarVmax(id, status) {
   const { error } = await sb.from('fisl_gps').update({ vmax_status: status }).eq('id', id); if (error) return toast(erroAmigavel(error), true);
-  const g = S.fl.gps.find(x => x.id === id); if (g) g.vmax_status = status; S.fl.rev++; toast(status === 'ok' ? 'Marca confirmada: passa a ser a referência.' : 'Marcada como falso pico: fora da referência.'); pFisiologia();
+  const g = S.fl.gps.find(x => x.id === id); if (g) g.vmax_status = status; S.fl.rev++; toast(status === 'ok' ? 'Falso pico desfeito: a marca volta a contar.' : 'Marcada como falso pico: fora da referência.'); pFisiologia();
 }
 
 /* ============ leitura do CSV do Catapult ============ */
@@ -316,7 +316,7 @@ function flDados(s) {
   tot.forEach(r => { if (durMax && r.duracao_s < durMax * 0.9 && s.tipo !== 'Jogo') dest.push(['Tempo menor', r, `${flDur(r.duracao_s)} de ${flDur(durMax)}: saiu antes ou o aparelho parou de gravar`]);
     const e = flVEntrada(r), x = flExpo(e);
     if (e?.st === 'pendente') dest.push(['Pico a confirmar', r, `${flFmt(e.v, 2)} km/h passa a referência (${flFmt(e.antes, 2)}) em ${flFmt((e.v / e.antes - 1) * 100, 1)}%: confirmar se não é pico falso do GPS`, e.g.id]);
-    else if (e?.recorde) dest.push(['Recorde de velocidade', r, `${flFmt(e.v, 2)} km/h (antes ${flFmt(e.antes, 2)} km/h)`]);
+    else if (e?.recorde) dest.push(['Nova velocidade máxima', r, `${flFmt(e.v, 2)} km/h passa a ser a referência (antes ${flFmt(e.antes, 2)} km/h)`]);
     if (x?.vel) dest.push(['🔔 Velocidade máxima', r, `${flFmt(e.v, 1)} km/h = ${Math.round(x.pct)}% da referência${x.partes.length ? ` · ${x.partes.map(p => flNomeParte(s, p.periodo)).join(', ')}` : ''}`]);
     if (x?.vel && x.md1) dest.push(['MD-1 · para discutir', r, `exposição ≥${C.pct}% na véspera do jogo`]);
     const h = flHist(r, s); if (h) ['dist', 'ai', 'sprint'].forEach(k => { if (h[k] && r[k] != null && Math.abs(r[k] - h[k]) / h[k] >= 0.3) dest.push([r[k] > h[k] ? 'Acima do habitual' : 'Abaixo do habitual', r, `${FL_MET.find(m => m[0] === k)[1]}: ${flFmt(r[k])} m (média dele ${flFmt(h[k])} m)`]); });
@@ -518,14 +518,14 @@ function flParametros() {
   const V = flCfg('vmax'), A = flCfg('acwr'), R = flCfg('prontidao'), f = (id, l, v, st = 1, h = '') => `<label class="f"><span>${l}</span><input class="in" type="number" step="${st}" id="${id}" value="${v}">${h ? `<small class="m">${h}</small>` : ''}</label>`;
   modal(`<h2>Parâmetros da fisiologia</h2><p class="m">Valores de partida combinados com o fisiologista. Ele pode ajustar quando quiser; tudo é recalculado na hora.</p>
     <h4 class="dm-h4">Velocidade máxima</h4><div class="g3">${f('pv1', 'Sino 🔔 a partir de (% da referência)', V.pct)}${f('pv2', 'Alerta de dias sem exposição', V.dias)}${f('pv3', 'Jogo conta como exposição a partir de (min)', V.jogo_min)}
-      ${f('pv4', 'Pedir confirmação se passar a referência em mais de (%)', V.salto_conf, 0.5, 'possível pico falso do GPS')}${f('pv5', 'Sessões mínimas para ter referência', V.n_min, 1, 'sem teste de velocidade')}</div>
+      ${f('pv5', 'Sessões mínimas para ter referência', V.n_min, 1, 'sem teste de velocidade')}</div>
     <h4 class="dm-h4">ACWR (semana aguda ÷ média das 4 semanas)</h4><div class="g3">${f('pa1', 'Abaixo de (alerta)', A.min, 0.05)}${f('pa2', 'Acima de (alerta)', A.max, 0.05)}</div>
     <h4 class="dm-h4">Prontidão (CMJ)</h4><div class="g3">${f('pr1', 'Ruído do salto (%)', R.ruido_pct, 0.5, 'CMJ costuma ficar entre 2% e 5%')}${f('pr2', 'Avaliações na referência', R.n_ref)}${f('pr3', 'Mínimo para mostrar as faixas', R.n_min)}</div>
     <div class="mfoot"><span></span><div class="row"><button class="btn" id="flpc">Cancelar</button><button class="btn pri" id="flps">Salvar</button></div></div>`, true);
   $('#flpc').onclick = fechar;
   $('#flps').onclick = async () => {
     const v = id => +$('#' + id).value;
-    const novo = { vmax: { pct: v('pv1'), dias: v('pv2'), jogo_min: v('pv3'), salto_conf: v('pv4'), n_min: v('pv5') }, acwr: { min: v('pa1'), max: v('pa2') }, prontidao: { ruido_pct: v('pr1'), n_ref: v('pr2'), n_min: v('pr3') } };
+    const novo = { vmax: { pct: v('pv1'), dias: v('pv2'), jogo_min: v('pv3'), salto_conf: V.salto_conf, n_min: v('pv5') }, acwr: { min: v('pa1'), max: v('pa2') }, prontidao: { ruido_pct: v('pr1'), n_ref: v('pr2'), n_min: v('pr3') } };
     if (!(novo.vmax.pct > 50 && novo.vmax.pct <= 100) || !(novo.acwr.min > 0 && novo.acwr.max > novo.acwr.min) || !(novo.prontidao.n_min >= 2 && novo.prontidao.n_ref >= novo.prontidao.n_min) || !(novo.prontidao.ruido_pct >= 0 && novo.prontidao.ruido_pct <= 15)) return toast('Confira os valores (ex.: sino entre 50 e 100%, ACWR máximo maior que o mínimo, mínimo de avaliações ≥ 2).', true);
     const { error } = await sb.from('fisl_config').upsert(Object.entries(novo).map(([chave, valor]) => ({ chave, valor })), { onConflict: 'chave' }); if (error) return toast(erroAmigavel(error), true);
     Object.assign(S.fl.cfg, novo); fechar(); toast('Parâmetros salvos.'); pFisiologia(); };
@@ -647,19 +647,19 @@ function pVelocidade() {
     <div class="cards fs-kpis fl-k5"><div class="card"><div class="l">Atletas</div><div class="v">${L.length}</div><div class="s">com GPS</div></div>
       <div class="card"><div class="l">Expostos esta semana</div><div class="v">${L.filter(x => x.semana).length}</div><div class="s">ao menos uma 🔔 ou jogo</div></div>
       <div class="card fl-c-vm"><div class="l">Sem exposição</div><div class="v">${L.filter(x => x.alerta).length}</div><div class="s">há mais de ${C.dias} dias</div></div>
-      <div class="card fl-c-am"><div class="l">Picos a confirmar</div><div class="v">${pend.length}</div><div class="s">possível falso pico</div></div>
-      <div class="card"><div class="l">Recordes (30 dias)</div><div class="v">${rec.length}</div><div class="s">nova referência</div></div></div>
+      <div class="card fl-c-am"><div class="l">Nova referência</div><div class="v">${rec.filter(o => o.e.s.data >= segunda(hoje())).length}</div><div class="s">nesta semana</div></div>
+      <div class="card"><div class="l">Novas referências</div><div class="v">${rec.length}</div><div class="s">últimos 30 dias</div></div></div>
     ${pend.length ? `<div class="panel"><h2>Picos a confirmar <small class="m">passaram a referência anterior em mais de ${C.salto_conf}%: só viram referência depois de confirmados</small></h2><div class="dc-al">${pend.map(({ x, e }) => `<div class="dc-ali n-al"><span class="dc-tp">${fmt(e.s.data)} · ${esc(e.s.tipo)}</span><b>${esc(x.a.nome)}</b><span class="m">${flFmt(e.v, 2)} km/h · referência anterior ${flFmt(e.antes, 2)} km/h (+${flFmt((e.v / e.antes - 1) * 100, 1)}%)</span>${pode ? `<span class="row fl-vc"><button class="btn sm pri" data-vok="${e.g.id}">É real</button><button class="btn sm" data-vfalso="${e.g.id}">Falso pico</button></span>` : ''}</div>`).join('')}</div></div>` : ''}
     ${md1.length ? `<div class="panel"><h2>Exposição em MD-1 <small class="m">para discutir com a comissão</small></h2><div class="dc-al">${md1.slice(-12).reverse().map(({ x, o }) => `<div class="dc-ali n-at"><span class="dc-tp">${fmt(o.e.s.data)} · MD-1</span><b>${esc(x.a.nome)}</b><span class="m">${flFmt(o.e.v, 1)} km/h = ${Math.round(o.x.pct)}% da referência</span></div>`).join('')}</div></div>` : ''}
-    <div class="panel"><h2>Por atleta <small class="m">clique para ver o histórico · ordenado por quem está há mais tempo sem exposição</small></h2><div class="tablewrap"><table class="tb fl-tab"><thead><tr><th>Atleta</th><th>Posição</th><th>Referência</th><th>Origem</th><th>Última sessão</th><th>% ref.</th><th>Última exposição</th><th>Dias sem</th><th>Semana</th><th>4 semanas</th><th>Recordes</th></tr></thead><tbody>
+    <div class="panel"><h2>Por atleta <small class="m">clique para ver o histórico · ordenado por quem está há mais tempo sem exposição</small></h2><div class="tablewrap"><table class="tb fl-tab"><thead><tr><th>Atleta</th><th>Posição</th><th>Referência</th><th>Origem</th><th>Última sessão</th><th>% ref.</th><th>Última exposição</th><th>Dias sem</th><th>Semana</th><th>4 semanas</th><th>Novas ref.</th></tr></thead><tbody>
       ${L.map(x => { const u = x.ultS, p = u && u.ref ? u.v / u.ref * 100 : null;
         return `<tr class="dm-tr" data-flv="${x.aid}"><td><b>${esc(x.a.nome)}</b></td><td>${esc(x.a.posicao)}</td><td>${x.V.ref ? `<b>${flFmt(x.V.ref, 2)}</b> km/h` : `<span class="m">em formação (${x.V.n}/${C.n_min})</span>`}</td><td class="m">${esc(orig(x.V.refS))}</td>
           <td>${u ? `${flFmt(u.v, 2)} <small class="m">${fmt(u.s.data)}</small>` : '—'}</td><td>${p ? Math.round(p) + '%' + (p >= C.pct ? ' 🔔' : '') : u?.st === 'pendente' ? '<span class="badge fl-pend">a confirmar</span>' : '—'}</td>
           <td>${x.ultE ? `${fmt(x.ultE.e.s.data)} <small class="m">${x.ultE.x.vel ? '🔔 ' + Math.round(x.ultE.x.pct) + '%' : 'jogo'}</small>` : '—'}</td><td class="${x.alerta ? 'fl-neg' : ''}">${x.dias == null ? 'nunca' : x.dias}</td><td>${x.semana}</td><td>${x.s4}</td><td>${x.rec.length}</td></tr>`; }).join('')}
     </tbody></table></div>
     <p class="m fl-nota">A exposição é contada por sessão (treino ou jogo) quando alguma parte teve pico ≥ ${C.pct}% (o aquecimento do jogo não conta). Como o CSV traz só a velocidade máxima de cada parte, não dá para contar quantas vezes dentro da mesma parte.
-      Referência aparece com ${C.n_min} sessões do atleta ou com o teste de velocidade (sessão do tipo “Teste”).</p></div>
-    ${rec.length ? `<div class="panel"><h2>Recordes recentes</h2><div class="dc-al">${rec.map(({ x, e }) => `<div class="dc-ali n-at"><span class="dc-tp">${fmt(e.s.data)} · ${esc(e.s.tipo)}</span><b>${esc(x.a.nome)}</b><span class="m">${flFmt(e.v, 2)} km/h (antes ${flFmt(e.antes, 2)})</span></div>`).join('')}</div></div>` : ''}`);
+      Referência aparece com ${C.n_min} sessões do atleta ou com o teste de velocidade (sessão do tipo “Teste”). Toda marca maior que a referência, em treino ou jogo, vira a nova referência automaticamente ao subir o GPS.</p></div>
+    ${rec.length ? `<div class="panel"><h2>Novas referências <small class="m">últimos 30 dias · atualizadas automaticamente pelo GPS${pode ? ' · se foi erro do GPS, use “Falso pico”' : ''}</small></h2><div class="dc-al">${rec.map(({ x, e }) => `<div class="dc-ali n-at"><span class="dc-tp">${fmt(e.s.data)} · ${esc(e.s.tipo)}</span><b>${esc(x.a.nome)}</b><span class="m">${flFmt(e.v, 2)} km/h (antes ${flFmt(e.antes, 2)} · +${flFmt((e.v / e.antes - 1) * 100, 1)}%)</span>${pode ? `<span class="row fl-vc"><button class="btn sm" data-vfalso="${e.g.id}">Falso pico</button></span>` : ''}</div>`).join('')}</div></div>` : ''}`);
   ligarFlTabs();
   if ($('#flvp')) $('#flvp').onclick = flParametros;
   document.querySelectorAll('[data-vok]').forEach(b => b.onclick = () => flMarcarVmax(+b.dataset.vok, 'ok'));
@@ -668,13 +668,13 @@ function pVelocidade() {
 }
 function flVelAtleta(aid) {
   const V = flVH(aid), a = S.atletas.find(x => x.id === aid), C = flCfg('vmax'), pode = podeFisl();
-  const st = e => e.st === 'falso' ? 'falso pico' : e.st === 'pendente' ? 'a confirmar' : e.recorde ? 'recorde' : '';
+  const st = e => e.st === 'falso' ? 'falso pico' : e.recorde ? 'nova referência' : '';
   modal(`<h2>${esc(a?.nome || '')} · velocidade máxima</h2>${flGrafico([{ nome: 'Vmáx da sessão', cor: '#13295b', pts: V.lista.map(e => ({ d: e.s.data, v: e.v, sino: !!flExpo(e)?.vel, tit: `${fmt(e.s.data)} ${e.s.tipo}: ${flFmt(e.v, 2)} km/h` })) },
       { nome: 'Referência', cor: '#9aa5ad', tracejado: true, pts: V.lista.filter(e => e.ref).map(e => ({ d: e.s.data, v: e.ref })) }, { nome: `${C.pct}% da referência`, cor: '#e0a526', tracejado: true, pts: V.lista.filter(e => e.ref).map(e => ({ d: e.s.data, v: e.ref * C.pct / 100 })) }],
       V.lista[0]?.s.data || hoje(), V.lista[V.lista.length - 1]?.s.data || hoje(), { min: null })}
     <div class="tablewrap"><table class="tb"><thead><tr><th>Data</th><th>Tipo</th><th>MD</th><th>Vmáx</th><th>Referência</th><th>%</th><th>Partes ≥ ${C.pct}%</th><th>Situação</th>${pode ? '<th></th>' : ''}</tr></thead><tbody>
       ${V.lista.slice().reverse().map(e => { const x = flExpo(e); return `<tr><td>${dataBR(e.s.data)}</td><td>${esc(e.s.tipo)}</td><td>${esc(flMdTxt(e.s))}</td><td>${flFmt(e.v, 2)}</td><td>${flFmt(e.ref, 2)}</td><td>${e.ref ? Math.round(e.v / e.ref * 100) + '%' : '—'}${x?.vel ? ' 🔔' : x?.jogo ? ' <small class="m">jogo</small>' : ''}</td>
-        <td class="m">${x?.partes?.length ? esc(x.partes.map(p => flNomeParte(e.s, p.periodo)).join(', ')) : ''}</td><td>${esc(st(e))}</td>${pode ? `<td>${e.st === 'pendente' || e.st === 'falso' ? `<button class="btn sm" data-vok="${e.g.id}">É real</button>` : ''}${e.st !== 'falso' && (e.st === 'pendente' || e.recorde) ? `<button class="btn sm" data-vfalso="${e.g.id}">Falso pico</button>` : ''}</td>` : ''}</tr>`; }).join('')}
+        <td class="m">${x?.partes?.length ? esc(x.partes.map(p => flNomeParte(e.s, p.periodo)).join(', ')) : ''}</td><td>${esc(st(e))}</td>${pode ? `<td>${e.st === 'falso' ? `<button class="btn sm" data-vok="${e.g.id}">Desfazer falso pico</button>` : ''}${e.st !== 'falso' && (e.st === 'pendente' || e.recorde) ? `<button class="btn sm" data-vfalso="${e.g.id}">Falso pico</button>` : ''}</td>` : ''}</tr>`; }).join('')}
     </tbody></table></div><div class="mfoot"><span></span><button class="btn" id="flvf">Fechar</button></div>`, true);
   $('#flvf').onclick = fechar;
   document.querySelectorAll('#modal [data-vok]').forEach(b => b.onclick = () => { fechar(); flMarcarVmax(+b.dataset.vok, 'ok'); });
@@ -1010,7 +1010,7 @@ function flRefConteudo(ab) {
     velocidade: [sec('Referência de velocidade máxima (por atleta)', [
         'Referência = <b>maior marca válida</b> do atleta até a data, em treinos, jogos e no teste de velocidade (sessão do tipo “Teste”, 30–40 m).',
         `Precisa de ${n(V.n_min)} sessões do atleta ou de um teste; antes disso, “em formação”.`,
-        `Marca que passa a referência anterior em mais de <b>${n(V.salto_conf, 1)}%</b> fica “a confirmar” (possível pico falso do GPS) e só vira referência quando o fisiologista confirma. “Falso pico” sai da referência.`,
+        'Nova marca maior que a referência (treino ou jogo) <b>vira a referência automaticamente</b> ao subir o GPS. Se for erro do aparelho, o fisiologista marca “Falso pico” e ela sai da referência.',
         'O % de cada sessão usa a referência válida até aquela data (o histórico não muda quando surge um recorde novo).']),
       sec('Exposição (🔔)', [`Exposição = sessão em que alguma parte teve pico ≥ <b>${n(V.pct)}%</b> da referência (aquecimento do jogo não conta).`,
         `Jogo com <b>${n(V.jogo_min)} min</b> ou mais também conta como exposição.`,

@@ -731,7 +731,7 @@ img.av{object-position:50% 20%}.av.avz{overflow:hidden;padding:0}.av.avz img{wid
 .gol-per{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 14px}.gol-per>b{min-width:120px;text-align:center}
 .gol-seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff;margin-right:6px}.gol-seg button{border:0;background:#fff;padding:7px 14px;cursor:pointer;font-size:13px;color:#4d5a64}.gol-seg button.on{background:#13295b;color:#fff}
 .gol-kpis .v{font-size:24px}
-.gol-ks{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-bottom:16px}
+.gol-ks{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px;margin-bottom:16px}
 .gol-k{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 5px 18px rgba(16,24,32,.04)}
 .gol-kf{position:relative;height:200px;background:linear-gradient(135deg,#13295b,#1d3f7a);overflow:hidden}
 .gol-kn{position:absolute;left:0;right:0;bottom:0;padding:34px 12px 10px;background:linear-gradient(transparent,rgba(13,25,55,.92));color:#fff}
@@ -793,3 +793,7 @@ img.av{object-position:50% 20%}.av.avz{overflow:hidden;padding:0}.av.avz img{wid
 .fl-gd-g{stroke:#e8edf1;stroke-width:1}.fl-gd-y{font-size:11px;fill:#8a96a0}.fl-gd-x{font-size:11px;fill:#5d6b78}.fl-gd-md{font-size:10px;font-weight:700;fill:#13295b}
 .fl-gd-b{fill:var(--accent);opacity:.85}.fl-gd-j{fill:#e5484d;opacity:.85}.fl-gd-v{font-size:11px;font-weight:700;fill:#15202b}
 .fl-gd-l{fill:none;stroke:#e0a526;stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}.fl-gd-p{fill:#fff;stroke:#e0a526;stroke-width:2.5}
+.gol-ext{display:inline-block;margin-top:4px;background:rgba(255,255,255,.18);color:#fff;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:10px}
+.gol-exs{display:flex;flex-direction:column;gap:8px;margin:6px 0 8px}.gol-ex{display:flex;align-items:center;gap:8px}.gol-ex .in{flex:1}
+.gol-exf{width:44px;height:44px;flex:0 0 44px;border-radius:50%;overflow:hidden;background:#e9eef1;display:flex;align-items:center;justify-content:center;cursor:pointer;border:2px solid #e0a526;font-weight:800;color:#7b8791}.gol-exf img{width:100%;height:100%;object-fit:cover}
+.gol-exa{display:flex;align-items:center;gap:4px;white-space:nowrap;font-size:12px}
