@@ -727,34 +727,64 @@ img.av{object-position:50% 20%}.av.avz{overflow:hidden;padding:0}.av.avz img{wid
 .flp .fs-rat .fd,.flp-nota .fd{margin-right:0}.flp .flp-box .bar{grid-template-columns:200px 1fr 30px}
 .flp .fs-rmapa{table-layout:fixed}.flp .fs-rmapa th{white-space:normal;word-break:normal;overflow-wrap:normal;hyphens:auto;line-height:1.15;vertical-align:bottom;letter-spacing:0;font-size:7.5px;text-transform:none}.flp .fs-rmapa td{white-space:normal;overflow-wrap:anywhere}
 
-/* Departamento de Goleiros */
-.gol-cab{display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between}
-.gol-cab-l{display:flex;gap:12px;align-items:center}.gol-cab-l img{width:52px;height:52px;object-fit:contain}
-.gol-cab-l small{display:block;font-size:10px;font-weight:700;letter-spacing:.08em;color:#13295b}.gol-cab-l b{display:block;font-size:16px}.gol-cab-l span{font-size:13px;color:#5d6b78}
-.gol-cab-l .in.sm{width:200px;padding:4px 8px;display:inline-block}
-.gol-gks{display:flex;flex-wrap:wrap;gap:10px}.gol-gk{display:flex;gap:8px;align-items:center;background:#f6f9fc;border:1px solid #e3e8ee;border-radius:10px;padding:6px 10px}
-.gol-gk b{display:block;font-size:13px}.gol-gk small{color:#6b7785;font-size:11px}
-.gol-pv{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:13px!important;font-weight:500}.gol-pv b{font-weight:800}
-.gol-dia-h{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.gol-dia-h .in{width:auto}.gol-dia-h .gol-dur{width:70px;display:inline-block}.gol-dia-h h3{margin:0}
-.gol-h4{margin:10px 0 4px;font-size:13px;color:#13295b}
-.gol-pres{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0}.gol-pres .chip{cursor:pointer;border:1px solid #c9d3db;background:#fff;border-radius:999px;padding:3px 10px;font-size:12px}
-.gol-pres .chip.on{background:#13295b;color:#fff;border-color:#13295b}.gol-pres .chip:disabled{cursor:default}
-.gol-at{border:1px solid #e6ebef;border-radius:10px;padding:8px;margin:6px 0;background:#fbfcfd}.gol-at-h{display:flex;gap:6px;align-items:center;margin-bottom:6px}
-.gol-at-h input{flex:1}.gol-at-h select{width:170px}.gol-at textarea{width:100%}
-.gol-tab td{vertical-align:top;padding:8px}.gol-tab td:first-child{width:34%}
-.gol-obs{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+/* Departamento de Goleiros (v2) */
+.gol-per{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 14px}.gol-per>b{min-width:120px;text-align:center}
+.gol-seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff;margin-right:6px}.gol-seg button{border:0;background:#fff;padding:7px 14px;cursor:pointer;font-size:13px;color:#4d5a64}.gol-seg button.on{background:#13295b;color:#fff}
+.gol-kpis .v{font-size:24px}
+.gol-ks{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-bottom:16px}
+.gol-k{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 5px 18px rgba(16,24,32,.04)}
+.gol-kf{position:relative;height:200px;background:linear-gradient(135deg,#13295b,#1d3f7a);overflow:hidden}
+.gol-kn{position:absolute;left:0;right:0;bottom:0;padding:34px 12px 10px;background:linear-gradient(transparent,rgba(13,25,55,.92));color:#fff}
+.gol-kn b{display:block;font-size:16px;line-height:1.2}.gol-kn em{font-style:normal;font-weight:800;color:#e0a526;font-size:13px}
+.gol-dm{display:inline-block;margin-top:4px;background:#c0392b;color:#fff;font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:10px}
+.gol-kb{padding:10px 12px 12px}.gol-kl{display:flex;justify-content:space-between;font-size:12.5px;color:#5d6b78;margin:4px 0}.gol-kl b{color:var(--ink)}
+.gol-bar{height:6px;background:#edf1f4;border-radius:4px;overflow:hidden}.gol-bar i{display:block;height:100%;background:#e0a526;border-radius:4px}
+.gol-ko{margin:8px 0 0;font-size:12px;color:#4d5a64;font-style:italic;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.gol-ko small{font-style:normal;color:var(--muted)}
+.gol-trs{display:flex;flex-direction:column;gap:8px}
+.gol-tr{display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:#fbfcfd;border:1px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer;font:inherit;color:inherit}.gol-tr:hover{border-color:#13295b;background:#fff}
+.gol-dt{display:flex;flex-direction:column;align-items:center;justify-content:center;width:54px;flex:0 0 54px;background:#13295b;color:#fff;border-radius:10px;padding:5px 0;line-height:1.1}
+.gol-dt small{font-size:10px;letter-spacing:.06em;opacity:.85;text-transform:uppercase}.gol-dt b{font-size:20px;color:#e0a526}
+.gol-tm{flex:1;min-width:0}.gol-tm>b{display:block;font-size:14px;margin-bottom:4px}
+.gol-chs{display:flex;flex-wrap:wrap;gap:4px}.gol-chs i{font-style:normal;font-size:11.5px;background:#eef1f3;color:#3e4b55;padding:2px 8px;border-radius:10px;white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis}
+.gol-av{display:flex}.gol-av>span{margin-left:-6px}.gol-av .av{width:30px;height:30px;flex:0 0 30px;border:2px solid #fff;font-size:12px}.gol-av .fora{opacity:.25;filter:grayscale(1)}
+.gol-ver{font-size:22px;color:#9aa6b0;padding-left:4px}
+.gol-h3{font-size:13px;color:#13295b;margin:16px 0 8px;text-transform:uppercase;letter-spacing:.06em}
+.gol-tps>div{display:grid;grid-template-columns:170px 1fr 44px;gap:10px;align-items:center;font-size:13px;margin:5px 0}.gol-tps b{text-align:right}
+.gol-vh{display:flex;gap:14px;align-items:center;margin-bottom:12px}.gol-vh h2{margin:0}.gol-vh p{margin:2px 0 0}
+.gol-vat{display:flex;gap:10px;padding:10px 0;border-top:1px solid var(--line)}.gol-vat em,.gol-fah em{font-style:normal;font-weight:800;color:#13295b;background:#fff4dc;border-radius:50%;width:24px;height:24px;flex:0 0 24px;display:flex;align-items:center;justify-content:center;font-size:12px}
+.gol-vat p{margin:4px 0 0;color:#3e4b55;font-size:13px;line-height:1.45}
+.gol-vobs>div{display:flex;gap:8px;font-size:13px;margin:4px 0}.gol-vobs b{min-width:130px}
+.gol-f3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.gol-fp{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.gol-pc{display:flex;align-items:center;gap:8px;border:2px solid var(--line);background:#fff;border-radius:999px;padding:3px 12px 3px 3px;cursor:pointer;font:inherit;font-size:13px;opacity:.55}
+.gol-pc .av{width:30px;height:30px;flex:0 0 30px;font-size:12px}.gol-pc.on{border-color:#13295b;opacity:1;font-weight:700}
+.gol-fat{border:1px solid var(--line);border-radius:10px;padding:8px;margin:0 0 8px;background:#fbfcfd}.gol-fah{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.gol-fah input{flex:1}.gol-fah select{width:170px}.gol-fat textarea{width:100%}
+.gol-fobs{margin:12px 0;border:1px solid var(--line);border-radius:10px;padding:8px 12px}.gol-fobs summary{cursor:pointer;font-weight:600;font-size:13px}
 .gol-selo{margin-top:6px;font-size:11px;font-weight:700;color:#13295b}
 .gol-bibsel{width:auto}
-@media (max-width:760px){.gol-at-h{flex-wrap:wrap}.gol-at-h select{width:100%}}
+@media (max-width:760px){.gol-fah{flex-wrap:wrap}.gol-fah select{width:100%}.gol-f3{grid-template-columns:1fr}.gol-av{display:none}.gol-ks{grid-template-columns:repeat(2,minmax(0,1fr))}.gol-kf{height:160px}}
 /* PDF goleiros */
 .golp-w{font-family:inherit;color:#15202b;background:#fff}
-.golp-cab{display:flex;gap:14px;align-items:center;background:#13295b;color:#fff;padding:14px 18px;border-radius:8px}
-.golp-cab img{width:50px;height:50px;object-fit:contain}.golp-cab small{font-size:10px;font-weight:700;letter-spacing:.08em}.golp-cab h1{margin:2px 0;font-size:17px}.golp-cab span{font-size:11px;opacity:.9}
-.golp-gks{display:flex;gap:10px;margin:12px 0}.golp-gks>div{flex:1;text-align:center;border:1px solid #dfe5ea;border-radius:8px;padding:8px}
-.golp-ft{display:block;width:70px;height:70px;border-radius:50%;margin:0 auto 6px;background-size:cover;border:2px solid #e0a526}
-.golp-gks b{display:block;font-size:11.5px}.golp-gks small{font-size:10px;color:#74808a}
-.golp-res{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:11px;border-left:4px solid #e0a526;padding:6px 10px;background:#fffaf0;margin-bottom:6px}
-.golp-dia{break-inside:avoid;margin-top:12px}.golp-dia h3{font-size:12.5px;color:#13295b;margin:0 0 5px}.golp-dia h3 small{font-weight:400;color:#74808a}
-.golp-dia table{width:100%;border-collapse:collapse;font-size:10.5px}.golp-dia td{border:1px solid #dfe5ea;padding:6px 8px;vertical-align:top}.golp-dia td:first-child{width:34%}
-.golp-dia i{color:#9a6200;font-style:normal;font-size:9.5px}.golp-dia p{font-size:11px;margin:0}
 .golp-w *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.golp-cab{display:flex;gap:14px;align-items:center;background:#13295b;color:#fff;padding:14px 18px;border-radius:10px;border-bottom:4px solid #e0a526}
+.golp-cab img{width:48px;height:48px;object-fit:contain}.golp-ct{flex:1}.golp-ct small{font-size:9.5px;font-weight:700;letter-spacing:.12em;color:#e0a526}.golp-ct h1{margin:2px 0 0;font-size:20px}
+.golp-cp{text-align:right}.golp-cp b{display:block;font-size:13px}.golp-cp span{font-size:10.5px;opacity:.85}
+.golp-k{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0}.golp-k>div{border:1px solid #dfe5ea;border-radius:8px;padding:8px 10px;border-left:4px solid #e0a526}
+.golp-k b{display:block;font-size:20px;color:#13295b}.golp-k span{font-size:9.5px;color:#74808a;text-transform:uppercase;letter-spacing:.06em}
+.golp-g{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0}.golp-g>div{text-align:center;border:1px solid #dfe5ea;border-radius:8px;padding:8px 6px}
+.golp-ft{position:relative;display:block;width:64px;height:64px;border-radius:50%;margin:0 auto 6px;overflow:hidden;border:2px solid #e0a526;background:#e9eef1}
+.golp-ini{display:flex;align-items:center;justify-content:center;font-weight:800;color:#7b8791;font-size:22px}
+.golp-g b{display:block;font-size:11px}.golp-g small{font-size:9.5px;color:#74808a}
+.golp-tp{margin:6px 0 4px;break-inside:avoid}.golp-tp h2,.golp-h2{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#13295b;margin:14px 0 6px;border-bottom:1px solid #dfe5ea;padding-bottom:4px}
+.golp-tp>div{display:grid;grid-template-columns:150px 1fr 36px;gap:8px;align-items:center;font-size:10.5px;margin:3px 0}.golp-tp i{height:7px;background:#edf1f4;border-radius:4px;overflow:hidden;display:block}.golp-tp s{display:block;height:100%;background:#e0a526;text-decoration:none}.golp-tp b{text-align:right}
+.golp-t{display:flex;gap:10px;break-inside:avoid;margin:0 0 8px;border:1px solid #dfe5ea;border-radius:8px;overflow:hidden}
+.golp-td{width:70px;flex:0 0 70px;background:#13295b;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:8px 0;line-height:1.2}
+.golp-td small{font-size:9px;letter-spacing:.1em;opacity:.85}.golp-td b{font-size:14px;color:#e0a526}.golp-td span{font-size:10px}.golp-td em{font-style:normal;font-weight:800;font-size:12px;margin-top:3px}
+.golp-tc{flex:1;padding:6px 10px 6px 0}
+.golp-a{display:flex;gap:8px;padding:5px 0;border-bottom:1px dashed #e6ebef;font-size:10.5px}.golp-a:last-of-type{border-bottom:0}
+.golp-a>i{font-style:normal;font-weight:800;color:#13295b;background:#fff4dc;border-radius:50%;width:17px;height:17px;flex:0 0 17px;display:flex;align-items:center;justify-content:center;font-size:9px}
+.golp-a u{text-decoration:none;margin-left:6px;font-size:8.5px;font-weight:700;color:#9a6200;background:#fff4dc;padding:1px 6px;border-radius:8px}.golp-a p{margin:2px 0 0;color:#3e4b55;line-height:1.4}
+.golp-tf{display:flex;flex-direction:column;gap:2px;font-size:9.5px;color:#5d6b78;margin-top:4px;padding-top:4px;border-top:1px solid #eef1f3}
+.golp-m{font-size:10px;color:#74808a;margin:4px 0}
+.golp-rod{margin-top:14px;font-size:8.5px;color:#9aa6b0;text-align:center}
