@@ -843,9 +843,11 @@ img.av{object-position:50% 20%}.av.avz{overflow:hidden;padding:0}.av.avz img{wid
 .pjr-mapas{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}.pjr-mapas svg{max-height:230px}
 .pjr-k{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}.pjr-k>div{border-left:4px solid #e0a526;background:#fafbfc;border-radius:8px;padding:8px 12px;display:flex;flex-direction:column}.pjr-k b{font-size:30px;line-height:1.05}.pjr-k span{font-size:12px;font-weight:700}.pjr-k small{font-size:11px;color:var(--muted)}
 .pjr-dn{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.pjr-leg{font-size:11.5px}
-@media (max-width:760px){.pj-bl-c,.pj-bl-c.um,.pjr-fin,.pjr-mapas,.pj-gg{grid-template-columns:1fr}.pjr-k{grid-template-columns:repeat(2,1fr)}.pjr-dn{grid-template-columns:1fr}}
+@media screen and (max-width:760px){.pj-bl-c,.pj-bl-c.um,.pjr-fin,.pjr-mapas,.pj-gg{grid-template-columns:1fr}.pjr-k{grid-template-columns:repeat(2,1fr)}.pjr-dn{grid-template-columns:1fr}}
 .pjp-w .pj-rel .pjr-sec{padding:6px 10px;margin-bottom:6px;border-radius:8px;break-inside:avoid}.pjp-w .pjr-h{font-size:11px;margin-bottom:6px}.pjp-w .pjr-num b{font-size:28px}.pjp-w .pjr-k b{font-size:22px}
 .pjp-w .pjr-mapas svg{max-height:150px}.pjp-w .pjr-mapas{margin-top:6px;gap:8px}.pjp-w .pj-campo{padding:3px 6px}.pjp-w .pj-dn-l{font-size:10px}.pjp-w .pjr-col{padding:6px}.pjp-w .pjr-k{margin-bottom:6px}
 .pj-bl3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.pj-bl3 .pj-bl{margin-bottom:0}.pj-bl3 .pj-bl-c.um{grid-template-columns:1fr}.pj-bl3 .pj-blh h2{font-size:15px}
 @media (max-width:1000px){.pj-bl3{grid-template-columns:1fr 1fr}}@media (max-width:640px){.pj-bl3{grid-template-columns:1fr}}
 .pjp-w .pj-dn svg{width:80px;height:80px}.pjp-w .pjr-dn .pj-dn svg{width:96px;height:96px}.pjp-w .pjr-dd{flex-direction:row;gap:14px}.pjp-w .pjr-mapas svg{max-height:300px}.pjp-w .pjr-sec+.pjr-sec{break-before:page}.pjp-w .pj-dn-l{font-size:11px}.pjp-w .pjr-mapas{margin-top:10px}.pjp-w .pjr-leg{font-size:9px;margin:2px 0}
+.pjp-w .pjr-fin,.pjp-w .pjr-mapas{grid-template-columns:1fr 1fr!important}.pjp-w .pjr-k{grid-template-columns:repeat(4,1fr)!important}.pjp-w .pjr-dn{grid-template-columns:repeat(3,1fr)!important}
+.pjp-w .pjr-col{flex-wrap:nowrap!important}.pjp-w .pj-campo,.pjp-w .pjr-col,.pjp-w .pjr-k,.pjp-w .pjr-dn{break-inside:avoid}
