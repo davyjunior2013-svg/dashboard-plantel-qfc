@@ -289,12 +289,12 @@ function abrirRelatorio(data) {
   if ($('#relsh')) $('#relsh').onclick = () => navigator.share({ title: `Relatório da Fisioterapia ${dataBR(data)}`, text: relatorioTexto(data) }).catch(() => {});
   $('#relpdf').onclick = () => imprimirRelatorio(data);
 }
-async function imprimirRelatorio(data) {
+async function imprimirRelatorio(data, html, nome) {
   document.querySelectorAll('#print-area').forEach(x => x.remove());
-  const w = document.createElement('div'); w.id = 'print-area'; w.className = 'rel-print'; w.innerHTML = relatorioHTML(data);
+  const w = document.createElement('div'); w.id = 'print-area'; w.className = 'rel-print'; w.innerHTML = html || relatorioHTML(data);
   document.body.appendChild(w); document.body.classList.add('imprimindo');
   await Promise.all([...w.querySelectorAll('img')].map(i => i.decode ? i.decode().catch(() => {}) : null));
-  const t = document.title; document.title = `Relatorio_Fisioterapia_${data}`;
+  const t = document.title; document.title = nome || `Relatorio_Fisioterapia_${data}`;
   setTimeout(() => { window.print(); setTimeout(() => { w.remove(); document.body.classList.remove('imprimindo'); document.title = t; }, 500); }, 150);
 }
 async function copiarTexto(t) {
@@ -302,6 +302,80 @@ async function copiarTexto(t) {
     const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select();
     let ok = false; try { ok = document.execCommand('copy'); } catch (e2) { ok = false; } ta.remove(); return ok;
   }
+}
+/* ============ relatório semanal do atendimento (segunda a domingo) ============ */
+const DS_CURTO = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const diaCurto = d => `${DS_CURTO[parse(d).getDay()]} ${fmt(d)}`;
+function dadosSemana(ini) {
+  const fim = addDays(ini, 6), dias = [...Array(7)].map((_, k) => addDays(ini, k));
+  const at = S.dm.atend.filter(x => x.data >= ini && x.data <= fim).sort((a, b) => a.data.localeCompare(b.data) || (MOMENTOS_AT.indexOf(a.momento) - MOMENTOS_AT.indexOf(b.momento)));
+  const pse = S.dm.pse.filter(x => x.data >= ini && x.data <= fim), notas = S.dm.notas.filter(x => x.data >= ini && x.data <= fim && ['atencao', 'atualizacao', 'exame'].includes(x.tipo));
+  const cont = {}; at.forEach(x => { cont[x.finalidade] = (cont[x.finalidade] || 0) + 1; });
+  const porDia = dias.map(d => { const a = at.filter(x => x.data === d); return { d, dia: S.dm.dias[d] || {}, n: a.length, atl: new Set(a.map(x => x.atleta_id)).size, media: mediaPSE(d), npse: pse.filter(x => x.data === d).length }; });
+  const porAtl = agruparAtl(at).map(g => ({ ...g, dias: new Set(g.it.map(x => x.data)).size, regs: [...new Set(g.it.filter(x => x.regiao).map(x => x.regiao + (x.lado ? ' ' + ladoTxtDM(x.lado) : '')))],
+    fin: FINALIDADES.map(f => [f, g.it.filter(x => x.finalidade === f).length]).filter(x => x[1]), pse: pse.filter(x => x.atleta_id === g.id).map(x => x.nota) }))
+    .sort((a, b) => b.it.length - a.it.length || nomeA(a.id).localeCompare(nomeA(b.id), 'pt'));
+  const contR = {}; at.filter(x => x.regiao).forEach(x => { contR[x.regiao] = (contR[x.regiao] || 0) + 1; });
+  const regs = Object.entries(contR).sort((a, b) => b[1] - a[1]);
+  const rep = []; const kk = {}; at.filter(x => x.queixa && x.regiao).forEach(x => { const k = x.atleta_id + '|' + x.regiao; (kk[k] = kk[k] || new Set()).add(x.data); });
+  Object.entries(kk).forEach(([k, st]) => { if (st.size >= 3) { const [id, r] = k.split('|'); rep.push({ id: +id, r, n: st.size }); } });
+  const ref = fim < hoje() ? fim : hoje();
+  const fora = S.atletas.filter(a => a.ativo && a.status !== 'Inativo').map(a => ({ a, s: situacaoEm(a.id, ref) })).filter(x => x.s.sit !== 'Liberado').sort((x, y) => x.s.sit.localeCompare(y.s.sit) || x.a.nome.localeCompare(y.a.nome));
+  const lesNovas = S.dm.lesoes.filter(l => l.data_inicio >= ini && l.data_inicio <= fim);
+  const vPse = pse.map(x => x.nota), mPse = vPse.length ? Math.round(vPse.reduce((a, b) => a + b, 0) / vPse.length * 10) / 10 : null;
+  return { ini, fim, ref, at, cont, porDia, porAtl, regs, rep, notas, fora, lesNovas, mPse, nPse: vPse.length };
+}
+const virg = v => String(v).replace('.', ',');
+const linhaAt = x => `${[x.momento, x.finalidade].filter(Boolean).join(' · ')}: ${x.queixa ? `queixa ${fimPonto(x.queixa)}${x.regiao ? ` (${x.regiao}${x.lado ? ' ' + ladoTxtDM(x.lado) : ''})` : ''}. ` : ''}${fimPonto(x.descricao)}.`;
+function relSemanaTexto(ini) {
+  const r = dadosSemana(ini), L = [`RELATÓRIO SEMANAL DA FISIOTERAPIA · ${dataBR(r.ini)} a ${dataBR(r.fim)}`];
+  L.push('', 'RESUMO', `${r.at.length} atendimento${r.at.length === 1 ? '' : 's'} · ${r.porAtl.length} atleta${r.porAtl.length === 1 ? '' : 's'}${FINALIDADES.filter(f => r.cont[f]).map(f => ` · ${f} ${r.cont[f]}`).join('')}${r.mPse != null ? ` · PSE média ${virg(r.mPse)}` : ''}`);
+  L.push(`Situação em ${dataBR(r.ref)}: DM ${r.fora.filter(x => x.s.sit === 'DM').length} · Restrito/Transição ${r.fora.filter(x => x.s.sit !== 'DM').length}${r.lesNovas.length ? ` · novas lesões/doenças na semana: ${r.lesNovas.length}` : ''}`);
+  L.push('', 'DIA A DIA'); r.porDia.forEach(p => L.push(`• ${diaCurto(p.d)}: ${p.n ? `${p.n} atendimento${p.n === 1 ? '' : 's'} (${p.atl} atleta${p.atl === 1 ? '' : 's'})` : 'sem atendimentos'}${p.dia.classificacao ? ` · treino ${p.dia.classificacao}` : ''}${p.media != null ? ` · PSE ${virg(p.media)}` : ''}`));
+  if (r.regs.length) L.push('', 'REGIÕES MAIS TRATADAS', r.regs.slice(0, 8).map(([g, n]) => `${g} (${n})`).join(' · '));
+  if (r.rep.length) { L.push('', 'QUEIXA REPETIDA (3 dias ou mais)'); r.rep.forEach(x => L.push(`• ${nomeA(x.id)}: ${x.r} em ${x.n} dias`)); }
+  L.push('', 'POR ATLETA'); if (!r.porAtl.length) L.push('Nenhum atendimento na semana.');
+  r.porAtl.forEach(g => { L.push(`• ${nomeA(g.id)} — ${g.it.length} atendimento${g.it.length === 1 ? '' : 's'} em ${g.dias} dia${g.dias === 1 ? '' : 's'}${g.regs.length ? ` · ${g.regs.join(', ')}` : ''}${g.pse.length ? ` · PSE ${g.pse.join(', ')}` : ''}`);
+    g.it.forEach(x => L.push(`  ${diaCurto(x.data)} · ${linhaAt(x)}`)); });
+  if (r.notas.length) { L.push('', 'ATENÇÃO ESPECIAL'); r.notas.forEach(x => L.push(`• ${diaCurto(x.data)} · ${nomeA(x.atleta_id)}: ${fimPonto(x.texto)}.`)); }
+  if (r.fora.length) { L.push('', `DEPARTAMENTO MÉDICO (em ${dataBR(r.ref)})`); r.fora.forEach(x => L.push(`• ${x.a.nome} — ${x.s.sit}: ${linhaFora(x, r.ref)}`)); }
+  L.push('', `Fisioterapia QFC${S.perfil?.nome ? ' · ' + S.perfil.nome : ''}`);
+  return L.join('\n');
+}
+function relSemanaHTML(ini) {
+  const r = dadosSemana(ini), mx = Math.max(1, ...r.porDia.map(p => p.n));
+  return `<div class="print-head"><img src="${LOGO}" alt=""><div><b>CINQ · Centro de Inteligência do QFC</b><span>Fisioterapia / DM · relatório semanal do atendimento</span></div></div>
+    <div class="rel-tit"><h1>Relatório semanal da Fisioterapia</h1><span>${dataBR(r.ini)} a ${dataBR(r.fim)}</span></div>
+    <div class="rel-res">
+      <div><b>${r.at.length}</b><span>atendimentos</span></div><div><b>${r.porAtl.length}</b><span>atletas atendidos</span></div>
+      ${FINALIDADES.map(f => `<div><b>${r.cont[f] || 0}</b><span>${f}</span></div>`).join('')}
+      <div><b>${r.mPse != null ? virg(r.mPse) : '—'}</b><span>PSE média${r.nPse ? ` · ${r.nPse} reg.` : ''}</span></div>
+      <div><b>${r.fora.filter(x => x.s.sit === 'DM').length} / ${r.fora.filter(x => x.s.sit !== 'DM').length}</b><span>DM / restrito</span></div>
+    </div>
+    <h3 class="rel-h">Dia a dia</h3>
+    <div class="rel-sem">${r.porDia.map(p => `<div><span>${diaCurto(p.d)}</span><i><s style="height:${p.n / mx * 100}%"></s></i><b>${p.n || '—'}</b><small>${p.atl ? p.atl + ' atl.' : ''}${p.dia.classificacao ? ` · ${esc(p.dia.classificacao)}` : ''}${p.media != null ? ` · PSE ${virg(p.media)}` : ''}</small></div>`).join('')}</div>
+    ${r.regs.length || r.rep.length ? `<div class="rel-2c">${r.regs.length ? `<div><h3 class="rel-h">Regiões mais tratadas</h3>${r.regs.slice(0, 8).map(([g, n]) => `<div class="rel-kv"><span>${esc(g)}</span><b>${n}</b></div>`).join('')}</div>` : ''}
+      ${r.rep.length ? `<div><h3 class="rel-h">Queixa repetida <small>(3 dias ou mais)</small></h3>${r.rep.map(x => `<div class="rel-kv"><span>${esc(nomeA(x.id))} · ${esc(x.r)}</span><b>${x.n} dias</b></div>`).join('')}</div>` : ''}</div>` : ''}
+    <h3 class="rel-h">Por atleta</h3>
+    ${r.porAtl.length ? `<table class="rel-tb"><thead><tr><th style="width:20%">Atleta</th><th style="width:11%">Dia</th><th>Queixa / região</th><th>Conduta</th><th style="width:11%">Finalidade</th></tr></thead><tbody>
+      ${r.porAtl.map(g => g.it.map((x, k) => `<tr${k === 0 ? ' class="rel-nov"' : ''}><td>${k === 0 ? `<b>${esc(nomeA(g.id))}</b><small>${g.it.length} atend. · ${g.dias} dia${g.dias === 1 ? '' : 's'}${g.pse.length ? ` · PSE ${g.pse.join(', ')}` : ''}</small>` : ''}</td>
+        <td>${diaCurto(x.data)}<small>${esc(x.momento || '')}</small></td><td>${esc(x.queixa || '')}${x.regiao ? `<small>${esc(x.regiao)}${x.lado ? ' ' + esc(ladoTxtDM(x.lado)) : ''}</small>` : ''}</td><td>${esc(x.descricao)}</td><td><span class="rel-f f-${fNorm(x.finalidade).slice(0, 1)}">${esc(x.finalidade)}</span></td></tr>`).join('')).join('')}
+    </tbody></table>` : '<p class="rel-m">Nenhum atendimento na semana.</p>'}
+    ${r.notas.length ? `<h3 class="rel-h">Atenção especial</h3>${r.notas.map(x => `<div class="rel-nota"><b>${esc(nomeA(x.atleta_id))}</b> <small>${diaCurto(x.data)}</small><p>${esc(x.texto || '')}</p></div>`).join('')}` : ''}
+    <h3 class="rel-h">Departamento médico <small>situação em ${dataBR(r.ref)}</small></h3>
+    ${r.fora.length ? `<table class="rel-tb"><thead><tr><th>Atleta</th><th>Situação</th><th>Lesão / doença</th><th>Etapa</th><th>Dia</th><th>Previsão</th></tr></thead><tbody>
+      ${r.fora.map(x => { const l = x.s.lesao; return `<tr><td><b>${esc(x.a.nome)}</b>${l.data_inicio >= r.ini ? '<small>nova na semana</small>' : ''}</td><td>${esc(x.s.sit)}</td><td>${esc(tituloLesao(l))}</td><td>${esc(x.s.etapa || l.etapa)}</td><td>${diasEntre(l.data_inicio, r.ref) + 1}º</td><td>${l.previsao_retorno ? dataBR(l.previsao_retorno) : '—'}</td></tr>`; }).join('')}
+    </tbody></table>` : '<p class="rel-m">Todos os atletas liberados.</p>'}
+    <div class="ip-rodape">Quinho Futebol Clube · Fisioterapia${S.perfil?.nome ? ' · ' + esc(S.perfil.nome) : ''} · gerado em ${new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })} · uso interno</div>`;
+}
+function abrirRelSemana(ini) {
+  modal(`<div class="dm-dia rel-semnav"><button class="btn sm" id="rsant">◀</button><b>Semana ${fmt(ini)} a ${fmt(addDays(ini, 6))}</b><button class="btn sm" id="rsprox">▶</button></div><div class="rel-prev">${relSemanaHTML(ini)}</div>
+    <div class="mfoot"><span class="m">Baixar PDF abre a impressão: escolha “Salvar como PDF”.</span><div class="row"><button class="btn" id="relf">Fechar</button>${navigator.share ? '<button class="btn" id="relsh">Compartilhar texto</button>' : ''}<button class="btn" id="relcp">Copiar texto</button><button class="btn pri" id="relpdf">Baixar PDF</button></div></div>`, true);
+  $('#rsant').onclick = () => abrirRelSemana(addDays(ini, -7)); $('#rsprox').onclick = () => abrirRelSemana(addDays(ini, 7));
+  $('#relf').onclick = fechar;
+  $('#relcp').onclick = async () => toast(await copiarTexto(relSemanaTexto(ini)) ? 'Texto copiado. É só colar onde quiser enviar.' : 'Não consegui copiar.', false);
+  if ($('#relsh')) $('#relsh').onclick = () => navigator.share({ title: `Relatório semanal da Fisioterapia ${dataBR(ini)}`, text: relSemanaTexto(ini) }).catch(() => {});
+  $('#relpdf').onclick = () => imprimirRelatorio(ini, relSemanaHTML(ini), `Relatorio_semanal_Fisioterapia_${ini}`);
 }
 function pAtendimento() {
   const d = S.dm.data || (S.dm.data = hoje()), dia = S.dm.dias[d] || {}, pode = podeDM();
@@ -319,7 +393,7 @@ function pAtendimento() {
   const top = (o, n = 6) => Object.entries(o).sort((a, b) => b[1] - a[1]).slice(0, n);
   const porAtl = agruparAtl(at);
   $('#main').innerHTML = topo('Fisioterapia / DM', 'Atendimento', 'Quem passou no DM, queixa e conduta. O relatório geral do dia sai pronto em PDF ou texto.',
-    `${pode ? '<button class="btn" id="dmbot">Meus botões de conduta</button>' : ''}<button class="btn pri" id="dmcop">Relatório do dia</button>`) + fsTabs('atendimento') + `
+    `${pode ? '<button class="btn" id="dmbot">Meus botões de conduta</button>' : ''}<button class="btn" id="dmsem">Relatório da semana</button><button class="btn pri" id="dmcop">Relatório do dia</button>`) + fsTabs('atendimento') + `
   <div class="dm-dia"><button class="btn sm" id="dmant">◀</button><input type="date" class="in" id="dmdata" value="${d}"><button class="btn sm" id="dmprox">▶</button>${d !== hoje() ? '<button class="btn sm" id="dmhoje">Hoje</button>' : ''}<b>${esc(fmtLong(d))}</b></div>
   <div class="dm-grid">
     <div>
@@ -359,6 +433,7 @@ function pAtendimento() {
   if ($('#dmhoje')) $('#dmhoje').onclick = () => irDia(hoje());
   $('#dmdata').onchange = e => e.target.value && irDia(e.target.value);
   $('#dmcop').onclick = () => abrirRelatorio(d);
+  $('#dmsem').onclick = () => abrirRelSemana(segunda(d));
   document.querySelectorAll('#main [data-les]').forEach(el => el.onclick = () => fichaLesao(+el.dataset.les));
   if (!pode) return;
   $('#dmbot').onclick = gerenciarCondutas;

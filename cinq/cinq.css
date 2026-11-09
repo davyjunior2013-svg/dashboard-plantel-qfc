@@ -797,3 +797,12 @@ img.av{object-position:50% 20%}.av.avz{overflow:hidden;padding:0}.av.avz img{wid
 .gol-exs{display:flex;flex-direction:column;gap:8px;margin:6px 0 8px}.gol-ex{display:flex;align-items:center;gap:8px}.gol-ex .in{flex:1}
 .gol-exf{width:44px;height:44px;flex:0 0 44px;border-radius:50%;overflow:hidden;background:#e9eef1;display:flex;align-items:center;justify-content:center;cursor:pointer;border:2px solid #e0a526;font-weight:800;color:#7b8791}.gol-exf img{width:100%;height:100%;object-fit:cover}
 .gol-exa{display:flex;align-items:center;gap:4px;white-space:nowrap;font-size:12px}
+/* DM: relatório semanal */
+.rel-semnav{justify-content:center;margin-bottom:8px}
+.rel-sem{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}.rel-sem>div{background:#f6f8f9;border-radius:8px;padding:6px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:3px}
+.rel-sem span{font-size:11px;font-weight:700}.rel-sem i{display:flex;align-items:flex-end;width:22px;height:46px;background:#e8edf1;border-radius:4px;overflow:hidden}.rel-sem s{display:block;width:100%;background:var(--accent);text-decoration:none}
+.rel-sem b{font-size:15px}.rel-sem small{font-size:10px;color:var(--muted);line-height:1.25}
+.rel-2c{display:grid;grid-template-columns:1fr 1fr;gap:16px}.rel-kv{display:flex;justify-content:space-between;font-size:12px;border-bottom:1px solid #eceff1;padding:3px 0}
+.rel-h small{text-transform:none;letter-spacing:0;color:var(--muted);font-weight:400}
+@media (max-width:760px){.rel-sem{grid-template-columns:repeat(4,1fr)}.rel-2c{grid-template-columns:1fr}}
+@media print{#print-area.rel-print .rel-sem{grid-template-columns:repeat(7,1fr)}#print-area.rel-print .rel-2c{grid-template-columns:1fr 1fr}#print-area.rel-print .rel-tb tr{break-inside:avoid}}
