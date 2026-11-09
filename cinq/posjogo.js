@@ -5,10 +5,10 @@
    Coordenadas x,y em % do campo com a nossa equipe atacando para a direita (x=100); na tela cada tempo aparece no sentido real.
    Escrita: Análise de desempenho e admin. Leitura: comissão. */
 const podePJ = () => isAdmin() || S.perfil?.funcao === 'analise';
-S.pj = { jogos: null, lances: {}, jogo: null, aba: 'lancar', modo: null, tempo: 1, relogio: '', mapa: 'recuperacao', vis: 'jogos', pend: null };
+S.pj = { jogos: null, lances: {}, jogo: null, aba: 'lancar', tempo: 1, ver: 0, relogio: '', vis: 'jogos', pend: null };
 const PJ_TIPOS = {
-  recuperacao: { l: 'Recuperação', eq: 'QFC', cor: '#c62828' },
-  roubada: { l: 'Roubada', eq: 'QFC', cor: '#c62828', base: 'recuperacao' },
+  recuperacao: { l: 'Recuperação', eq: 'QFC', cor: '#e57373' },
+  roubada: { l: 'Roubada', eq: 'QFC', cor: '#b71c1c', base: 'recuperacao' },
   perda: { l: 'Perda de posse', eq: 'QFC', cor: '#ef6c00' },
   finalizacao: { l: 'Finalização', eq: 'QFC', cor: '#0f7a3d' },
   fin_adv: { l: 'Finalização adversário', eq: 'ADV', cor: '#13295b', base: 'finalizacao' },
@@ -78,28 +78,40 @@ function pjStats(L) {
 const pjPct = (a, b) => b ? Math.round(a / b * 100) + '%' : '—';
 
 /* ---------- campo ---------- */
-function pjCampoSVG(j, tempo, L, opt = {}) {
-  const sent = pjSentido(j, tempo), W = 105, H = 68;
-  const lin = `<g fill="none" stroke="#1d2a34" stroke-width=".35"><rect x="0" y="0" width="105" height="68"/><line x1="52.5" y1="0" x2="52.5" y2="68"/><circle cx="52.5" cy="34" r="9.15"/>
+/* ---------- campo (sempre com a nossa equipe atacando para a direita) ---------- */
+const pjModo = l => l.tipo === 'finalizacao' ? (l.equipe === 'ADV' ? 'fin_adv' : 'finalizacao') : pjEhRec(l) ? (l.dados?.roubada ? 'roubada' : 'recuperacao') : l.tipo;
+const PJ_LINHAS = `<g fill="none" stroke="#1d2a34" stroke-width=".4"><rect x="0" y="0" width="105" height="68"/><line x1="52.5" y1="0" x2="52.5" y2="68"/><circle cx="52.5" cy="34" r="9.15"/>
     <rect x="0" y="13.84" width="16.5" height="40.32"/><rect x="88.5" y="13.84" width="16.5" height="40.32"/><rect x="0" y="24.84" width="5.5" height="18.32"/><rect x="99.5" y="24.84" width="5.5" height="18.32"/>
     <path d="M16.5 26.7 A9.15 9.15 0 0 1 16.5 41.3"/><path d="M88.5 26.7 A9.15 9.15 0 0 0 88.5 41.3"/><rect x="-1.6" y="30.34" width="1.6" height="7.32"/><rect x="105" y="30.34" width="1.6" height="7.32"/></g>
     <g fill="#1d2a34"><circle cx="52.5" cy="34" r=".5"/><circle cx="11" cy="34" r=".4"/><circle cx="94" cy="34" r=".4"/></g>
-    <g stroke="#9aa6b0" stroke-width=".22" stroke-dasharray="1 1"><line x1="17.5" y1="0" x2="17.5" y2="68"/><line x1="35" y1="0" x2="35" y2="68"/><line x1="70" y1="0" x2="70" y2="68"/><line x1="87.5" y1="0" x2="87.5" y2="68"/>
-    <line x1="0" y1="22.67" x2="105" y2="22.67"/><line x1="0" y1="45.33" x2="105" y2="45.33"/></g>`;
-  const dots = L.filter(l => l.x != null && l.tempo === tempo).map(l => { const [tx, ty] = pjTela(j, tempo, +l.x, +l.y), cx = tx * 1.05, cy = ty * .68;
-    const k = l.tipo === 'finalizacao' && l.equipe === 'ADV' ? 'fin_adv' : pjRoub(l) ? 'roubada' : l.tipo, c = PJ_TIPOS[k]?.cor || '#555';
-    const oco = (pjEhRec(l) && !l.dados?.roubada) || (l.tipo === 'finalizacao' && ['Fora', 'Bloqueada'].includes(l.dados?.resultado));
-    const falhou = l.dados?.sucesso === false, gol = l.tipo === 'finalizacao' && l.dados?.resultado === 'Gol';
-    const card = l.tipo === 'falta' && l.dados?.cartao ? `<rect x="${cx + 1.2}" y="${cy - 2.6}" width="1.3" height="1.8" rx=".2" fill="${l.dados.cartao === 'Vermelho' ? '#d32f2f' : '#f9c80e'}" stroke="#333" stroke-width=".1"/>` : '';
-    const n = String(pjNum(l) || '').slice(0, 3);
-    return `<g class="pj-dot${opt.sel === l.id ? ' sel' : ''}" data-l="${l.id}"><title>${esc(`${pjMin(l.seg)} · ${pjRotulo(l)} · ${pjNome(l)}`)}</title>
-      ${gol ? `<circle cx="${cx}" cy="${cy}" r="2.6" fill="none" stroke="#e0a526" stroke-width=".55"/>` : ''}
-      <circle cx="${cx}" cy="${cy}" r="1.85" fill="${oco ? '#fff' : c}" stroke="${c}" stroke-width="${oco ? .5 : .3}"${falhou ? ' stroke-dasharray=".6 .45" opacity=".75"' : ''}/>
-      ${n ? `<text x="${cx}" y="${cy + .62}" text-anchor="middle" font-size="${n.length > 2 ? 1.25 : 1.7}" font-weight="700" fill="${oco ? c : '#fff'}">${esc(n)}</text>` : ''}${card}</g>`; }).join('');
-  const seta = sent === 'dir' ? '→' : '←';
-  return `<div class="pj-campo${opt.clicavel ? ' clic' : ''}" data-tempo="${tempo}"><div class="pj-ct"><b>${tempo}º tempo</b><span class="pj-seta">${sent === 'esq' ? `${seta} ` : ''}${esc(pjEquipe(j))} ataca${sent === 'dir' ? ` ${seta}` : ''}</span></div>
-    <svg viewBox="-2 -1 109 70" preserveAspectRatio="xMidYMid meet"><rect x="-2" y="-1" width="109" height="70" fill="#f3f7f4"/>${lin}${dots}</svg></div>`;
+    <g stroke="#9aa6b0" stroke-width=".22" stroke-dasharray="1 1"><line x1="35" y1="0" x2="35" y2="68"/><line x1="70" y1="0" x2="70" y2="68"/><line x1="0" y1="22.67" x2="105" y2="22.67"/><line x1="0" y1="45.33" x2="105" y2="45.33"/></g>`;
+function pjDotSVG(l, sel) {
+  const cx = +l.x * 1.05, cy = +l.y * .68, c = PJ_TIPOS[pjModo(l)]?.cor || '#555';
+  const oco = l.tipo === 'finalizacao' && ['Fora', 'Bloqueada'].includes(l.dados?.resultado);
+  const falhou = l.dados?.sucesso === false, gol = l.tipo === 'finalizacao' && l.dados?.resultado === 'Gol';
+  const card = l.tipo === 'falta' && l.dados?.cartao ? `<rect x="${cx + 1.6}" y="${cy - 3.2}" width="1.6" height="2.2" rx=".25" fill="${l.dados.cartao === 'Vermelho' ? '#d32f2f' : '#f9c80e'}" stroke="#333" stroke-width=".12"/>` : '';
+  const n = String(pjNum(l) || '').slice(0, 3), r = 2.3, t2 = l.tempo === 2;
+  return `<g class="pj-dot${sel ? ' sel' : ''}" data-l="${l.id}"><title>${esc(`${l.tempo}ºT ${pjMin(l.seg)} · ${pjRotulo(l)} · ${pjNome(l)}`)}</title>
+    ${gol ? `<circle cx="${cx}" cy="${cy}" r="${r + .9}" fill="none" stroke="#e0a526" stroke-width=".7"/>` : ''}
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="${oco ? '#fff' : c}" stroke="${t2 ? '#1d2a34' : c}" stroke-width="${oco ? .6 : t2 ? .45 : .3}"${falhou ? ' stroke-dasharray=".7 .5" opacity=".7"' : ''}/>
+    ${n ? `<text x="${cx}" y="${cy + .78}" text-anchor="middle" font-size="${n.length > 2 ? 1.6 : 2.1}" font-weight="800" fill="${oco ? c : '#fff'}">${esc(n)}</text>` : ''}${card}</g>`;
 }
+function pjCampoSVG(L, opt = {}) {
+  return `<div class="pj-campo${opt.m ? ' clic' : ''}"${opt.m ? ` data-m="${opt.m}"` : ''}><div class="pj-ct"><b>${esc(opt.tit || '')} <b class="pj-n">${L.length}</b></b><span class="pj-seta">${opt.sem ? `<small class="m">${opt.sem} sem local · </small>` : ''}ataque →</span></div>
+    <svg viewBox="-2 -1 109 70" preserveAspectRatio="xMidYMid meet"><rect x="-2" y="-1" width="109" height="70" fill="#f3f7f4"/>${PJ_LINHAS}
+${L.filter(l => l.x != null).map(l => pjDotSVG(l, opt.sel === l.id)).join('')}</svg></div>`;
+}
+/* ---------- gráfico circular ---------- */
+function pjDonut(parts, tit, centro, opt = {}) {
+  const tot = parts.reduce((s, p) => s + p[1], 0), R = 15.9155, sz = opt.sz || 120;
+  let acc = 0;
+  const arcos = tot ? parts.filter(p => p[1]).map(([l, v, c]) => { const pct = v / tot * 100, el = `<circle r="${R}" cx="21" cy="21" fill="none" stroke="${c}" stroke-width="7" stroke-dasharray="${pct} ${100 - pct}" stroke-dashoffset="${25 - acc}"/>`; acc += pct; return el; }).join('')
+    : `<circle r="${R}" cx="21" cy="21" fill="none" stroke="#e8edf1" stroke-width="7"/>`;
+  return `<div class="pj-dn"><svg viewBox="0 0 42 42" width="${sz}" height="${sz}">${arcos}<text x="21" y="21" text-anchor="middle" font-size="8" font-weight="800" fill="#15202b">${centro ?? tot}</text>${tit ? `<text x="21" y="27" text-anchor="middle" font-size="3.2" fill="#74808a">${esc(opt.sub || '')}</text>` : ''}</svg>
+    <div class="pj-dn-l">${tit ? `<b>${esc(tit)}</b>` : ''}${parts.map(([l, v, c]) => `<span><i style="background:${c}"></i>${esc(l)} <b>${v}</b> <small>${tot ? Math.round(v / tot * 100) + '%' : ''}</small></span>`).join('')}</div></div>`;
+}
+const PJ_C = { alvo: '#0f7a3d', fora: '#b8c2ca', area: '#13295b', foraA: '#e0a526', def: '#13295b', atq: '#e0a526', roub: '#c62828', rec: '#f19a9a', ok: '#0f7a3d', nok: '#c62828', ni: '#d5dbe0' };
+
 function pjRotulo(l) {
   const d = l.dados || {};
   if (pjEhRec(l)) return `${d.roubada ? 'Roubada' : 'Recuperação'}${d.sucesso === true ? ' ✓' : d.sucesso === false ? ' ✕' : ''}`;
@@ -116,32 +128,132 @@ function pjDetalhe(l) {
 }
 
 /* ---------- lista de jogos e temporada ---------- */
+/* ---------- lista de jogos e médio-longo prazo ---------- */
 async function pPosJogo() {
   if (S.pj.jogo) return pjJogo(S.pj.jogo);
-  const pode = podePJ();
-  $('#main').innerHTML = topo('Análise de jogo', 'Pós-jogo', 'Lances marcados no campo. O relatório do jogo e o acumulado da temporada saem sozinhos.', pode ? '<button class="btn pri" id="pjnovo">+ Novo jogo</button>' : '') + '<div class="panel empty">Carregando…</div>';
+  const pode = podePJ(), cab = () => topo('Análise de jogo', 'Pós-jogo', 'Lances marcados no campo. O relatório pós-jogo sai sozinho; o médio-longo prazo soma os jogos.', pode ? '<button class="btn pri" id="pjnovo">+ Novo jogo</button>' : '');
+  $('#main').innerHTML = cab() + '<div class="panel empty">Carregando…</div>';
   try { await pjCarregarJogos(); await pjCarregarLances(S.pj.jogos.map(j => j.id)); } catch (e) { $('#main .panel').innerHTML = esc(erroAmigavel(e)); return; }
   const J = S.pj.jogos, reais = J.filter(j => !j.teste);
   const lin = j => { const st = pjStats(S.pj.lances[j.id] || []);
     return `<tr class="dm-tr" data-j="${j.id}"><td>${j.data ? dataBR(j.data) : '—'}${j.teste ? ' <span class="badge">demonstração</span>' : ''}</td><td><b>${esc(pjEquipe(j))} ${j.gols_nos ?? st.golsN} × ${j.gols_adv ?? st.golsA} ${esc(j.adversario)}</b><small class="m">${esc([j.competicao, j.rodada, j.mando].filter(Boolean).join(' · '))}</small></td>
       <td>${st.fN.length} <small class="m">(${pjPct(st.alvoN, st.fN.length)} no alvo)</small></td><td>${st.fA.length}</td><td>${st.rec.length} <small class="m">(${st.roub.length} roub.)</small></td><td>${st.perdas.length}</td><td>${(S.pj.lances[j.id] || []).length}</td></tr>`; };
-  const abas = `<div class="ind-tabs pj-abas"><button data-v="jogos" class="${S.pj.vis === 'jogos' ? 'on' : ''}">Jogos</button><button data-v="temporada" class="${S.pj.vis === 'temporada' ? 'on' : ''}">Temporada</button></div>`;
-  let corpo;
-  if (S.pj.vis === 'temporada') corpo = pjTemporadaHTML(reais);
-  else corpo = J.length ? `<div class="panel"><div class="tablewrap"><table class="tb fl-tab pj-tj"><thead><tr><th>Data</th><th>Jogo</th><th>Finalizações</th><th>Fin. adv.</th><th>Recuperações</th><th>Perdas</th><th>Lances</th></tr></thead><tbody>${J.map(lin).join('')}</tbody></table></div></div>`
+  const abas = `<div class="ind-tabs pj-abas"><button data-v="jogos" class="${S.pj.vis === 'jogos' ? 'on' : ''}">Jogos</button><button data-v="longo" class="${S.pj.vis === 'longo' ? 'on' : ''}">Médio-longo prazo</button></div>`;
+  const corpo = S.pj.vis === 'longo' ? pjLongoHTML(reais)
+    : J.length ? `<div class="panel"><div class="tablewrap"><table class="tb fl-tab pj-tj"><thead><tr><th>Data</th><th>Jogo</th><th>Finalizações</th><th>Fin. adv.</th><th>Recuperações</th><th>Perdas</th><th>Lances</th></tr></thead><tbody>${J.map(lin).join('')}</tbody></table></div></div>`
     : `<div class="panel empty">Nenhum jogo ainda.${pode ? ' Use “+ Novo jogo”.' : ''}</div>`;
-  $('#main').innerHTML = topo('Análise de jogo', 'Pós-jogo', 'Lances marcados no campo. O relatório do jogo e o acumulado da temporada saem sozinhos.', pode ? '<button class="btn pri" id="pjnovo">+ Novo jogo</button>' : '') + abas + corpo;
+  $('#main').innerHTML = cab() + abas + corpo;
   document.querySelectorAll('.pj-abas [data-v]').forEach(b => b.onclick = () => { S.pj.vis = b.dataset.v; pPosJogo(); });
   document.querySelectorAll('[data-j]').forEach(tr => tr.onclick = () => { S.pj.jogo = +tr.dataset.j; S.pj.aba = podePJ() ? 'lancar' : 'relatorio'; pjJogo(S.pj.jogo); });
   if ($('#pjnovo')) $('#pjnovo').onclick = () => pjFormJogo(null);
 }
-function pjTemporadaHTML(J) {
-  if (!J.length) return '<div class="panel empty">Nenhum jogo da temporada lançado ainda (o jogo de demonstração não entra aqui).</div>';
+// médio-longo prazo: todos os dados somados (sem o jogo de demonstração)
+function pjLongoHTML(J) {
+  if (!J.length) return '<div class="panel empty">Nenhum jogo lançado ainda (o jogo de demonstração não entra aqui).</div>';
   const L = J.flatMap(j => S.pj.lances[j.id] || []), st = pjStats(L), n = J.length;
-  return `<div class="cards fs-kpis">${pjKpis(st, n)}</div>${pjFaixasHTML(st)}${pjBlocosHTML(st, 'Temporada')}${pjJogadoresHTML(st, n)}`;
+  const porJogo = `<div class="panel"><h2>Jogo a jogo</h2><div class="tablewrap"><table class="tb fl-tab"><thead><tr><th>Jogo</th><th>Fin.</th><th>No alvo</th><th>Área</th><th>Fin. adv.</th><th>Rec.</th><th>Roub.</th><th>Rec. ataque</th><th>Perdas</th><th>Faltas</th></tr></thead><tbody>
+    ${J.map(j => { const s = pjStats(S.pj.lances[j.id] || []); return `<tr><td>${j.data ? fmt(j.data) + ' · ' : ''}<b>${esc(j.adversario)}</b></td><td>${s.fN.length}</td><td>${pjPct(s.alvoN, s.fN.length)}</td><td>${pjPct(s.areaN, s.fN.length)}</td><td>${s.fA.length}</td><td>${s.rec.length}</td><td>${s.roub.length}</td><td>${s.recAtq}</td><td>${s.perdas.length}</td><td>${s.faltaN}</td></tr>`; }).join('')}</tbody></table></div></div>`;
+  return `<p class="m fl-nota">${n} jogo${n === 1 ? '' : 's'} somados. Todos os dados, para o acompanhamento ao longo da temporada.</p><div class="cards fs-kpis">${pjKpis(st, n)}</div>${porJogo}${pjFaixasHTML(st)}${pjBlocosHTML(st)}${pjJogadoresHTML(st, n)}`;
 }
 
-/* ---------- relatório (jogo ou temporada) ---------- */
+/* ---------- página do jogo ---------- */
+const PJ_BLOCOS = [
+  { id: 'fin', t: 'Finalizações', campos: [['finalizacao', 'Nossas finalizações'], ['fin_adv', 'Finalizações do adversário']] },
+  { id: 'rec', t: 'Recuperações', campos: [['recuperacao', 'Recuperação (sem confronto)'], ['roubada', 'Roubada (com confronto)']] },
+  { id: 'falta', t: 'Falta / cartão', campos: [['falta', 'Faltas e cartões']] },
+  { id: 'bp', t: 'Bola parada', campos: [['bola_parada', 'Escanteios e faltas']] },
+  { id: 'perda', t: 'Perda de posse', campos: [['perda', 'Perdas de posse']] }
+];
+async function pjJogo(id) {
+  const pode = podePJ();
+  try { if (!S.pj.jogos) await pjCarregarJogos(); await pjCarregarLances([id]); } catch (e) { $('#main').innerHTML = `<div class="panel">${esc(erroAmigavel(e))}</div>`; return; }
+  const j = S.pj.jogos.find(x => x.id === id); if (!j) { S.pj.jogo = null; return pPosJogo(); }
+  const L = pjOrdena(S.pj.lances[id]), st = pjStats(L), aba = pode ? S.pj.aba : (S.pj.aba === 'lancar' ? 'relatorio' : S.pj.aba);
+  const tit = `${pjEquipe(j)} ${j.gols_nos ?? st.golsN} × ${j.gols_adv ?? st.golsA} ${j.adversario}`;
+  const acoes = `<button class="btn" id="pjvolta">◀ Jogos</button><button class="btn" id="pjpdf">Baixar PDF</button>${pode ? '<button class="btn" id="pjedj">Dados do jogo</button>' : ''}`;
+  const sub = [j.data ? dataBR(j.data) : '', j.competicao, j.rodada, j.mando, j.teste ? 'jogo de demonstração' : ''].filter(Boolean).join(' · ');
+  const abas = `<div class="ind-tabs pj-abas">${pode ? `<button data-a="lancar" class="${aba === 'lancar' ? 'on' : ''}">Lançar</button>` : ''}<button data-a="relatorio" class="${aba === 'relatorio' ? 'on' : ''}">Relatório pós-jogo</button><button data-a="lances" class="${aba === 'lances' ? 'on' : ''}">Lances (${L.length})</button></div>`;
+  const corpo = aba === 'lancar' ? pjLancarHTML(j, L) : aba === 'relatorio' ? `<div class="pj-rel">${pjRelatorioHTML(j, L)}</div>` : pjListaHTML(j, L, pode);
+  $('#main').innerHTML = topo('Pós-jogo', tit, sub, acoes) + abas + corpo;
+  $('#pjvolta').onclick = () => { S.pj.jogo = null; S.pj.pend = null; pPosJogo(); };
+  $('#pjpdf').onclick = () => pjPDF(j);
+  document.querySelectorAll('.pj-abas [data-a]').forEach(b => b.onclick = () => { S.pj.aba = b.dataset.a; S.pj.pend = null; pjJogo(id); });
+  if (!pode) return;
+  $('#pjedj').onclick = () => pjFormJogo(j);
+  if (aba === 'lancar') pjLigarLancar(j, L);
+  if (aba === 'lances') pjLigarLista(j, L);
+}
+const pjVisiveis = L => S.pj.ver === 1 || S.pj.ver === 2 ? L.filter(l => l.tempo === S.pj.ver) : L;
+function pjLancarHTML(j, L) {
+  const t = S.pj.tempo, V = pjVisiveis(L), pend = S.pj.pend;
+  const bloco = b => { const n = L.filter(l => b.campos.some(([m]) => pjModo(l) === m)).length;
+    return `<div class="panel pj-bl"><div class="pj-blh"><h2>${b.t} <small class="m">${n}</small></h2><button class="btn sm" data-graf="${b.id}">Gerar gráfico</button></div>
+      <div class="pj-bl-c${b.campos.length === 1 ? ' um' : ''}">${b.campos.map(([m, tt]) => { const F = V.filter(l => pjModo(l) === m); return pjCampoSVG(F, { m, tit: tt, sem: F.filter(l => l.x == null).length }); }).join('')}</div></div>`; };
+  return `<div class="panel pj-bar"><div class="gol-seg"><button data-t="1" class="${t === 1 ? 'on' : ''}">1º tempo</button><button data-t="2" class="${t === 2 ? 'on' : ''}">2º tempo</button></div>
+      <label class="m">Minuto <input class="in pj-min" id="pjmin" value="${esc(S.pj.relogio)}" placeholder="opcional"></label>
+      <span class="pj-ver m">Mostrar <span class="gol-seg"><button data-ver="0" class="${!S.pj.ver ? 'on' : ''}">Jogo</button><button data-ver="1" class="${S.pj.ver === 1 ? 'on' : ''}">1º T</button><button data-ver="2" class="${S.pj.ver === 2 ? 'on' : ''}">2º T</button></span></span>
+      <span class="m pj-dica">${pend ? `<b>Clique no campo para marcar o lance de ${esc(pjRotulo(pend))}.</b> <button class="btn sm" id="pjpendx">Cancelar</button>` : 'Clique no campo do lance → escolha o jogador. Bolinha com contorno escuro = 2º tempo.'}</span></div>
+    ${PJ_BLOCOS.filter(b => b.campos.length > 1).map(bloco).join('')}<div class="pj-bl3">${PJ_BLOCOS.filter(b => b.campos.length === 1).map(bloco).join('')}</div>`;
+}
+function pjLigarLancar(j, L) {
+  document.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { S.pj.tempo = +b.dataset.t; S.pj.relogio = $('#pjmin').value; pjJogo(j.id); });
+  document.querySelectorAll('[data-ver]').forEach(b => b.onclick = () => { S.pj.ver = +b.dataset.ver || 0; S.pj.relogio = $('#pjmin').value; pjJogo(j.id); });
+  $('#pjmin').oninput = e => { S.pj.relogio = e.target.value; };
+  if ($('#pjpendx')) $('#pjpendx').onclick = () => { S.pj.pend = null; pjJogo(j.id); };
+  document.querySelectorAll('[data-graf]').forEach(b => b.onclick = () => pjGraficoBloco(j, L, b.dataset.graf));
+  document.querySelectorAll('.pj-campo.clic').forEach(box => { const svg = box.querySelector('svg'), m = box.dataset.m;
+    svg.onclick = async ev => {
+      const dot = ev.target.closest('.pj-dot'); if (dot && !S.pj.pend) return pjFormLance(j, L.find(x => x.id === +dot.dataset.l));
+      const p = svg.createSVGPoint(); p.x = ev.clientX; p.y = ev.clientY; const q = p.matrixTransform(svg.getScreenCTM().inverse());
+      const x = +Math.max(0, Math.min(100, q.x / 1.05)).toFixed(1), y = +Math.max(0, Math.min(100, q.y / .68)).toFixed(1);
+      if (S.pj.pend) { const l = S.pj.pend; if (pjModo(l) !== m) return toast(`Esse lance é de “${PJ_TIPOS[pjModo(l)].l}”: clique no campo dele.`, true);
+        const d = { ...(l.dados || {}) }; if (l.tipo === 'finalizacao' && !d.regiao_manual) d.regiao = pjArea(x, y, l.equipe) ? 'Área' : 'Fora da área';
+        const { error } = await sb.from('pj_lances').update({ x, y, dados: d }).eq('id', l.id); if (error) return toast(erroAmigavel(error), true);
+        Object.assign(l, { x, y, dados: d }); S.pj.pend = null; toast('Local marcado.'); return pjJogo(j.id); }
+      pjFormLance(j, null, { modo: m, x, y });
+    }; });
+}
+/* gráfico de cada bloco (pizza) */
+function pjGraficoBloco(j, L, b) {
+  const V = pjVisiveis(L), st = pjStats(V), C = PJ_C, cont = (F, f) => F.filter(f).length;
+  const per = S.pj.ver === 1 ? '1º tempo' : S.pj.ver === 2 ? '2º tempo' : 'jogo todo';
+  const res = F => [['Gol', cont(F, l => l.dados?.resultado === 'Gol'), '#e0a526'], ['No alvo (defendida)', cont(F, l => l.dados?.resultado === 'No alvo'), C.alvo], ['Fora', cont(F, l => l.dados?.resultado === 'Fora'), C.fora], ['Bloqueada', cont(F, l => l.dados?.resultado === 'Bloqueada'), '#5d6b78']];
+  const reg = F => { const a = cont(F, l => pjRegiao(l) === 'Área'); return [['Dentro da área', a, C.area], ['Fora da área', F.length - a, C.foraA]]; };
+  const lado = F => [['Defesa', cont(F, l => pjCampo(l) === 'defesa'), C.def], ['Ataque', cont(F, l => pjCampo(l) === 'ataque'), C.atq]];
+  let h = '';
+  if (b === 'fin') h = `<div class="pj-gg"><h3>Nossas finalizações</h3>${pjDonut(res(st.fN), 'Resultado')}${pjDonut(reg(st.fN), 'Região')}<h3>Adversário</h3>${pjDonut(res(st.fA), 'Resultado')}${pjDonut(reg(st.fA), 'Região')}</div>`;
+  if (b === 'rec') h = `<div class="pj-gg">${pjDonut([['Roubadas', st.roub.length, C.roub], ['Recuperações sem confronto', st.rec.length - st.roub.length, C.rec]], 'Tipo')}${pjDonut(lado(st.rec), 'Onde aconteceu')}
+    ${pjDonut([['Manteve a posse', cont(st.rec, l => l.dados?.sucesso === true), C.ok], ['Perdeu em seguida', cont(st.rec, l => l.dados?.sucesso === false), C.nok], ['Não informado', cont(st.rec, l => l.dados?.sucesso == null), C.ni]], 'Bem-sucedida?')}</div>`;
+  if (b === 'falta') { const F = V.filter(l => l.tipo === 'falta');
+    h = `<div class="pj-gg">${pjDonut([['Cometidas por nós', st.faltaN, '#5d6b78'], ['Sofridas', st.faltaA, '#b8c2ca']], 'Faltas')}${pjDonut(lado(F.filter(l => l.equipe === 'QFC')), 'Nossas faltas: onde')}
+      ${pjDonut([['🟨 nossos', st.amN, '#f9c80e'], ['🟥 nossos', st.vmN, '#d32f2f'], ['🟨 adversário', st.amA, '#f5e08a'], ['🟥 adversário', st.vmA, '#ef9a9a']], 'Cartões')}</div>`; }
+  if (b === 'bp') { const F = V.filter(l => l.tipo === 'bola_parada');
+    h = `<div class="pj-gg">${pjDonut([['Escanteio a favor', st.escN, '#7b3fa0'], ['Escanteio contra', st.escA, '#c9a6dd'], ['Falta a favor', st.fbN, '#13295b'], ['Falta contra', st.fbA, '#9fb0cf']], 'Bola parada')}
+      ${pjDonut([['Gerou gol', cont(F.filter(l => l.equipe === 'QFC'), l => l.dados?.gerou === 'Gol'), '#e0a526'], ['Gerou finalização', cont(F.filter(l => l.equipe === 'QFC'), l => l.dados?.gerou === 'Finalização'), C.alvo], ['Nada', cont(F.filter(l => l.equipe === 'QFC'), l => !l.dados?.gerou || l.dados.gerou === 'Nada'), C.fora]], 'A favor: o que gerou')}</div>`; }
+  if (b === 'perda') h = `<div class="pj-gg">${pjDonut(lado(st.perdas), 'Perdas: onde')}</div>`;
+  modal(`<h2>${esc(PJ_BLOCOS.find(x => x.id === b).t)} <small class="m">${per}</small></h2>${h}<div class="mfoot"><span></span><button class="btn" id="pjgx">Fechar</button></div>`, true);
+  $('#pjgx').onclick = fechar;
+}
+const pjRegiao = l => l.dados?.regiao || (l.x != null ? (pjArea(+l.x, +l.y, l.equipe) ? 'Área' : 'Fora da área') : null);
+
+/* ---------- relatório pós-jogo (imediato, para os jogadores) ---------- */
+function pjRelatorioHTML(j, L) {
+  const st = pjStats(L), C = PJ_C, cont = (F, f) => F.filter(f).length;
+  const alvoFora = F => [['No alvo', cont(F, l => ['Gol', 'No alvo'].includes(l.dados?.resultado)), C.alvo], ['Fora do alvo', cont(F, l => ['Fora', 'Bloqueada'].includes(l.dados?.resultado)), C.fora]];
+  const areaFora = F => { const a = cont(F, l => pjRegiao(l) === 'Área'); return [['Dentro da área', a, C.area], ['Fora da área', F.length - a, C.foraA]]; };
+  const lado = F => [['Campo de defesa', cont(F, l => pjCampo(l) === 'defesa'), C.def], ['Campo de ataque', cont(F, l => pjCampo(l) === 'ataque'), C.atq]];
+  const F = (m) => L.filter(l => pjModo(l) === m), faltasN = L.filter(l => l.tipo === 'falta' && l.equipe === 'QFC');
+  const time = (nome, Fs, gols) => `<div class="pjr-col"><div class="pjr-num"><b>${Fs.length}</b><span>finalizações · ${esc(nome)}</span>${gols ? `<em>${gols} gol${gols === 1 ? '' : 's'}</em>` : ''}</div><div class="pjr-dd">${pjDonut(alvoFora(Fs), '', null, { sz: 84 })}${pjDonut(areaFora(Fs), '', null, { sz: 84 })}</div></div>`;
+  const mini = (Fs, t) => pjCampoSVG(Fs, { tit: t });
+  return `<section class="pjr-sec"><h3 class="pjr-h">Finalizações</h3><div class="pjr-fin">${time(pjEquipe(j), st.fN, st.golsN)}${time(j.adversario, st.fA, st.golsA)}</div>
+      <div class="pjr-mapas">${mini(F('finalizacao'), 'Nossas finalizações')}${mini(F('fin_adv'), 'Finalizações do adversário')}</div></section>
+    <section class="pjr-sec"><h3 class="pjr-h">Recuperações, perdas e faltas</h3>
+      <div class="pjr-k">${[['Recuperações', st.rec.length, `${st.roub.length} roubada${st.roub.length === 1 ? '' : 's'} · ${st.rec.length - st.roub.length} sem confronto`], ['Roubadas', st.roub.length, 'com confronto'], ['Perdas de posse', st.perdas.length, ''], ['Faltas cometidas', st.faltaN, `${st.amN ? st.amN + ' 🟨 ' : ''}${st.vmN ? st.vmN + ' 🟥' : ''}`]].map(([l, v, s]) => `<div><b>${v}</b><span>${l}</span>${s ? `<small>${s}</small>` : ''}</div>`).join('')}</div>
+      <div class="pjr-dn">${pjDonut(lado(st.rec), 'Recuperações', null, { sz: 96 })}${pjDonut(lado(st.perdas), 'Perdas de posse', null, { sz: 96 })}${pjDonut(lado(faltasN), 'Faltas cometidas', null, { sz: 96 })}</div>
+      <div class="pjr-mapas">${mini([...F('recuperacao'), ...F('roubada')], 'Recuperações e roubadas')}${mini(F('perda'), 'Perdas de posse')}</div></section>
+    <p class="m pjr-leg">Campo sempre com o nosso ataque para a direita (→). Bolinha cheia = no alvo/roubada · vazia = fora do alvo · anel dourado = gol · contorno escuro = 2º tempo.</p>`;
+}
+
 function pjKpis(st, n = 1) {
   const md = v => n > 1 ? ` · ${(v / n).toFixed(1).replace('.', ',')}/jogo` : '';
   const k = (l, v, s) => `<div class="card"><div class="l">${l}</div><div class="v">${v}</div>${s ? `<div class="s">${s}</div>` : ''}</div>`;
@@ -168,73 +280,6 @@ function pjJogadoresHTML(st, n = 1) {
   if (!st.jog.length) return '';
   return `<div class="panel"><h2>Jogadores ${n > 1 ? `<small class="m">${n} jogos</small>` : ''}</h2><div class="tablewrap"><table class="tb fl-tab"><thead><tr><th>Jogador</th><th>Recuperações</th><th>Roubadas</th><th>Bem-sucedidas</th><th>Perdas</th><th>Finalizações</th><th>No alvo</th><th>Gols</th><th>Assistências</th><th>Participação em fin.</th><th>Faltas</th><th>Cartões</th></tr></thead><tbody>
     ${st.jog.map(p => `<tr><td>${p.num ? `<span class="pj-n">${esc(p.num)}</span> ` : ''}<b>${esc(p.nome)}</b></td><td>${p.rec || ''}</td><td>${p.roub || ''}</td><td>${p.inf ? pjPct(p.ok, p.inf) : ''}</td><td>${p.perda || ''}</td><td>${p.fin || ''}</td><td>${p.alvo || ''}</td><td>${p.gol || ''}</td><td>${p.ass || ''}</td><td>${p.fin + p.ass || ''}</td><td>${p.falta || ''}</td><td>${p.am ? '🟨'.repeat(p.am) : ''}${p.vm ? '🟥' : ''}</td></tr>`).join('')}</tbody></table></div></div>`;
-}
-const PJ_MAPAS = [['recuperacao', 'Recuperações'], ['perda', 'Perdas de posse'], ['fin_nos', 'Finalizações (nós)'], ['fin_adv', 'Finalizações (adv.)'], ['bola_parada', 'Bola parada'], ['falta', 'Faltas e cartões'], ['todos', 'Todos']];
-const pjFiltroMapa = (L, m) => L.filter(l => m === 'todos' ? true : m === 'fin_nos' ? l.tipo === 'finalizacao' && l.equipe === 'QFC' : m === 'fin_adv' ? l.tipo === 'finalizacao' && l.equipe === 'ADV' : l.tipo === m);
-function pjMapasHTML(j, L, m) {
-  const F = pjFiltroMapa(L, m), sem = F.filter(l => l.x == null).length;
-  const leg = { recuperacao: '● roubada (com confronto) · ○ recuperação (sem confronto) · contorno tracejado = não bem-sucedida', fin_nos: '● no alvo · ○ fora/bloqueada · anel dourado = gol', fin_adv: '● no alvo · ○ fora/bloqueada · anel dourado = gol', falta: 'cartão ao lado da bolinha' }[m] || '';
-  return `<div class="pj-mapas">${pjCampoSVG(j, 1, F)}${pjCampoSVG(j, 2, F)}</div><p class="m fl-nota">${leg}${leg ? ' · ' : ''}número = camisa${sem ? ` · ${sem} lance(s) sem local no campo não aparecem` : ''}.</p>`;
-}
-
-/* ---------- página do jogo ---------- */
-async function pjJogo(id) {
-  const pode = podePJ();
-  try { if (!S.pj.jogos) await pjCarregarJogos(); await pjCarregarLances([id]); } catch (e) { $('#main').innerHTML = `<div class="panel">${esc(erroAmigavel(e))}</div>`; return; }
-  const j = S.pj.jogos.find(x => x.id === id); if (!j) { S.pj.jogo = null; return pPosJogo(); }
-  const L = pjOrdena(S.pj.lances[id]), st = pjStats(L), aba = pode ? S.pj.aba : (S.pj.aba === 'lancar' ? 'relatorio' : S.pj.aba);
-  const tit = `${pjEquipe(j)} ${j.gols_nos ?? st.golsN} × ${j.gols_adv ?? st.golsA} ${j.adversario}`;
-  const acoes = `<button class="btn" id="pjvolta">◀ Jogos</button><button class="btn" id="pjpdf">Baixar PDF</button>${pode ? '<button class="btn" id="pjedj">Dados do jogo</button>' : ''}`;
-  const sub = [j.data ? dataBR(j.data) : '', j.competicao, j.rodada, j.mando, j.teste ? 'jogo de demonstração' : ''].filter(Boolean).join(' · ');
-  const abas = `<div class="ind-tabs pj-abas">${pode ? `<button data-a="lancar" class="${aba === 'lancar' ? 'on' : ''}">Lançar</button>` : ''}<button data-a="relatorio" class="${aba === 'relatorio' ? 'on' : ''}">Relatório</button><button data-a="lances" class="${aba === 'lances' ? 'on' : ''}">Lances (${L.length})</button></div>`;
-  let corpo = '';
-  if (aba === 'lancar') corpo = pjLancarHTML(j, L);
-  else if (aba === 'relatorio') corpo = `<div class="cards fs-kpis">${pjKpis(st)}</div>
-    <div class="panel"><h2>Mapa <select class="in sm" id="pjmapa">${opts(PJ_MAPAS, S.pj.mapa)}</select></h2>${pjMapasHTML(j, L, S.pj.mapa)}</div>
-    ${pjFaixasHTML(st)}${pjBlocosHTML(st)}${pjJogadoresHTML(st)}`;
-  else corpo = pjListaHTML(j, L, pode);
-  $('#main').innerHTML = topo('Pós-jogo', tit, sub, acoes) + abas + corpo;
-  $('#pjvolta').onclick = () => { S.pj.jogo = null; S.pj.modo = null; pPosJogo(); };
-  $('#pjpdf').onclick = () => pjPDF(j);
-  document.querySelectorAll('.pj-abas [data-a]').forEach(b => b.onclick = () => { S.pj.aba = b.dataset.a; S.pj.pend = null; pjJogo(id); });
-  if ($('#pjmapa')) $('#pjmapa').onchange = e => { S.pj.mapa = e.target.value; pjJogo(id); };
-  document.querySelectorAll('.pj-campo:not(.clic) .pj-dot').forEach(g => g.onclick = () => { const l = L.find(x => x.id === +g.dataset.l); if (l) toast(`${pjMin(l.seg)} · ${pjRotulo(l)} · ${pjNome(l)}`); });
-  if (!pode) return;
-  $('#pjedj').onclick = () => pjFormJogo(j);
-  if (aba === 'lancar') pjLigarLancar(j, L);
-  if (aba === 'lances') pjLigarLista(j, L);
-}
-function pjLancarHTML(j, L) {
-  const m = S.pj.modo, t = S.pj.tempo, pend = S.pj.pend;
-  const bt = Object.entries(PJ_TIPOS).map(([k, v]) => `<button class="pj-acao${m === k ? ' on' : ''}" data-m="${k}" style="--c:${v.cor}">${v.l}</button>`).join('');
-  const ult = L.slice(-6).reverse();
-  return `<div class="panel pj-lan">
-    <div class="pj-bar"><div class="gol-seg"><button data-t="1" class="${t === 1 ? 'on' : ''}">1º tempo</button><button data-t="2" class="${t === 2 ? 'on' : ''}">2º tempo</button></div>
-      <label class="m">Minuto <input class="in pj-min" id="pjmin" value="${esc(S.pj.relogio)}" placeholder="${t === 1 ? '12:30' : '52:14'}"></label>
-      <span class="m">${t === 2 ? 'no 2º tempo pode digitar 7:10 ou 52:10' : 'mm:ss do relógio do jogo'}</span></div>
-    <div class="pj-acoes">${bt}</div>
-    <p class="m pj-dica">${pend ? `<b>Marque no campo o local do lance de ${pjMin(pend.seg)} (${esc(pjRotulo(pend))}).</b> <button class="btn sm" id="pjpendx">Cancelar</button>` : m ? `<b>${PJ_TIPOS[m].l}:</b> clique no campo onde aconteceu.` : 'Escolha a ação e clique no campo onde aconteceu.'}</p>
-    ${pjCampoSVG(j, t, L.filter(l => l.tempo === t), { clicavel: true })}
-    <div class="pj-ult"><h4 class="dm-h4">Últimos lances</h4>${ult.map(l => `<div class="pj-li"><span class="pj-n" style="background:${PJ_TIPOS[l.tipo === 'finalizacao' && l.equipe === 'ADV' ? 'fin_adv' : l.tipo]?.cor}">${esc(pjNum(l) || '·')}</span><b>${l.tempo}ºT ${pjMin(l.seg)}</b> ${esc(pjRotulo(l))} · ${esc(pjNome(l))} <button class="btn sm" data-ed="${l.id}">Editar</button></div>`).join('') || '<p class="m">Nenhum lance ainda.</p>'}</div></div>`;
-}
-function pjLigarLancar(j, L) {
-  document.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { S.pj.tempo = +b.dataset.t; S.pj.relogio = $('#pjmin').value; pjJogo(j.id); });
-  document.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { S.pj.modo = S.pj.modo === b.dataset.m ? null : b.dataset.m; S.pj.relogio = $('#pjmin').value; S.pj.pend = null; pjJogo(j.id); });
-  $('#pjmin').oninput = e => { S.pj.relogio = e.target.value; };
-  if ($('#pjpendx')) $('#pjpendx').onclick = () => { S.pj.pend = null; pjJogo(j.id); };
-  document.querySelectorAll('[data-ed]').forEach(b => b.onclick = () => pjFormLance(j, L.find(x => x.id === +b.dataset.ed)));
-  const svg = document.querySelector('.pj-campo.clic svg'); if (!svg) return;
-  svg.onclick = async ev => {
-    const dot = ev.target.closest('.pj-dot'); if (dot && !S.pj.pend && !S.pj.modo) return pjFormLance(j, L.find(x => x.id === +dot.dataset.l));
-    const p = svg.createSVGPoint(); p.x = ev.clientX; p.y = ev.clientY; const q = p.matrixTransform(svg.getScreenCTM().inverse());
-    let tx = Math.max(0, Math.min(100, q.x / 1.05)), ty = Math.max(0, Math.min(100, q.y / .68));
-    const [x, y] = pjTela(j, S.pj.tempo, tx, ty); // a mesma transformação desfaz (rotação de 180°)
-    if (S.pj.pend) { const l = S.pj.pend; const d = { ...(l.dados || {}) }; if (l.tipo === 'finalizacao' && !d.regiao_manual) d.regiao = pjArea(x, y, l.equipe) ? 'Área' : 'Fora da área';
-      const { error } = await sb.from('pj_lances').update({ x: +x.toFixed(1), y: +y.toFixed(1), dados: d }).eq('id', l.id); if (error) return toast(erroAmigavel(error), true);
-      Object.assign(l, { x: +x.toFixed(1), y: +y.toFixed(1), dados: d }); S.pj.pend = null; toast('Local marcado.'); return pjJogo(j.id); }
-    if (!S.pj.modo) return toast('Escolha a ação primeiro (botões acima do campo).', true);
-    pjFormLance(j, null, { modo: S.pj.modo, x: +x.toFixed(1), y: +y.toFixed(1) });
-  };
 }
 function pjListaHTML(j, L, pode) {
   if (!L.length) return '<div class="panel empty">Nenhum lance.</div>';
@@ -284,7 +329,7 @@ function pjFormLance(j, l, novo) {
   const ed = !!l; let modo = novo?.modo;
   if (ed) modo = l.tipo === 'finalizacao' && l.equipe === 'ADV' ? 'fin_adv' : pjRoub(l) ? 'roubada' : l.tipo;
   const base = PJ_TIPOS[modo].base || modo, d = { ...(l?.dados || {}) };
-  if (!ed && modo === 'roubada') d.roubada = true;
+  if (!ed && modo === 'roubada') d.roubada = true; if (!ed && modo === 'recuperacao') d.roubada = false;
   if (!ed && base === 'finalizacao' && novo.x != null) d.regiao = pjArea(novo.x, novo.y, modo === 'fin_adv' ? 'ADV' : 'QFC') ? 'Área' : 'Fora da área';
   if (!ed && modo === 'finalizacao' && novo.x != null) d.corredor_sug = novo.y < 33.3 ? 'Esquerdo' : novo.y > 66.7 ? 'Direito' : 'Central';
   let eq = ed ? l.equipe : PJ_TIPOS[modo].eq || 'QFC', atl = l?.atleta_id || null, assist = d.assist_id || null;
@@ -297,13 +342,14 @@ function pjFormLance(j, l, novo) {
     if (modo === 'bola_parada') h += `<div class="f"><span>Tipo</span>${seg2(op('subtipo', ['Escanteio', 'Falta'], d.subtipo || 'Escanteio'), 'subtipo')}</div><div class="f"><span>Para</span>${seg2(op('eq', [['QFC', 'a favor'], ['ADV', 'contra']], eq), 'eq')}</div>
       <div class="f"><span>Gerou</span>${seg2(op('gerou', ['Nada', 'Finalização', 'Gol'], d.gerou || 'Nada'), 'gerou')}</div>`;
     if (modo === 'falta') h += `<div class="f"><span>Falta</span>${seg2(op('eq', [['QFC', 'cometida por nós'], ['ADV', 'sofrida (cometida pelo adv.)']], eq), 'eq')}</div><div class="f"><span>Cartão</span>${seg2(op('cartao', [['', 'Nenhum'], ['Amarelo', '🟨 Amarelo'], ['Vermelho', '🟥 Vermelho']], d.cartao || ''), 'cartao')}</div>`;
-    if (base === 'recuperacao') h += `<div class="f"><span>Tipo</span>${seg2(op('roubada', [['1', 'Roubada (com confronto)'], ['0', 'Recuperação (sem confronto)']], d.roubada ? '1' : '0'), 'roubada')}</div>
-      <div class="f"><span>Manteve a posse?</span>${seg2(op('sucesso', [['1', 'Sim · bem-sucedida'], ['0', 'Não · perdeu em seguida'], ['', 'Não informado']], d.sucesso == null ? '' : d.sucesso ? '1' : '0'), 'sucesso')}</div>`;
+    if (base === 'recuperacao') h += `${ed ? `<div class="f"><span>Tipo</span>${seg2(op('roubada', [['1', 'Roubada (com confronto)'], ['0', 'Recuperação (sem confronto)']], d.roubada ? '1' : '0'), 'roubada')}</div>` : ''}
+      <div class="f"><span>Manteve a posse?${ed ? '' : ' <small class="m">(clicar já salva)</small>'}</span>${seg2(op('sucesso', [['1', 'Sim · bem-sucedida'], ['0', 'Não · perdeu em seguida'], ['', 'Não informado']], ed ? (d.sucesso == null ? '' : d.sucesso ? '1' : '0') : '-'), 'sucesso')}</div>`;
     if (base === 'finalizacao') h += `<div class="f"><span>Resultado</span>${seg2(op('resultado', PJ_RES, d.resultado || ''), 'resultado')}</div><div class="f"><span>Região</span>${seg2(op('regiao', ['Área', 'Fora da área'], d.regiao || ''), 'regiao')}</div>`;
     if (modo === 'finalizacao') h += `<div class="f"><span>Assistência (quem deu o passe)</span>${pjChipsAtl(assist, 'pjass')}<input class="in sm" id="pjassn" value="${esc(d.assist_nome || '')}" placeholder="ou nome (fora do elenco)"></div>
       <div class="f"><span>Corredor da assistência</span>${seg2(op('corredor', [['', '—'], ...PJ_COR], d.corredor || ''), 'corredor')}${d.corredor_sug && !d.corredor ? `<small class="m"> sugestão pelo local: ${d.corredor_sug}</small>` : ''}</div>`;
-    h += nosJog ? `<div class="f"><span>Jogador${modo === 'falta' ? ' (quem cometeu)' : ''}</span>${pjChipsAtl(atl, 'pjatl')}<input class="in sm" id="pjnome" value="${esc(!atl ? l?.nome || '' : '')}" placeholder="ou nome (fora do elenco)"> <input class="in sm pj-num" id="pjnum" value="${esc(l?.num || '')}" placeholder="nº"></div>`
+    const jog = nosJog ? `<div class="f"><span>Jogador${modo === 'falta' ? ' (quem cometeu)' : ''}${!ed && modo === 'perda' ? ' <small class="m">(clicar já salva)</small>' : ''}</span>${pjChipsAtl(atl, 'pjatl')}<input class="in sm" id="pjnome" value="${esc(!atl ? l?.nome || '' : '')}" placeholder="ou nome (fora do elenco)"> <input class="in sm pj-num" id="pjnum" value="${esc(l?.num || '')}" placeholder="nº"></div>`
       : `<div class="f"><span>Jogador adversário (opcional)</span><input class="in sm pj-num" id="pjnum" value="${esc(l?.num || '')}" placeholder="nº"> <input class="in sm" id="pjnome" value="${esc(l?.nome || '')}" placeholder="nome"></div>`;
+    h = (modo === 'bola_parada' || modo === 'falta' ? h + jog : jog + h);
     h += `<label class="f"><span>Observação</span><input class="in" id="pjobs" value="${esc(d.obs || '')}"></label>`;
     return h;
   };
@@ -319,9 +365,10 @@ function pjFormLance(j, l, novo) {
     document.querySelectorAll('#modal [data-g][data-v]').forEach(b => b.onclick = () => { const g = b.dataset.g, v = b.dataset.v;
       if (g === 'eq') { eq = v; return desenhaCampos(); }
       if (g === 'roubada') d.roubada = v === '1'; else if (g === 'sucesso') d.sucesso = v === '' ? null : v === '1'; else if (g === 'regiao') { d.regiao = v; d.regiao_manual = true; } else d[g] = v || null;
-      b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); });
+      b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+      if (!ed && (g === 'sucesso' || (g === 'resultado' && modo === 'fin_adv'))) salvar(); });
     const chip = (box, set) => { const el = $('#' + box); if (el) el.onclick = e => { const c = e.target.closest('[data-a]'); if (!c) return; const id = +c.dataset.a; set(id); el.querySelectorAll('.chip').forEach(x => x.classList.toggle('on', +x.dataset.a === id)); }; };
-    chip('pjatl', id => { atl = atl === id ? null : id; if (atl === null) document.querySelectorAll('#pjatl .chip').forEach(x => x.classList.remove('on')); });
+    chip('pjatl', id => { atl = atl === id ? null : id; if (atl === null) document.querySelectorAll('#pjatl .chip').forEach(x => x.classList.remove('on')); if (!ed && modo === 'perda' && atl) salvar(); });
     chip('pjass', id => { assist = assist === id ? null : id; if (assist === null) document.querySelectorAll('#pjass .chip').forEach(x => x.classList.remove('on')); });
     $('#pjlc').onclick = fechar;
     if ($('#pjldel')) $('#pjldel').onclick = async () => { if (!confirm('Excluir este lance?')) return; const { error } = await sb.from('pj_lances').delete().eq('id', l.id); if (error) return toast(erroAmigavel(error), true);
@@ -349,23 +396,20 @@ function pjFormLance(j, l, novo) {
 }
 
 /* ---------- PDF (A4 paisagem) ---------- */
+/* ---------- PDF do relatório pós-jogo (A4 paisagem, 1 página) ---------- */
 function pjPDF(j) {
   const L = pjOrdena(S.pj.lances[j.id] || []), st = pjStats(L);
-  const mapa = (m, tit) => pjFiltroMapa(L, m).some(l => l.x != null) ? `<div class="pjp-m"><h3>${tit}</h3><div class="pj-mapas">${pjCampoSVG(j, 1, pjFiltroMapa(L, m))}${pjCampoSVG(j, 2, pjFiltroMapa(L, m))}</div></div>` : '';
-  const mapas = [mapa('recuperacao', 'Recuperações'), mapa('perda', 'Perdas de posse'), mapa('fin_nos', 'Finalizações (nós)'), mapa('fin_adv', 'Finalizações (adversário)'), mapa('bola_parada', 'Bola parada'), mapa('falta', 'Faltas e cartões')].filter(Boolean);
   const tit = `${pjEquipe(j)} ${j.gols_nos ?? st.golsN} × ${j.gols_adv ?? st.golsA} ${j.adversario}`;
-  const html = `<section class="pjp"><div class="flp-cab"><img src="${LOGO}" alt=""><div><small>QFC | ANÁLISE DE DESEMPENHO</small><h1>RELATÓRIO PÓS-JOGO</h1></div><div class="flp-dt"><b>${esc(tit)}</b><span>${esc([j.data ? dataBR(j.data) : '', j.competicao, j.rodada, j.mando, j.teste ? 'demonstração' : ''].filter(Boolean).join(' · '))}</span></div></div>
-    <div class="cards fs-kpis pjp-k">${pjKpis(st)}</div>${pjFaixasHTML(st)}${pjBlocosHTML(st)}
-    ${mapas.reduce((g, m, i) => (i % 2 ? g[g.length - 1].push(m) : g.push([m]), g), []).map(par => `<div class="pjp-pg">${par.join('')}</div>`).join('')}<div class="pjp-pg">${pjJogadoresHTML(st)}</div></section>`;
+  const html = `<section class="pjp"><div class="flp-cab"><img src="${LOGO}" alt=""><div><small>QFC | ANÁLISE DE DESEMPENHO</small><h1>PÓS-JOGO</h1></div><div class="flp-dt"><b>${esc(tit)}</b><span>${esc([j.data ? dataBR(j.data) : '', j.competicao, j.rodada, j.mando, j.teste ? 'demonstração' : ''].filter(Boolean).join(' · '))}</span></div></div>
+    <div class="pj-rel">${pjRelatorioHTML(j, L)}</div></section>`;
   document.querySelectorAll('#print-area').forEach(x => x.remove());
   const w = document.createElement('div'); w.id = 'print-area'; w.className = 'flp pjp-w'; w.innerHTML = html;
-  const stl = document.createElement('style'); stl.id = 'flp-page'; stl.textContent = '@page{size:A4 landscape;margin:9mm}';
+  const stl = document.createElement('style'); stl.id = 'flp-page'; stl.textContent = '@page{size:A4 landscape;margin:8mm}';
   document.head.appendChild(stl); document.body.appendChild(w); document.body.classList.add('imprimindo');
   const tt = document.title; document.title = `Pos-jogo_${(j.data || '').replace(/-/g, '')}_${(j.adversario || '').replace(/\s+/g, '_')}`;
   setTimeout(() => { window.print(); setTimeout(() => { w.remove(); stl.remove(); document.body.classList.remove('imprimindo'); document.title = tt; }, 500); }, 400);
 }
 
-/* ---------- menu e navegação ---------- */
 function navPJ() {
   const nav = $('#nav'); if (!nav || nav.querySelector('[data-p=posjogo]')) return;
   if (typeof pagPermitida === 'function' && typeof modulosPerm === 'function' && modulosPerm() && !pagPermitida('posjogo')) return;
