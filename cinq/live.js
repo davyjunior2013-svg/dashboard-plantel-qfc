@@ -103,7 +103,7 @@ function ltMudou(placar) {
 /* ---------- página ---------- */
 async function pLive() {
   if (S.lt.jogo) return ltAbrir(S.lt.jogo);
-  ltSair();
+  ltSair(); $('#main').classList.remove('lt-modo-col');
   const g = ltGerenciar(), cab = () => topo('Análise de jogo', 'Live Tagging', 'Marcação manual de eventos ao vivo: clique no campo e aperte a tecla. Os resultados aparecem sozinhos.',
     (ltColetar() ? '<button class="btn" id="ltbot">Meus botões</button>' : '') + (g ? '<button class="btn pri" id="ltnovo">+ Novo jogo</button>' : ''));
   $('#main').innerHTML = cab() + '<div class="panel empty">Carregando…</div>';
@@ -140,7 +140,7 @@ async function ltAbrir(id) {
   if ($('#ltedj')) $('#ltedj').onclick = () => ltFormJogo(j);
   ltPlacarAtualiza(); ltCorpo(); ltAssinar(id); ltEnviarFila();
 }
-function ltCorpo() { S.lt.aba === 'coleta' ? ltColetaRender() : ltResultadosRender(); }
+function ltCorpo() { $('#main').classList.toggle('lt-modo-col', S.lt.aba === 'coleta'); S.lt.aba === 'coleta' ? ltColetaRender() : ltResultadosRender(); }
 
 /* ---------- placar e relógio ---------- */
 function ltPlacarAtualiza() {
@@ -151,9 +151,10 @@ function ltPlacarAtualiza() {
     : f === 'INT' ? '<button class="btn sm pri" data-r="2T">▶ Iniciar 2º tempo</button>'
     : f === '2T' ? '<button class="btn sm" data-r="FIM">■ Fim de jogo</button><button class="btn sm" data-r="aj">Ajustar</button>'
     : '<button class="btn sm" data-r="2T+">Reabrir 2º tempo</button>';
+  const zero = pode && f !== 'pre' ? '<button class="btn sm lt-zero" data-r="zero" title="Zerar o relógio (volta para antes do jogo)">↺ Zerar</button>' : '';
   box.innerHTML = `<div class="lt-placar"><div class="lt-eq">${ltEscudo(j.equipe, 44)}<b>${esc(j.equipe)}</b></div><div class="lt-gols">${gn}<i>×</i>${ga}</div><div class="lt-eq adv"><b>${esc(j.adversario)}</b>${ltEscudo(j.adversario, 44)}</div>
     <div class="lt-rel"><b id="ltclk">${ltMin(ltSeg(j))}</b><span class="lt-f lt-f-${f}">${['1T', '2T'].includes(f) ? '● ' : ''}${LT_FASE[f]}</span></div>
-    <div class="lt-info"><small>${esc([j.data ? dataBR(j.data) : '', j.competicao, j.rodada, j.mando].filter(Boolean).join(' · '))}</small><div class="row">${ctl}</div></div></div>`;
+    <div class="lt-info"><small>${esc([j.data ? dataBR(j.data) : '', j.competicao, j.rodada, j.mando].filter(Boolean).join(' · '))}</small><div class="row">${ctl}${zero}</div></div></div>`;
   box.querySelectorAll('[data-r]').forEach(b => b.onclick = () => ltRelogioAcao(j, b.dataset.r));
 }
 function ltRelogioTxt() { const j = ltJogo(), el = $('#ltclk'); if (j && el) el.textContent = ltMin(ltSeg(j)); }
@@ -170,6 +171,7 @@ async function ltRelogioAcao(j, a) {
     $('#ltajs').onclick = ok; $('#ltajv').onkeydown = e => { if (e.key === 'Enter') ok(); };
     return;
   }
+  if (a === 'zero') { if (!confirm('Zerar o relógio? Volta para “Antes do jogo” e você inicia o 1º tempo de novo. Os lances já marcados não mudam.')) return; return ltSalvarRelogio(j, { fase: 'pre' }); }
   if (a === 'INT') { if (!confirm('Encerrar o 1º tempo?')) return; r.fim1 = ltSeg(j); r.fase = 'INT'; }
   else if (a === 'FIM') { if (!confirm('Encerrar o jogo?')) return; r.fim2 = ltSeg(j); r.fase = 'FIM'; }
   else if (a === '1T' || a === '2T') { r.fase = a; r.ini = agora; r.aj = 0; }
@@ -196,10 +198,10 @@ function ltColetaRender() {
       <div class="lt-cbar"><span id="ltsent"></span><button class="btn sm" id="ltinv">⇄ Inverter campo</button>
         <small class="m"><kbd>Esc</kbd> cancela · <kbd>Ctrl</kbd>+<kbd>Z</kbd> desfaz o último · <kbd>Enter</kbd> confirma</small></div></div>
     <aside class="lt-pain"><div class="lt-ph"><b>Meu painel</b><button class="btn sm" id="ltbotc">Editar botões</button></div>
-      ${B.length ? `<div class="lt-bts">${B.map(b => `<div class="lt-bt" data-b="${b.id}" style="--c:${esc(b.cor)}"><kbd>${esc(b.tecla)}</kbd><div><b>${esc(b.nome)}</b><small>${b.equipe === 'ADV' ? 'adversário' : 'nossa equipe'}${b.seta ? ' · seta' : ''}${b.camisa ? ' · camisa' : ''}${b.gol ? ' · gol' : ''}</small>
+      ${B.length ? `<div class="lt-bts">${B.map(b => `<div class="lt-bt" data-b="${b.id}" style="--c:${esc(b.cor)}"><kbd>${esc(b.tecla)}</kbd><div><b>${esc(b.nome)}<small>${b.equipe === 'ADV' ? 'adversário' : 'nossa'}${b.seta ? ' · seta' : ''}${b.camisa ? ' · camisa' : ''}${b.gol ? ' · gol' : ''}</small></b>
         ${(b.descritores || []).length ? `<small class="lt-ds">${b.descritores.map((d, i) => `<i>${i + 1}</i> ${esc(d)}`).join(' ')}</small>` : ''}</div></div>`).join('')}</div>`
         : '<p class="m">Você ainda não tem botões. <button class="btn sm pri" id="ltbotc2">Montar meus botões</button></p>'}
-      <div class="lt-ph"><b>Meus últimos lances</b><small class="m" id="ltfila"></small></div><div id="ltmeus"></div></aside></div>`;
+      <div class="lt-ph lt-ph2"><b>Meus últimos lances</b><small class="m" id="ltfila"></small></div><div id="ltmeus"></div></aside></div>`;
   $('#ltbotc').onclick = () => ltFormBotoes(); if ($('#ltbotc2')) $('#ltbotc2').onclick = () => ltFormBotoes();
   $('#ltinv').onclick = () => { try { localStorage.setItem(ltInvKey(), ltInv1() ? '0' : '1'); } catch (e) { /* ok */ } S.lt.pend = null; ltColetaStatus(); ltCampoColetaPontos(); ltPendDesenha(); };
   $('#ltsvg').addEventListener('mousedown', ltCliqueCampo);
@@ -565,7 +567,7 @@ shell = function () { _shellLT(); navLT(); if (ltSouColeta() && S.page !== 'live
 const _irLT = ir;
 ir = function (p) {
   if (ltSouColeta()) p = 'live';
-  if (p !== 'live') { ltSair(); return _irLT(p); }
+  if (p !== 'live') { ltSair(); $('#main')?.classList.remove('lt-modo-col'); return _irLT(p); }
   if (typeof pagPermitida === 'function' && typeof modulosPerm === 'function' && modulosPerm() && !pagPermitida('live')) return _irLT('inicio');
   S.page = p; document.querySelectorAll('#nav button[data-p]').forEach(b => b.classList.toggle('on', b.dataset.p === p));
   pLive(); window.scrollTo(0, 0);
