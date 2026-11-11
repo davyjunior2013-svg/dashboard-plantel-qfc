@@ -8,7 +8,7 @@
    PDF em todas as seções: do período (semana/mês) e individual.
    Edição: Nutrição (funcao 'nutricao') e admin. Leitura: toda a comissão. */
 FUNCOES.nutricao = 'Nutrição';
-S.nut = { ok: false, aba: 'aval', per: 'semana', ref: null, cfg: {}, av: [], sup: [], jg: [], sp: null };
+S.nut = { gAt: '', gPos: '', ok: false, aba: 'aval', per: 'semana', ref: null, cfg: {}, av: [], sup: [], jg: [], sp: null };
 const podeNut = () => isAdmin() || S.perfil?.funcao === 'nutricao';
 const NUT_DOBRAS = [['coxa', 'Coxa'], ['abdominal', 'Abdominal'], ['triceps', 'Tríceps'], ['panturrilha', 'Panturrilha']];
 const NUT_MOM = [['pre', 'Pré'], ['int', 'Intervalo'], ['pos', 'Pós']];
@@ -96,9 +96,41 @@ function nutAvalResumo(ate) {
   return { L, com, g: med('g'), mlg: med('mlg'), soma: med('soma'), pos: POSICOES.filter(p => pos[p]).concat(Object.keys(pos).filter(p => !POSICOES.includes(p))).map(p => [p, pos[p].length, pos[p].reduce((s, c) => s + c.g, 0) / pos[p].length, (v => v.length ? v.reduce((s, x) => s + x, 0) / v.length : null)(pos[p].map(c => c.mlg).filter(x => x != null))]) };
 }
 const nutDelta = (a, b, inv) => { if (a == null || b == null) return ''; const d = a - b; if (Math.abs(d) < .05) return '<small class="nut-d">=</small>'; const bom = inv ? d > 0 : d < 0; return `<small class="nut-d ${bom ? 'bom' : 'ruim'}">${d > 0 ? '▲' : '▼'} ${nutF(Math.abs(d))}</small>`; };
+// destaque: evolução da média do elenco em cada data de avaliação (+ atleta escolhido por cima)
+function nutSerieGrupo(pos) {
+  const ok = v => { const a = nutA(v.atleta_id); return a && (!pos || a.posicao === pos); };
+  const datas = [...new Set(S.nut.av.filter(ok).map(v => v.data))].sort();
+  return datas.map(d => { const C = S.nut.av.filter(v => v.data === d && ok(v)).map(nutCalc).filter(Boolean), m = k => { const x = C.map(c => c[k]).filter(y => y != null); return x.length ? x.reduce((a, b) => a + b, 0) / x.length : null; };
+    return { d, n: C.length, g: m('g'), mlg: m('mlg') }; });
+}
+function nutGrafDestaque(G, Aser, k, tit, uni) {
+  const datas = [...new Set([...G.map(p => p.d), ...Aser.map(p => p.d)])].sort();
+  const gv = G.filter(p => p[k] != null), av = Aser.filter(p => p[k] != null); if (!gv.length && !av.length) return '';
+  const W = 560, H = 230, l = 44, r = 18, t = 30, b = 40, vals = [...gv, ...av].map(p => p[k]), mn = Math.min(...vals), mx = Math.max(...vals), pad = (mx - mn) * .3 || Math.max(1, mx * .05);
+  const lo = mn - pad, hi = mx + pad, X = d => datas.length === 1 ? (l + W - r) / 2 : l + datas.indexOf(d) * (W - l - r) / (datas.length - 1), Y = y => t + (hi - y) / (hi - lo) * (H - t - b);
+  const lin = (P, cor, cls, n, abaixo) => P.length ? `<polyline points="${P.map(p => `${X(p.d)},${Y(p[k])}`).join(' ')}" fill="none" stroke="${cor}" stroke-width="3" stroke-linejoin="round"${cls ? ` class="${cls}"` : ''}/>
+    ${P.map(p => `<circle cx="${X(p.d)}" cy="${Y(p[k])}" r="5" fill="#fff" stroke="${cor}" stroke-width="2.5"/><text x="${X(p.d)}" y="${Y(p[k]) + (abaixo ? 19 : -10)}" text-anchor="middle" class="nut-dv" fill="${cor}">${nutF(p[k])}${uni}</text>${n && p.n ? `<text x="${X(p.d)}" y="${H - 8}" text-anchor="middle" class="nut-dn">n = ${p.n}</text>` : ''}`).join('')}` : '';
+  const ticks = [0, .5, 1].map(i => lo + (hi - lo) * (.12 + .76 * i));
+  return `<div class="nut-dg"><svg viewBox="0 0 ${W} ${H}"><text x="${l}" y="16" class="nut-dt">${tit}</text>
+    ${ticks.map(y => `<line x1="${l}" x2="${W - r}" y1="${Y(y)}" y2="${Y(y)}" class="nut-gg"/><text x="${l - 6}" y="${Y(y) + 4}" text-anchor="end" class="nut-dy">${nutF(y)}</text>`).join('')}
+    ${datas.map(d => `<text x="${X(d)}" y="${H - 22}" text-anchor="middle" class="nut-dx">${fmt(d)}</text>`).join('')}
+    ${lin(gv, '#13295b', '', true)}${lin(av, '#e0a526', 'nut-dat', false, true)}</svg></div>`;
+}
+function nutDestaque() {
+  if (!S.nut.av.length) return '';
+  const pos = S.nut.gPos, G = nutSerieGrupo(pos), at = S.nut.gAt ? nutA(+S.nut.gAt) : null;
+  const Aser = at ? Object.values(Object.fromEntries(nutAvDe(at.id).map(v => [v.data, { d: v.data, ...nutCalc(v) }]))).filter(p => p.g != null) : [];   // uma por data (a mais recente)
+  const poss = POSICOES.filter(p => S.nut.av.some(v => nutA(v.atleta_id)?.posicao === p));
+  const g0 = G[0], g1 = G[G.length - 1], dg = G.length > 1 && g0.g != null && g1.g != null ? g1.g - g0.g : null, dm = G.length > 1 && g0.mlg != null && g1.mlg != null ? g1.mlg - g0.mlg : null;
+  return `<div class="panel nut-dest"><div class="nut-dh"><div><h2>Evolução da composição corporal</h2><small class="m">Média ${pos ? 'dos ' + esc(pos.toLowerCase()) + 's' : 'do elenco'} em cada avaliação${G.length > 1 ? ` · desde ${fmt(g0.d)}: %G ${dg > 0 ? '+' : ''}${nutF(dg)} pp${dm != null ? ` · MLG ${dm > 0 ? '+' : ''}${nutF(dm)} kg` : ''}` : ''}</small></div>
+      <div class="nut-df"><select class="in" id="nutgpos"><option value="">Todo o elenco</option>${poss.map(p => `<option${p === pos ? ' selected' : ''}>${esc(p)}</option>`).join('')}</select>
+      <select class="in" id="nutgat"><option value="">Comparar atleta…</option>${nutAtl().filter(a => S.nut.av.some(v => v.atleta_id === a.id)).map(a => `<option value="${a.id}"${String(a.id) === String(S.nut.gAt) ? ' selected' : ''}>${esc(a.nome)}</option>`).join('')}</select></div></div>
+    <div class="nut-dgs">${nutGrafDestaque(G, Aser, 'g', '% de gordura', '%')}${nutGrafDestaque(G, Aser, 'mlg', 'Massa livre de gordura (kg)', '')}</div>
+    <div class="nut-dl"><span><i style="background:#13295b"></i>Média ${pos ? 'da posição' : 'do elenco'}</span>${at ? `<span><i style="background:#e0a526"></i>${esc(at.nome)}</span>` : ''}<small class="m">n = atletas na média daquela avaliação</small></div></div>`;
+}
 function nutAvalHTML(f) {
   const R = nutAvalResumo(f.ate), noPer = S.nut.av.filter(v => nutNoPer(v.data, f)), pode = podeNut();
-  return `<div class="cards gol-kpis">${nutKpi('Avaliados', `${R.com.length}<small class="m">/${R.L.length}</small>`, 'última avaliação de cada atleta')}${nutKpi('% de gordura · média', R.g != null ? nutF(R.g) + '%' : '—', 'elenco')}
+  return `${nutDestaque()}<div class="cards gol-kpis">${nutKpi('Avaliados', `${R.com.length}<small class="m">/${R.L.length}</small>`, 'última avaliação de cada atleta')}${nutKpi('% de gordura · média', R.g != null ? nutF(R.g) + '%' : '—', 'elenco')}
       ${nutKpi('Massa livre de gordura · média', R.mlg != null ? nutF(R.mlg) + ' kg' : '—', R.soma != null ? `Σ 4 dobras médio ${nutF(R.soma)} mm` : '')}${nutKpi('Avaliações no período', noPer.length, esc(f.txt))}</div>
     <div class="panel"><h2>Elenco · última avaliação ${pode ? '<button class="btn sm pri nut-h2b" id="nutav">+ Nova avaliação</button>' : ''}</h2>
       <div class="tablewrap"><table class="tb nut-tb"><thead><tr><th>Atleta</th><th>Data</th><th>Peso</th><th>Σ dobras</th><th>% gordura</th><th>Massa gorda</th><th>Massa livre de gordura</th></tr></thead><tbody>
@@ -109,6 +141,7 @@ function nutAvalHTML(f) {
       ${R.pos.map(([p, n, g, m]) => `<tr><td><b>${esc(p)}</b></td><td>${n}</td><td>${nutF(g)}%</td><td>${m != null ? nutF(m) + ' kg' : '—'}</td></tr>`).join('')}</tbody></table></div></div>` : ''}`;
 }
 function nutAvalLigar() {
+  if ($('#nutgpos')) { $('#nutgpos').onchange = e => { S.nut.gPos = e.target.value; pNutricao(); }; $('#nutgat').onchange = e => { S.nut.gAt = e.target.value; pNutricao(); }; }
   document.querySelectorAll('[data-na-at]').forEach(tr => tr.onclick = () => nutIndiv(+tr.dataset.naAt));
   if ($('#nutav')) $('#nutav').onclick = () => nutFormAval(null);
 }
@@ -200,7 +233,7 @@ function nutSupHTML(f) {
   if (S.nut.per === 'semana') {
     const D = nutDias(f), s = S.nut.sp, tem = (d, id) => R.find(r => r.data === d && r.atleta_id === id && r.suplemento === s);
     grade = `<div class="panel"><h2>Quem tomou · <span class="nut-chs">${SP.map(x => `<button class="chip${x === s ? ' on' : ''}" data-sp="${esc(x)}">${esc(x)}</button>`).join('')}</span></h2>
-      <div class="tablewrap"><table class="tb nut-tb nut-grade"><thead><tr><th>Atleta</th>${D.map(d => `<th class="c">${NUT_DS[parse(d).getDay()]}<br><small>${fmt(d)}</small>${pode ? `<br><button class="btn sm nut-tod" data-tod="${d}" title="Marcar todos neste dia">todos</button>` : ''}</th>`).join('')}<th>Adesão</th></tr></thead><tbody>
+      <div class="tablewrap"><table class="tb nut-tb nut-grade"><thead><tr><th>Atleta</th>${D.map(d => `<th class="c">${NUT_DS[parse(d).getDay()]}<br><small>${fmt(d)}</small>${pode ? (L.every(a => tem(d, a.id)) ? `<br><button class="btn sm nut-tod nenhum" data-tod="${d}" title="Desmarcar todos neste dia">nenhum</button>` : `<br><button class="btn sm nut-tod" data-tod="${d}" title="Marcar todos neste dia">todos</button>`) : ''}</th>`).join('')}<th>Adesão</th></tr></thead><tbody>
       ${L.map(a => { const x = ad[s].de(a.id); return `<tr><td>${nutAtlCel(a)}</td>${D.map(d => `<td class="c"><button class="nut-ck${tem(d, a.id) ? ' on' : ''}" data-ck="${d}|${a.id}"${pode ? '' : ' disabled'}>${tem(d, a.id) ? '✓' : ''}</button></td>`).join('')}<td><b>${x.p != null ? x.p + '%' : '—'}</b> <small class="m">${x.n}/${ad[s].dias}</small></td></tr>`; }).join('')}</tbody></table></div>
       ${pode ? '<p class="m nut-nota">Clique na célula para marcar ou desmarcar. “todos” marca o elenco inteiro no dia.</p>' : ''}</div>`;
   }
@@ -222,7 +255,12 @@ function nutSupLigar(f) {
   });
   document.querySelectorAll('[data-tod]').forEach(b => b.onclick = async () => {
     const d = b.dataset.tod, s = S.nut.sp, falta = nutAtl().filter(a => !S.nut.sup.some(r => r.data === d && r.atleta_id === a.id && r.suplemento === s));
-    if (!falta.length) return toast('Todos já marcados neste dia.');
+    if (!falta.length) {   // todos marcados: desmarca o dia inteiro
+      const R = S.nut.sup.filter(r => r.data === d && r.suplemento === s);
+      if (!confirm(`Desmarcar ${s} dos ${R.length} atletas em ${NUT_DS[parse(d).getDay()]} ${fmt(d)}?`)) return;
+      const { error } = await sb.from('nut_supl').delete().in('id', R.map(r => r.id)); if (error) return toast(erroAmigavel(error), true);
+      const ids = new Set(R.map(r => r.id)); S.nut.sup = S.nut.sup.filter(r => !ids.has(r.id)); const y = window.scrollY; await pNutricao(); window.scrollTo(0, y); return;
+    }
     const { data, error } = await sb.from('nut_supl').insert(falta.map(a => ({ data: d, atleta_id: a.id, suplemento: s }))).select(); if (error) return toast(erroAmigavel(error), true);
     S.nut.sup.push(...data); const y = window.scrollY; await pNutricao(); window.scrollTo(0, y);
   });
@@ -298,7 +336,13 @@ function nutJogo(j) {
   document.querySelectorAll('[data-pk]').forEach(b => b.onclick = () => { const k = b.dataset.pk, s = b.dataset.ps; P[k] = P[k] || []; b.classList.toggle('on'); P[k] = b.classList.contains('on') ? [...new Set([...P[k], s])] : P[k].filter(x => x !== s); });
   document.querySelectorAll('[data-ja]').forEach(i => i.oninput = () => { set(i.dataset.ja, i.dataset.jk, i.value.trim()); atual(+i.dataset.ja); });
   document.querySelectorAll('[data-jc]').forEach(b => b.onclick = () => { const [id, k] = b.dataset.jc.split('|'), on = !b.classList.contains('on'); set(id, k, on); b.classList.toggle('on', on); b.textContent = on ? '✓' : ''; });
-  document.querySelectorAll('[data-jt]').forEach(b => b.onclick = () => { const k = b.dataset.jt; rows.forEach(a => set(a.id, k, true)); document.querySelectorAll(`[data-jc$="|${k}"]`).forEach(c => { c.classList.add('on'); c.textContent = '✓'; }); });
+  const rotJT = () => document.querySelectorAll('[data-jt]').forEach(b => { const k = b.dataset.jt, todos = rows.length && rows.every(a => A[a.id]?.[k]);
+    b.textContent = todos ? 'nenhum' : 'todos'; b.classList.toggle('nenhum', !!todos); b.title = todos ? 'Desmarcar todos' : 'Marcar todos'; });
+  rotJT();
+  document.querySelectorAll('[data-jc]').forEach(b => b.addEventListener('click', rotJT));
+  document.querySelectorAll('[data-jt]').forEach(b => b.onclick = () => { const k = b.dataset.jt, lab = NUT_MOM.find(m => m[0] === k)[1], on = !rows.every(a => A[a.id]?.[k]);
+    if (!on && !confirm(`Desmarcar ${lab} de todos os atletas?`)) return;
+    rows.forEach(a => set(a.id, k, on)); document.querySelectorAll(`[data-jc$="|${k}"]`).forEach(c => { c.classList.toggle('on', on); c.textContent = on ? '✓' : ''; }); rotJT(); });
   $('#njdel').onclick = async () => { if (!confirm(`Excluir o jogo ${j.titulo} (${dataBR(j.data)}) e os dados de hidratação e suplementação? Não dá para desfazer.`)) return;
     const { error } = await sb.from('nut_jogos').delete().eq('id', j.id); if (error) return toast(erroAmigavel(error), true);
     S.nut.jg = S.nut.jg.filter(x => x.id !== j.id); fechar(); toast('Jogo excluído.'); pNutricao(); };
