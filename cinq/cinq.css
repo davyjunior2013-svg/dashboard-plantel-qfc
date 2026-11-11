@@ -1019,7 +1019,7 @@ img.av{object-position:50% 20%}.av.avz{overflow:hidden;padding:0}.av.avz img{wid
 .flc-h .flr-ini.g{font-size:30px}
 
 /* pódio do top 3 (PDF e imagem): página inteira, cada métrica num quadro (opção B) */
-.flrp{margin:6mm 6mm 0;height:174mm;display:flex;flex-direction:column;background:linear-gradient(135deg,#0f2150,#1d3f7a);border-radius:5mm;padding:4mm 5mm 5mm;color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.flrp{margin:5mm 6mm 0;height:150mm;break-inside:avoid;display:flex;flex-direction:column;background:linear-gradient(135deg,#0f2150,#1d3f7a);border-radius:5mm;padding:4mm 5mm 5mm;color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .flrp-cab{display:flex;align-items:center;gap:3mm;margin-bottom:4mm}.flrp-cab img{width:11mm;height:11mm;object-fit:contain}.flrp-cab b{font-size:7mm;display:block}.flrp-cab small{color:#c9d3e6;font-size:3.6mm}.flrp-cab .flr-tag{margin-left:auto;font-size:4mm;padding:1.2mm 3.5mm}
 .flrp-gs{flex:1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5mm;min-height:0}
 .flrp-m{display:flex;flex-direction:column;background:rgba(255,255,255,.09);border:.35mm solid rgba(224,165,38,.45);border-radius:4mm;overflow:hidden;min-height:0}
@@ -1034,5 +1034,5 @@ img.av{object-position:50% 20%}.av.avz{overflow:hidden;padding:0}.av.avz img{wid
 .flrp-c b{font-size:4.6mm;margin:.4mm 0 2mm;white-space:nowrap}.flrp-c.p1 b{font-size:6.2mm}.flrp-c b small{font-size:3mm;color:#c9d3e6}
 .flrp-c.p1 span,.flrp-c.p1 b{color:#ffd875}
 .flrp-deg{width:100%;border-radius:2mm 2mm 0 0;display:flex;align-items:flex-start;justify-content:center;padding-top:2mm;font-weight:900;color:rgba(19,41,91,.35);font-size:9mm}
-.flrp-c.p1 .flrp-deg{height:88mm;background:linear-gradient(#f6d77a,#e0a526)}.flrp-c.p2 .flrp-deg{height:64mm;background:linear-gradient(#e3e8ec,#b9c3cc)}.flrp-c.p3 .flrp-deg{height:46mm;background:linear-gradient(#e8b47e,#c9813f)}
-.flp-top3{padding:0!important;min-height:0!important}.flp-top3 .flrp{height:192mm;width:285mm}.flrp-png{width:297mm;background:#fff;padding:0 0 6mm}.flrp-png .flrp{margin:6mm 6mm 0}
+.flrp-c.p1 .flrp-deg{height:68mm;background:linear-gradient(#f6d77a,#e0a526)}.flrp-c.p2 .flrp-deg{height:48mm;background:linear-gradient(#e3e8ec,#b9c3cc)}.flrp-c.p3 .flrp-deg{height:34mm;background:linear-gradient(#e8b47e,#c9813f)}
+.flp-top3{padding:0!important;min-height:0!important}.flp-top3 .flrp{height:176mm;width:auto}.flrp-png{width:297mm;background:#fff;padding:0 0 6mm}.flrp-png .flrp{margin:6mm 6mm 0}
