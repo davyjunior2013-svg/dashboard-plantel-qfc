@@ -923,3 +923,15 @@ img.av{object-position:50% 20%}.av.avz{overflow:hidden;padding:0}.av.avz img{wid
   .lt-modo-col #ltmeus{flex:1 1 0;min-height:70px;overflow:auto}
   .lt-modo-col .lt-ml{padding:4px 0}
 }
+/* goleiros · histórico individual e gravações */
+.gol-k[data-gk]{cursor:pointer;transition:box-shadow .15s}.gol-k[data-gk]:hover{box-shadow:0 8px 24px rgba(16,24,32,.12)}
+.gol-hist{display:block;margin-top:8px;font-size:12px;font-weight:700;color:#13295b}
+.gol-lk1{font-size:11px;color:#c62828;font-weight:700;margin-left:4px}
+.gol-lks{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.gol-lks a{font-size:12px;font-weight:700;color:#c62828;background:#fdecea;border-radius:16px;padding:4px 10px;text-decoration:none}.gol-lks a:hover{background:#f9d6d2}
+.gol-flk{display:grid;grid-template-columns:1fr 200px auto;gap:6px;margin-bottom:6px}
+.gol-hh{display:flex;gap:14px;align-items:center;margin-bottom:10px}.gol-hh h2{margin:2px 0}.gol-hf .av,.gol-hf img{width:64px;height:64px}
+.gol-his{display:flex;flex-direction:column;gap:8px;margin:6px 0 10px}
+.gol-hi{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:#fbfcfd;cursor:pointer}.gol-hi:hover{border-color:#c9d1d7}
+.gol-hi>div{flex:1;min-width:0}.gol-hi .gol-chs{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.gol-ho{margin:6px 0 0;font-size:13px;color:#13295b;background:#eef3fb;border-left:3px solid #13295b;padding:5px 9px;border-radius:0 8px 8px 0}
+@media (max-width:760px){.gol-flk{grid-template-columns:1fr auto}.gol-flk [data-l=rot]{grid-column:1}}

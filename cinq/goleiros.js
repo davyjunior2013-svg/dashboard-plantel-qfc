@@ -2,9 +2,14 @@
    Um relatório por treino (data, turno, duração, quem treinou, atividades com nome/tipo/descrição,
    observação opcional por goleiro e observação geral). A página mostra os goleiros, os KPIs do período
    (semana ou mês) e a lista de treinos; o PDF junta os treinos do período.
+   Cada goleiro tem o próprio histórico (clicando no card): os treinos em que ele esteve, com a observação dele,
+   os links das gravações e PDF só dele. Cada treino pode ter links (gravação do treino).
    Escrita: Treinador de goleiros (funcao 'goleiros') e admin. Leitura: toda a comissão. */
 FUNCOES.goleiros = 'Treinador de goleiros';
-S.gol = { ok: false, per: 'semana', ref: null, tr: [], ult: null, bib: [], cfg: {} };
+S.gol = { ok: false, per: 'semana', ref: null, tr: [], ult: null, bib: [], cfg: {}, h: { per: 'tudo', ref: null } };
+const golLinks = t => (Array.isArray(t?.links) ? t.links : []).filter(l => l && l.url);
+const golUrlOk = u => /^https?:\/\/\S+$/i.test(String(u || '').trim());
+const golLinksHTML = (t, cls = 'gol-lks') => { const L = golLinks(t); return L.length ? `<div class="${cls}">${L.map(l => `<a href="${esc(l.url)}" target="_blank" rel="noopener">▶ ${esc(l.rotulo || 'Gravação do treino')}</a>`).join('')}</div>` : ''; };
 const podeGol = () => isAdmin() || S.perfil?.funcao === 'goleiros';
 const golElenco = () => S.atletas.filter(a => a.ativo && a.status !== 'Inativo' && a.posicao === 'Goleiro').sort((a, b) => (a.numero ?? 99) - (b.numero ?? 99) || a.nome.localeCompare(b.nome, 'pt'));
 // goleiros que treinam com o grupo sem ser do elenco profissional (Ajustes): id negativo, ficam só neste módulo
@@ -75,14 +80,14 @@ async function pGoleiros() {
     ${kpi('Último treino', u ? `${GOL_DS[parse(u.data).getDay()]} ${fmt(u.data)}` : '—', u ? `${esc(u.turno)}${u.dur ? ` · ${u.dur}'` : ''} · ${(u.presentes || []).length} goleiros` : '')}
     ${kpi('Mais trabalhado', st.tipos.length ? esc(st.tipos[0][0]) : '—', st.tipos.length ? `${st.tipos[0][2]}% das atividades${st.tipos[1] ? ` · depois ${esc(st.tipos[1][0])}` : ''}` : st.nAt ? 'marque o tipo nas atividades' : '')}</div>`;
   const gkCard = a => { const g = st.gk[a.id], o = golObsUlt(T, a.id), s = sit(a), pct = st.n ? g.n / st.n * 100 : 0;
-    return `<div class="gol-k"><div class="gol-kf">${a.foto_url ? fotoFundo(a) : `<i class="fbg flk-escbg" style="background-image:url('${LOGO}')"></i>`}
+    return `<div class="gol-k" data-gk="${a.id}" title="Ver o histórico de ${esc(a.nome)}"><div class="gol-kf">${a.foto_url ? fotoFundo(a) : `<i class="fbg flk-escbg" style="background-image:url('${LOGO}')"></i>`}
       <div class="gol-kn">${a.numero ? `<em>${a.numero}</em>` : ''}<b>${esc(a.nome)}</b>${s !== 'Liberado' ? `<span class="gol-dm">${esc(s)}</span>` : ''}${a.extra ? '<span class="gol-ext">Fora do elenco profissional</span>' : ''}</div></div>
       <div class="gol-kb"><div class="gol-kl"><span>Presença</span><b>${g.n}/${st.n}</b></div><div class="gol-bar"><i style="width:${pct}%"></i></div>
       <div class="gol-kl"><span>Minutos</span><b>${g.min ? g.min + "'" : '—'}</b></div>
-      ${o ? `<p class="gol-ko" title="${esc(o.txt)}">“${esc(o.txt)}” <small>${fmt(o.data)}</small></p>` : ''}</div></div>`; };
+      ${o ? `<p class="gol-ko" title="${esc(o.txt)}">“${esc(o.txt)}” <small>${fmt(o.data)}</small></p>` : ''}<span class="gol-hist">Histórico individual ›</span></div></div>`; };
   const linha = t => { const d = parse(t.data), at = t.ativ || [];
     return `<button class="gol-tr" data-t="${t.id}"><span class="gol-dt"><small>${GOL_DS[d.getDay()]}</small><b>${String(d.getDate()).padStart(2, '0')}</b><small>${GOL_MES[d.getMonth()].slice(0, 3)}</small></span>
-      <span class="gol-tm"><b>${esc(t.turno)}${t.dur ? ` · ${t.dur}'` : ''}</b><span class="gol-chs">${at.slice(0, 4).map(x => `<i>${esc(x.nome || 'Atividade')}</i>`).join('')}${at.length > 4 ? `<i class="m">+${at.length - 4}</i>` : ''}${at.length ? '' : '<i class="m">sem atividades</i>'}</span></span>
+      <span class="gol-tm"><b>${esc(t.turno)}${t.dur ? ` · ${t.dur}'` : ''}${golLinks(t).length ? ' <span class="gol-lk1" title="Tem gravação">▶ vídeo</span>' : ''}</b><span class="gol-chs">${at.slice(0, 4).map(x => `<i>${esc(x.nome || 'Atividade')}</i>`).join('')}${at.length > 4 ? `<i class="m">+${at.length - 4}</i>` : ''}${at.length ? '' : '<i class="m">sem atividades</i>'}</span></span>
       <span class="gol-av">${gks.map(a => `<span class="${(t.presentes || []).includes(a.id) ? '' : 'fora'}" title="${esc(a.nome)}${(t.presentes || []).includes(a.id) ? '' : ' · não treinou'}">${foto(a)}</span>`).join('')}</span><span class="gol-ver">›</span></button>`; };
   $('#main').innerHTML = cab + per + kpis + `<div class="gol-ks">${gks.map(gkCard).join('') || '<div class="panel empty">Nenhum goleiro ativo no Elenco.</div>'}</div>
     <div class="panel"><h2>Treinos <small class="m">${esc(f.txt)}</small></h2>
@@ -92,13 +97,14 @@ async function pGoleiros() {
   $('#golprev').onclick = () => golMove(-1); $('#golnext').onclick = () => golMove(1); if ($('#golhoje')) $('#golhoje').onclick = () => { S.gol.ref = golRefHoje(); pGoleiros(); };
   $('#golpdf').onclick = () => T.length ? golPDFEscolher(T, f) : toast('Nenhum treino neste período.', true);
   document.querySelectorAll('.gol-tr').forEach(b => b.onclick = () => golVer(T.find(x => x.id === +b.dataset.t)));
+  document.querySelectorAll('[data-gk]').forEach(c => c.onclick = () => golHistorico(+c.dataset.gk));
   if (!pode) return;
   $('#goladd').onclick = () => golForm(null);
   $('#golaj').onclick = golAjustes;
 }
 
 /* ---------- ver um treino ---------- */
-function golVer(t) {
+function golVer(t, volta) {
   if (!t) return;
   const gks = golGoleiros(), pode = podeGol(), d = parse(t.data), fora = gks.filter(a => !(t.presentes || []).includes(a.id));
   const obs = gks.filter(a => t.obs?.[a.id]);
@@ -107,8 +113,9 @@ function golVer(t) {
     <div class="gol-vats">${(t.ativ || []).map((x, i) => `<div class="gol-vat"><em>${i + 1}</em><div><b>${esc(x.nome || 'Atividade')}</b>${x.tipo ? ` <span class="badge">${esc(x.tipo)}</span>` : ''}${x.desc ? `<p>${esc(x.desc).replace(/\n/g, '<br>')}</p>` : ''}</div></div>`).join('') || '<p class="empty">Sem atividades descritas.</p>'}</div>
     ${obs.length ? `<h3 class="gol-h3">Observações por goleiro</h3><div class="gol-vobs">${obs.map(a => `<div><b>${esc(a.nome)}</b><span>${esc(t.obs[a.id])}</span></div>`).join('')}</div>` : ''}
     ${t.nota ? `<h3 class="gol-h3">Observação geral</h3><p>${esc(t.nota).replace(/\n/g, '<br>')}</p>` : ''}
+    ${golLinks(t).length ? `<h3 class="gol-h3">Gravação do treino</h3>${golLinksHTML(t)}` : ''}
     <div class="mfoot">${pode ? '<button class="btn dan" id="golvdel">Excluir</button>' : '<span></span>'}<div class="row"><button class="btn" id="golvpdf">PDF deste treino</button>${pode ? '<button class="btn" id="golved">Editar</button>' : ''}<button class="btn pri" id="golvx">Fechar</button></div></div>`, true);
-  $('#golvx').onclick = fechar;
+  $('#golvx').onclick = () => volta ? volta() : fechar();
   $('#golvpdf').onclick = () => { fechar(); golPDF([t], { txt: `${GOL_DL[d.getDay()]}, ${dataBR(t.data)} · ${t.turno}`, curto: t.data, um: true }, (t.presentes || []).slice()); };
   if (!pode) return;
   $('#golved').onclick = () => golForm(t);
@@ -117,17 +124,57 @@ function golVer(t) {
     fechar(); S.golCal = {}; toast('Relatório excluído.'); pGoleiros(); };
 }
 
+/* ---------- histórico individual do goleiro ---------- */
+function golHFaixa() {
+  const h = S.gol.h;
+  if (h.per === 'tudo') return { de: null, ate: null, txt: 'Todo o histórico', curto: 'historico' };
+  if (h.per === 'mes') { const [y, m] = h.ref.split('-').map(Number), ult = new Date(y, m, 0).getDate(); return { de: h.ref, ate: `${h.ref.slice(0, 8)}${String(ult).padStart(2, '0')}`, txt: `${GOL_MES[m - 1][0].toUpperCase() + GOL_MES[m - 1].slice(1)} de ${y}`, curto: `${GOL_MES[m - 1]}_${y}` }; }
+  const fim = addDays(h.ref, 6); return { de: h.ref, ate: fim, txt: `Semana ${fmt(h.ref)} a ${fmt(fim)}`, curto: h.ref };
+}
+async function golHistorico(id) {
+  const a = golGoleiros().find(x => x.id === id); if (!a) return;
+  const h = S.gol.h; if (!h.ref || h.per === 'tudo') h.ref = h.per === 'mes' ? hoje().slice(0, 8) + '01' : segunda(hoje());
+  const f = golHFaixa();
+  modal('<p class="empty">Carregando o histórico…</p>', true);
+  let q = sb.from('gol_treinos').select('*'); if (f.de) q = q.gte('data', f.de).lte('data', f.ate);
+  const { data, error } = await q; if (error) { fechar(); return toast(erroAmigavel(error), true); }
+  const todos = data.sort((x, y) => golOrdT(x).localeCompare(golOrdT(y))), T = todos.filter(t => (t.presentes || []).includes(id));
+  const st = golStats(T, [a]), min = st.gk[id].min, pres = todos.length ? Math.round(T.length / todos.length * 100) : null;
+  const obsN = T.filter(t => t.obs?.[id]).length, vids = T.filter(t => golLinks(t).length).length;
+  const kpi = (l, v, s) => `<div class="card"><div class="l">${l}</div><div class="v">${v}</div>${s ? `<div class="s">${s}</div>` : ''}</div>`;
+  const item = t => { const d = parse(t.data), o = t.obs?.[id];
+    return `<div class="gol-hi" data-ht="${t.id}"><span class="gol-dt"><small>${GOL_DS[d.getDay()]}</small><b>${String(d.getDate()).padStart(2, '0')}</b><small>${GOL_MES[d.getMonth()].slice(0, 3)}</small></span>
+      <div><b>${esc(t.turno)}${t.dur ? ` · ${t.dur}'` : ''}</b>${(t.ativ || []).length ? `<span class="gol-chs">${t.ativ.map(x => `<i>${esc(x.nome || 'Atividade')}${x.tipo ? ` · ${esc(x.tipo)}` : ''}</i>`).join('')}</span>` : ''}
+        ${o ? `<p class="gol-ho">“${esc(o)}”</p>` : ''}${golLinksHTML(t)}</div></div>`; };
+  const seg = (v, l) => `<button data-hp="${v}" class="${h.per === v ? 'on' : ''}">${l}</button>`;
+  modal(`<div class="gol-hh">${a.foto_url ? `<span class="gol-hf">${foto(a)}</span>` : ''}<div><small class="m">Histórico individual</small><h2>${esc(a.nome)}</h2>${a.extra ? '<span class="gol-ext">Fora do elenco profissional</span>' : ''}</div></div>
+    <div class="gol-per"><div class="gol-seg">${seg('semana', 'Semana')}${seg('mes', 'Mês')}${seg('tudo', 'Tudo')}</div>
+      ${h.per !== 'tudo' ? '<button class="btn sm" id="ghprev">◀</button>' : ''}<b>${esc(f.txt)}</b>${h.per !== 'tudo' ? '<button class="btn sm" id="ghnext">▶</button>' : ''}</div>
+    <div class="cards gol-kpis">${kpi('Treinos', T.length, pres != null ? `presença ${pres}% (${T.length} de ${todos.length})` : '')}${kpi('Minutos', min ? min + "'" : '—', T.length && min ? `média de ${Math.round(min / T.length)}' por treino` : '')}
+      ${kpi('Mais trabalhado', st.tipos.length ? esc(st.tipos[0][0]) : '—', st.tipos.length ? `${st.tipos[0][2]}% das atividades` : '')}${kpi('Observações', obsN, vids ? `${vids} treino${vids === 1 ? '' : 's'} com gravação` : '')}</div>
+    <div class="gol-his">${T.length ? [...T].reverse().map(item).join('') : '<p class="empty">Nenhum treino deste goleiro no período.</p>'}</div>
+    <div class="mfoot"><span></span><div class="row"><button class="btn" id="ghpdf"${T.length ? '' : ' disabled'}>PDF de ${golPrim(a)}</button><button class="btn pri" id="ghx">Fechar</button></div></div>`, true);
+  const vai = () => golHistorico(id);
+  document.querySelectorAll('[data-hp]').forEach(b => b.onclick = () => { h.per = b.dataset.hp; h.ref = null; vai(); });
+  const mv = n => { if (h.per === 'semana') h.ref = addDays(h.ref, 7 * n); else { const [y, m] = h.ref.split('-').map(Number), d = new Date(y, m - 1 + n, 1); h.ref = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`; } vai(); };
+  if ($('#ghprev')) { $('#ghprev').onclick = () => mv(-1); $('#ghnext').onclick = () => mv(1); }
+  document.querySelectorAll('[data-ht]').forEach(el => el.onclick = e => { if (e.target.closest('a')) return; golVer(T.find(t => t.id === +el.dataset.ht), vai); });
+  $('#ghx').onclick = fechar;
+  $('#ghpdf').onclick = () => { fechar(); golPDF(T, { ...f, gk: a, pres, total: todos.length }, [id]); };
+}
+
 /* ---------- adicionar / editar ---------- */
 function golForm(t) {
   const gks = golGoleiros(), tipos = golTipos(), h = hoje();
   const sesHoje = S.sessoes?.find(s => s.data === h && !['Folga', 'Jogo', 'Amistoso'].includes(s.tipo));
-  const F = t ? JSON.parse(JSON.stringify(t)) : { data: h, turno: sesHoje?.turno || 'Tarde', dur: null, presentes: gks.map(a => a.id), ativ: [{ nome: '', tipo: '', desc: '' }], obs: {}, nota: '' };
-  F.ativ = F.ativ || []; F.obs = F.obs || {};
+  const F = t ? JSON.parse(JSON.stringify(t)) : { data: h, turno: sesHoje?.turno || 'Tarde', dur: null, presentes: gks.map(a => a.id), ativ: [{ nome: '', tipo: '', desc: '' }], obs: {}, nota: '', links: [] };
+  F.ativ = F.ativ || []; F.obs = F.obs || {}; F.links = Array.isArray(F.links) ? F.links : [];
   const le = () => {
     F.data = $('#gfdata').value || F.data; F.turno = $('#gfturno').value; const v = $('#gfdur').value; F.dur = v === '' ? null : +v; F.nota = $('#gfnota').value.trim();
     F.presentes = [...document.querySelectorAll('[data-gp].on')].map(b => +b.dataset.gp);
     document.querySelectorAll('.gol-fat').forEach((el, k) => { ['nome', 'tipo', 'desc'].forEach(c => { F.ativ[k][c] = el.querySelector(`[data-f=${c}]`).value; }); });
     document.querySelectorAll('[data-go]').forEach(x => { const s = x.value.trim(); if (s) F.obs[x.dataset.go] = s; else delete F.obs[x.dataset.go]; });
+    document.querySelectorAll('.gol-flk').forEach((el, k) => { F.links[k] = { url: el.querySelector('[data-l=url]').value.trim(), rotulo: el.querySelector('[data-l=rot]').value.trim() }; });
   };
   const abreObs = Object.keys(F.obs).length > 0;
   const desenha = () => {
@@ -145,9 +192,14 @@ function golForm(t) {
       <details class="gol-fobs"${abreObs ? ' open' : ''}><summary>Observação por goleiro <small class="m">(opcional)</small></summary>
         ${gks.map(a => `<label class="f"><span>${esc(a.nome)}</span><input class="in" data-go="${a.id}" value="${esc(F.obs[a.id] || '')}" placeholder="Ex.: evoluiu na queda meia altura"></label>`).join('')}</details>
       <label class="f"><span>Observação geral <small class="m">(opcional)</small></span><textarea class="in" id="gfnota" rows="2">${esc(F.nota || '')}</textarea></label>
+      <div class="f"><span>Gravação do treino <small class="m">(opcional · link do YouTube, Drive…)</small></span>
+        ${F.links.map((l, k) => `<div class="gol-flk"><input class="in" data-l="url" value="${esc(l.url || '')}" placeholder="https://…"><input class="in" data-l="rot" value="${esc(l.rotulo || '')}" placeholder="Nome (ex.: Câmera 1)"><button type="button" class="btn sm dan" data-lkd="${k}" title="Remover">✕</button></div>`).join('')}
+        <button type="button" class="btn sm" id="gflk">+ Link</button></div>
       <div class="mfoot"><span></span><div class="row"><button class="btn" id="gfc">Cancelar</button><button class="btn pri" id="gfs">Salvar relatório</button></div></div>`, true);
     document.querySelectorAll('[data-gp]').forEach(b => b.onclick = () => b.classList.toggle('on'));
     $('#gfadd').onclick = () => { le(); F.ativ.push({ nome: '', tipo: '', desc: '' }); desenha(); };
+    $('#gflk').onclick = () => { le(); F.links.push({ url: '', rotulo: '' }); desenha(); setTimeout(() => { const i = [...document.querySelectorAll('.gol-flk [data-l=url]')].pop(); if (i) i.focus(); }, 0); };
+    document.querySelectorAll('[data-lkd]').forEach(b => b.onclick = () => { le(); F.links.splice(+b.dataset.lkd, 1); desenha(); });
     if ($('#gfbib')) $('#gfbib').onchange = () => { le(); const it = S.gol.bib.find(x => x.id === +$('#gfbib').value); if (it) { if (F.ativ.length === 1 && !F.ativ[0].nome && !F.ativ[0].desc) F.ativ = []; F.ativ.push({ nome: it.nome, tipo: it.tipo || '', desc: it.descricao || '' }); } desenha(); };
     document.querySelectorAll('[data-fa]').forEach(b => b.onclick = async () => { le(); const k = +b.dataset.k, a = b.dataset.fa;
       if (a === 'del') F.ativ.splice(k, 1); else if (a === 'up' && k > 0) [F.ativ[k - 1], F.ativ[k]] = [F.ativ[k], F.ativ[k - 1]];
@@ -158,7 +210,8 @@ function golForm(t) {
     $('#gfc').onclick = () => t ? golVer(t) : fechar();
     $('#gfs').onclick = async () => { le();
       if (!F.data) return toast('Informe a data.', true);
-      const row = { data: F.data, turno: F.turno, dur: F.dur, presentes: F.presentes, obs: F.obs, nota: F.nota || null, atualizado_em: new Date().toISOString(),
+      F.links = F.links.filter(l => l.url).map(l => ({ ...l, url: /^https?:\/\//i.test(l.url) || !/\.\S/.test(l.url) ? l.url : 'https://' + l.url })); const ruim = F.links.find(l => !golUrlOk(l.url)); if (ruim) return toast('O link precisa começar com http:// ou https://', true);
+      const row = { data: F.data, turno: F.turno, dur: F.dur, presentes: F.presentes, obs: F.obs, nota: F.nota || null, links: F.links, atualizado_em: new Date().toISOString(),
         ativ: F.ativ.map(x => ({ nome: (x.nome || '').trim(), tipo: x.tipo || '', desc: (x.desc || '').trim() })).filter(x => x.nome || x.desc) };
       const q = t ? sb.from('gol_treinos').update(row).eq('id', t.id) : sb.from('gol_treinos').insert(row);
       const { error } = await q; if (error) return toast(erroAmigavel(error), true);
@@ -237,12 +290,12 @@ function golPDF(T, f, sel) {
   const treino = t => { const d = parse(t.data), fora = gks.filter(a => !(t.presentes || []).includes(a.id)), obs = gks.filter(a => t.obs?.[a.id]);
     return `<div class="golp-t"><div class="golp-td"><small>${GOL_DS[d.getDay()]}</small><b>${fmt(t.data)}</b><span>${esc(t.turno)}</span>${t.dur ? `<em>${t.dur}'</em>` : ''}</div>
       <div class="golp-tc">${(t.ativ || []).map((x, i) => `<div class="golp-a"><i>${i + 1}</i><div><b>${esc(x.nome || 'Atividade')}</b>${x.tipo ? `<u>${esc(x.tipo)}</u>` : ''}${x.desc ? `<p>${esc(x.desc).replace(/\n/g, '<br>')}</p>` : ''}</div></div>`).join('') || '<p class="golp-m">Sem atividades descritas.</p>'}
-        <div class="golp-tf">${fora.length ? `<span>Não treinou: <b>${fora.map(golPrim).join(', ')}</b></span>` : `<span>Treinaram os ${gks.length} goleiros</span>`}${obs.map(a => `<span><b>${golPrim(a)}:</b> ${esc(t.obs[a.id])}</span>`).join('')}${t.nota ? `<span><b>Obs.:</b> ${esc(t.nota)}</span>` : ''}</div></div></div>`; };
+        <div class="golp-tf">${f.gk ? '' : fora.length ? `<span>Não treinou: <b>${fora.map(golPrim).join(', ')}</b></span>` : `<span>Treinaram os ${gks.length} goleiros</span>`}${obs.map(a => `<span><b>${golPrim(a)}:</b> ${esc(t.obs[a.id])}</span>`).join('')}${t.nota ? `<span><b>Obs.:</b> ${esc(t.nota)}</span>` : ''}${golLinks(t).map(l => `<span><b>${esc(l.rotulo || 'Gravação')}:</b> <a href="${esc(l.url)}">${esc(l.url)}</a></span>`).join('')}</div></div></div>`; };
   const html = `<section class="golp">
-    <div class="golp-cab"><img src="${LOGO}" alt=""><div class="golp-ct"><small>QFC · DEPARTAMENTO DE GOLEIROS</small><h1>Relatório de treinamento</h1></div>
-      <div class="golp-cp"><b>${esc(f.um ? f.txt : (S.gol.per === 'mes' ? f.txt : 'Semana ' + f.txt))}</b>${tr ? `<span>Treinador de goleiros: ${esc(tr)}</span>` : ''}</div></div>
-    ${f.um ? '' : `<div class="golp-k">${box(st.n, 'treinos')}${box(st.min ? st.min + "'" : '—', 'minutos no total')}${box(st.media ? st.media + "'" : '—', 'média por treino')}${box(st.pres != null ? st.pres + '%' : '—', 'presença média')}</div>`}
-    <div class="golp-g" style="grid-template-columns:repeat(${Math.min(5, Math.max(gks.length, 3))},1fr)">${gks.map(a => { const g = st.gk[a.id]; return `<div>${ftG(a)}<b>${esc(a.nome)}</b><small>${g.n}/${st.n} treinos${g.min ? ` · ${g.min}'` : ''}</small></div>`; }).join('')}</div>
+    <div class="golp-cab"><img src="${LOGO}" alt=""><div class="golp-ct"><small>QFC · DEPARTAMENTO DE GOLEIROS</small><h1>${f.gk ? 'Relatório individual · ' + esc(f.gk.nome) : 'Relatório de treinamento'}</h1></div>
+      <div class="golp-cp"><b>${esc(f.um || f.gk ? f.txt : (S.gol.per === 'mes' ? f.txt : 'Semana ' + f.txt))}</b>${tr ? `<span>Treinador de goleiros: ${esc(tr)}</span>` : ''}</div></div>
+    ${f.um ? '' : `<div class="golp-k">${box(st.n, 'treinos')}${box(st.min ? st.min + "'" : '—', 'minutos no total')}${box(st.media ? st.media + "'" : '—', 'média por treino')}${f.gk ? box(f.pres != null ? f.pres + '%' : '—', `presença (${T.length} de ${f.total})`) : box(st.pres != null ? st.pres + '%' : '—', 'presença média')}</div>`}
+    ${f.gk ? '' : `<div class="golp-g" style="grid-template-columns:repeat(${Math.min(5, Math.max(gks.length, 3))},1fr)">${gks.map(a => { const g = st.gk[a.id]; return `<div>${ftG(a)}<b>${esc(a.nome)}</b><small>${g.n}/${st.n} treinos${g.min ? ` · ${g.min}'` : ''}</small></div>`; }).join('')}</div>`}
     ${!f.um && st.tipos.length ? `<div class="golp-tp"><h2>Distribuição por tipo de atividade</h2>${st.tipos.map(([t, v, p]) => `<div><span>${esc(t)}</span><i><s style="width:${p}%"></s></i><b>${p}%</b></div>`).join('')}</div>` : ''}
     <h2 class="golp-h2">${f.um ? 'Treino' : 'Treinos do período'}</h2>${T.map(treino).join('')}
     <div class="golp-rod">CINQ · Centro de Inteligência do QFC · gerado em ${new Date().toLocaleDateString('pt-BR')}</div></section>`;
@@ -250,7 +303,7 @@ function golPDF(T, f, sel) {
   const w = document.createElement('div'); w.id = 'print-area'; w.className = 'golp-w'; w.innerHTML = html;
   const stl = document.createElement('style'); stl.id = 'flp-page'; stl.textContent = '@page{size:A4 portrait;margin:10mm}';
   document.head.appendChild(stl); document.body.appendChild(w); document.body.classList.add('imprimindo');
-  const tt = document.title; document.title = `Relatorio_goleiros_${f.curto}`;
+  const tt = document.title; document.title = f.gk ? `Goleiro_${f.gk.nome.replace(/\s+/g, '_')}_${f.curto}` : `Relatorio_goleiros_${f.curto}`;
   setTimeout(() => { window.print(); setTimeout(() => { w.remove(); stl.remove(); document.body.classList.remove('imprimindo'); document.title = tt; }, 500); }, 400);
 }
 
