@@ -10,7 +10,8 @@
 S.fl = { ok: false, sess: [], gps: [], cmj: [], vinc: [], cfg: {}, aba: 'pos', sel: null, dataP: null, rev: 0,
   cf: { per: 'semana', ref: null, pos: '', at: '', md: '', tipo: '', vis: 'atleta', modo: 'soma', met: 'dist' },
   ev: { per: '4sem', ref: null, modo: 'atletas', ats: [], pos: '', met: 'dist', md: '', tipo: '' },
-  ck: { sel: null, modelo: 'comissao', vis: 'todos', at: null } };
+  ck: { sel: null, modelo: 'comissao', vis: 'todos', at: null },
+  rk: { per: 'semana', ref: null, tipo: '', modo: 'soma' } };
 const FL_ABAS = [['pos', 'Pós-treino'], ['prontidao', 'Prontidão'], ['velocidade', 'Velocidade 🔔'], ['carga', 'Carga'], ['evolucao', 'Evolução'], ['cards', 'Relatório de treino']];
 const podeFisl = () => isAdmin() || S.perfil?.funcao === 'fisico';
 const flN = v => v == null || v === '' || isNaN(v) ? null : Number(v);
@@ -888,35 +889,97 @@ function flCard(s, r, tot, modelo) {
     <div class="flk-sub"><span>${dt}</span><span>${flDur(r.duracao_s)}</span></div>
     <div class="flk-bs">${FL_CK.comissao.map(barra).join('')}</div>${rod}</div>`;
 }
+/* ---------- ranking (top 3) das métricas do card do atleta ---------- */
+const FL_RK = FL_CK.atleta;   // distância total, alta intensidade, nº de sprints, velocidade máxima
+const flTop3 = (L, k) => L.filter(r => (+r[k] || 0) > 0).sort((a, b) => (+b[k] || 0) - (+a[k] || 0)).slice(0, 3);
+const flRkFt = r => { const a = r.atleta_id && S.atletas.find(x => x.id === r.atleta_id); return a?.foto_url ? `<span class="flr-ft">${fotoFundo(a)}</span>` : `<span class="flr-ft flr-ini">${esc(iniciais(flNomeAt(r)))}</span>`; };
+const flRkNome = r => { const n = flNomeAt(r).split(' '); return n.length > 1 ? `${n[0]} ${n[n.length - 1][0]}.` : n[0]; };
+// L = linhas com o valor de cada métrica (sessão: totais; período: soma/média/maior por atleta)
+function flPodio(L, tit, sub) {
+  return `<div class="flr"><div class="flr-cab"><img src="${LOGO}" alt=""><div><b>${esc(tit)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</div><span class="flr-tag">TOP 3</span></div>
+    <div class="flr-gs">${FL_RK.map(([k, l, u, d]) => { const T = flTop3(L, k);
+      return `<div class="flr-m"><h5>${esc(l)}</h5>${T.length ? T.map((r, i) => `<div class="flr-l p${i + 1}"><i>${i + 1}</i>${flRkFt(r)}<span class="flr-n">${esc(flRkNome(r))}</span><b>${flFmt(r[k], d)}${u ? ` <small>${u}</small>` : ''}</b></div>`).join('') : '<p class="m">—</p>'}</div>`; }).join('')}</div></div>`;
+}
 function pCards() {
   const c = S.fl.ck, sess = [...S.fl.sess].sort((a, b) => flOrdS(b, a)), s = flSessao(c.sel) || sess[0];
   const tot = s ? flTotais(s.id).sort((a, b) => flOrdPos(flPos(a)) - flOrdPos(flPos(b)) || flNomeAt(a).localeCompare(flNomeAt(b), 'pt')) : [];
   const um = c.vis === 'individual' ? tot.find(r => r.nome_origem === c.at) || tot[0] : null;
   $('#main').innerHTML = topo('Fisiologia', 'Relatório de treino', 'Card de cada atleta na sessão: modelo da comissão (completo) ou do atleta (simples, para mandar para ele).',
-    s ? `<button class="btn" id="flkpdf">Baixar PDF</button><button class="btn pri" id="flkpng">Baixar ${c.vis === 'todos' ? 'imagens' : 'imagem'} (PNG)</button>` : '') + flTabs('cards') + (!s ? '<div class="panel empty">Nenhuma sessão importada ainda.</div>' : `
+    s ? `<button class="btn" id="flkrk">🏆 Ranking semanal / mensal</button><button class="btn" id="flkpdf">Baixar PDF</button><button class="btn pri" id="flkpng">Baixar ${c.vis === 'todos' ? 'imagens' : 'imagem'} (PNG)</button>` : '') + flTabs('cards') + (!s ? '<div class="panel empty">Nenhuma sessão importada ainda.</div>' : `
     <div class="dm-dia fl-filtros"><select class="in" id="flksel">${sess.map(x => `<option value="${x.id}"${x.id === s.id ? ' selected' : ''}>${esc(flSessOpt(x))}</option>`).join('')}</select>
       <div class="ind-tabs fl-modo"><button data-km="comissao" class="${c.modelo === 'comissao' ? 'on' : ''}">Comissão</button><button data-km="atleta" class="${c.modelo === 'atleta' ? 'on' : ''}">Atleta</button></div>
       <div class="ind-tabs fl-modo"><button data-kv="todos" class="${c.vis === 'todos' ? 'on' : ''}">Todos</button><button data-kv="individual" class="${c.vis === 'individual' ? 'on' : ''}">Individual</button></div>
       ${c.vis === 'individual' ? `<select class="in" id="flkat">${opts(tot.map(r => [r.nome_origem, flNomeAt(r)]), um?.nome_origem)}</select>` : ''}</div>
+    ${c.vis === 'todos' && tot.length ? flPodio(tot, `Destaques do ${s.tipo === 'Jogo' ? 'jogo' : 'treino'} · ${dataBR(s.data)}`, s.md?.length ? flMdTxt(s) : '') : ''}
     <div class="flk-grid${c.vis === 'individual' ? ' um' : ''}" id="flkg">${(um ? [um] : tot).map(r => flCard(s, r, tot, c.modelo)).join('')}</div>
     <p class="m fl-nota">PNG: ${c.vis === 'todos' ? 'sai em imagens com até 8 atletas cada' : 'imagem do card do atleta, para mandar no WhatsApp'}. PDF: 4 cards por página A4.</p>`);
   ligarFlTabs();
   if (!s) return;
   $('#flksel').onchange = e => { c.sel = +e.target.value; pCards(); };
+  $('#flkrk').onclick = () => pRanking();
   document.querySelectorAll('[data-km]').forEach(b => b.onclick = () => { c.modelo = b.dataset.km; pCards(); });
   document.querySelectorAll('[data-kv]').forEach(b => b.onclick = () => { c.vis = b.dataset.kv; pCards(); });
   if ($('#flkat')) $('#flkat').onchange = e => { c.at = e.target.value; pCards(); };
   const lista = um ? [um] : tot;
   $('#flkpdf').onclick = () => { const pg = []; for (let i = 0; i < lista.length; i += 4) pg.push(lista.slice(i, i + 4));
-    imprimirFl(pg.map(p => `<section class="flp-pg">${flCab(c.modelo === 'atleta' ? 'RELATÓRIO DE TREINO' : 'RELATÓRIO DE TREINO · COMISSÃO', s.data, `${s.tipo}${s.md?.length ? ' | ' + flMdTxt(s) : ''}`)}<div class="flk-grid flk-pdf">${p.map(r => flCard(s, r, tot, c.modelo)).join('')}</div></section>`).join(''), `Relatorio_de_treino_${s.tipo}_QFC_${s.data}`); };
+    const cabP = () => flCab(c.modelo === 'atleta' ? 'RELATÓRIO DE TREINO' : 'RELATÓRIO DE TREINO · COMISSÃO', s.data, `${s.tipo}${s.md?.length ? ' | ' + flMdTxt(s) : ''}`);
+    imprimirFl(pg.map((p, i) => `<section class="flp-pg flp-rk">${cabP()}${!um && i === 0 ? flPodio(tot, `Destaques do ${s.tipo === 'Jogo' ? 'jogo' : 'treino'} · ${dataBR(s.data)}`, s.md?.length ? flMdTxt(s) : '') : ''}<div class="flk-grid flk-pdf">${p.map(r => flCard(s, r, tot, c.modelo)).join('')}</div></section>`).join(''), `Relatorio_de_treino_${s.tipo}_QFC_${s.data}`); };
   $('#flkpng').onclick = async () => {
     const b = $('#flkpng'); b.disabled = true; b.textContent = 'Gerando…';
     try { const grupos = []; for (let i = 0; i < lista.length; i += um ? 1 : 8) grupos.push(lista.slice(i, i + (um ? 1 : 8)));
       for (const [k, g] of grupos.entries()) { const nome = um ? `Relatorio_de_treino_${flTitulo(um.nome_origem).replace(/\s+/g, '_')}_${s.data}` : `Relatorio_de_treino_${s.data}_${k + 1}`;
-        await flPNG(`<div class="flk-exp${um ? ' um' : ''}">${um ? '' : `<div class="flk-expcab"><img src="${LOGO}" alt=""><b>QFC · Relatório de treino · ${esc(s.tipo)} de ${dataBR(s.data)}${s.md?.length ? ' · ' + esc(flMdTxt(s)) : ''}</b></div>`}<div class="flk-grid">${g.map(r => flCard(s, r, tot, c.modelo)).join('')}</div></div>`, nome); }
+        await flPNG(`<div class="flk-exp${um ? ' um' : ''}">${um ? '' : `<div class="flk-expcab"><img src="${LOGO}" alt=""><b>QFC · Relatório de treino · ${esc(s.tipo)} de ${dataBR(s.data)}${s.md?.length ? ' · ' + esc(flMdTxt(s)) : ''}</b></div>`}${!um && k === 0 ? flPodio(tot, `Destaques do ${s.tipo === 'Jogo' ? 'jogo' : 'treino'} · ${dataBR(s.data)}`, s.md?.length ? flMdTxt(s) : '') : ''}<div class="flk-grid">${g.map(r => flCard(s, r, tot, c.modelo)).join('')}</div></div>`, nome); }
       toast(grupos.length > 1 ? `${grupos.length} imagens baixadas.` : 'Imagem baixada.');
     } catch (e) { toast(e.message || 'Não consegui gerar a imagem.', true); }
     b.disabled = false; b.textContent = `Baixar ${c.vis === 'todos' ? 'imagens' : 'imagem'} (PNG)`; };
+}
+// relatório do período: top 3 (soma ou média por sessão; vel. máxima = maior marca), destaque de cada dia e vezes no top 3
+function flRkDados() {
+  const R = S.fl.rk, [ini, fim, txt] = flIntervalo(R);
+  const ss = S.fl.sess.filter(x => x.data >= ini && x.data <= fim && x.tipo !== 'Teste' && (!R.tipo || x.tipo === R.tipo)).sort(flOrdS);
+  const por = {};
+  ss.forEach(x => flTotais(x.id).forEach(r => { const id = r.atleta_id ? 'a' + r.atleta_id : 'n' + r.nome_origem;
+    const o = por[id] = por[id] || { atleta_id: r.atleta_id, nome_origem: r.nome_origem, n: 0, soma: {}, max: {}, top: {} };
+    o.n++; FL_RK.forEach(([k]) => { const v = +r[k] || 0; o.soma[k] = (o.soma[k] || 0) + v; o.max[k] = Math.max(o.max[k] || 0, v); }); }));
+  // destaque de cada sessão e quantas vezes cada um ficou no top 3
+  const dias = ss.map(x => { const tot = flTotais(x.id), d = {}; FL_RK.forEach(([k]) => { const T = flTop3(tot, k); d[k] = T[0] || null;
+    T.forEach((r, i) => { const id = r.atleta_id ? 'a' + r.atleta_id : 'n' + r.nome_origem; if (por[id]) { por[id].top[k] = por[id].top[k] || [0, 0, 0]; por[id].top[k][i]++; } }); }); return { s: x, d }; }).filter(x => FL_RK.some(([k]) => x.d[k]));
+  const L = Object.values(por).map(o => ({ atleta_id: o.atleta_id, nome_origem: o.nome_origem, n: o.n, top: o.top,
+    ...Object.fromEntries(FL_RK.map(([k]) => [k, k === 'vmax' ? o.max[k] : R.modo === 'media' ? o.soma[k] / o.n : o.soma[k]])) }));
+  return { R, ini, fim, txt, ss, dias, L };
+}
+function flRkDiaSVG(D, k, l, u, d) {
+  const P = D.dias.filter(x => x.d[k]); if (!P.length) return '';
+  const W = 640, H = 210, lft = 46, r = 10, t = 28, b = 46, mx = Math.max(...P.map(x => +x.d[k][k])) * 1.12, bw = (W - lft - r) / P.length, Y = v => t + (1 - v / mx) * (H - t - b);
+  return `<div class="flr-dg"><svg viewBox="0 0 ${W} ${H}"><text x="${lft}" y="16" class="flr-dt">${esc(l)}${u ? ` (${u})` : ''} · destaque de cada dia</text>
+    ${[.5, 1].map(f => `<line x1="${lft}" x2="${W - r}" y1="${Y(mx * f / 1.12)}" y2="${Y(mx * f / 1.12)}" class="nut-gg"/><text x="${lft - 5}" y="${Y(mx * f / 1.12) + 3}" text-anchor="end" class="flr-dy">${flFmt(mx * f / 1.12, d)}</text>`).join('')}
+    ${P.map((x, i) => { const v = +x.d[k][k], cx = lft + i * bw + bw / 2, w = Math.min(46, bw * .62); return `<rect x="${cx - w / 2}" y="${Y(v)}" width="${w}" height="${Y(0) - Y(v)}" rx="4" class="flr-bar${x.s.tipo === 'Jogo' ? ' j' : ''}"/>
+      <text x="${cx}" y="${Y(v) - 5}" text-anchor="middle" class="flr-dv">${flFmt(v, d)}</text><text x="${cx}" y="${H - 28}" text-anchor="middle" class="flr-dn">${esc(flRkNome(x.d[k]))}</text>
+      <text x="${cx}" y="${H - 14}" text-anchor="middle" class="flr-dy">${["DOM","SEG","TER","QUA","QUI","SEX","SÁB"][parse(x.s.data).getDay()]} ${fmt(x.s.data)}</text>`; }).join('')}</svg></div>`;
+}
+function flRkHTML(D, imp) {
+  const R = D.R, mt = R.modo === 'media' ? 'média por sessão' : 'soma do período';
+  const vezes = D.L.map(o => ({ o, t: FL_RK.map(([k]) => o.top[k] ? o.top[k].reduce((a, b) => a + b, 0) : 0), ouro: FL_RK.reduce((s, [k]) => s + (o.top[k]?.[0] || 0), 0) }))
+    .map(x => ({ ...x, tot: x.t.reduce((a, b) => a + b, 0) })).filter(x => x.tot).sort((a, b) => b.tot - a.tot || b.ouro - a.ouro || flNomeAt(a.o).localeCompare(flNomeAt(b.o), 'pt'));
+  return `${flPodio(D.L, `Ranking · ${D.txt}`, `${D.ss.length} sessões${R.tipo ? ' de ' + R.tipo.toLowerCase() : ''} · ${mt} (velocidade máxima = maior marca)`)}
+    <div class="${imp ? 'flr-g2p' : 'flr-g2'}">${FL_RK.map(([k, l, u, d]) => flRkDiaSVG(D, k, l, u, d)).join('')}</div>
+    ${vezes.length ? `<div class="${imp ? 'flr-vp' : 'panel'}"><h2>Vezes no top 3 das sessões <small class="m">1º · 2º · 3º lugar</small></h2><div class="tablewrap"><table class="tb fl-tab flr-tb"><thead><tr><th>Atleta</th>${FL_RK.map(([, l]) => `<th>${esc(l)}</th>`).join('')}<th>Total</th></tr></thead><tbody>
+      ${vezes.map(x => `<tr><td><b>${esc(flNomeAt(x.o))}</b> <small class="m">${x.o.n} sessões</small></td>${FL_RK.map(([k], i) => `<td>${x.t[i] ? `<b>${x.t[i]}</b> <small class="m">(${(x.o.top[k] || [0, 0, 0]).join(' · ')})</small>` : '<span class="m">—</span>'}</td>`).join('')}<td><b>${x.tot}</b></td></tr>`).join('')}</tbody></table></div></div>` : ''}`;
+}
+function pRanking() {
+  const D = flRkDados(), R = D.R;
+  $('#main').innerHTML = topo('Fisiologia', 'Ranking do período', 'Top 3 de distância total, alta intensidade, nº de sprints e velocidade máxima, o destaque de cada dia e quem mais esteve no top 3.',
+    `<button class="btn" id="flrkv">← Relatório de treino</button>${D.ss.length ? '<button class="btn pri" id="flrkpdf">Baixar PDF</button>' : ''}`) + flTabs('cards') + `
+    <div class="dm-dia fl-filtros">${flPerHTML(R, 'flrk')}<select class="in" id="flrkt">${opts(['Treino', 'Jogo'], R.tipo, 'Treino e jogo')}</select>
+      <div class="ind-tabs fl-modo"><button data-rkm="soma" class="${R.modo === 'soma' ? 'on' : ''}">Soma do período</button><button data-rkm="media" class="${R.modo === 'media' ? 'on' : ''}">Média por sessão</button></div></div>
+    ${D.ss.length ? flRkHTML(D) : '<div class="panel empty">Nenhuma sessão neste período.</div>'}`;
+  ligarFlTabs();
+  const re = () => pRanking();
+  flLigarPer(R, 'flrk', re);
+  $('#flrkt').onchange = e => { R.tipo = e.target.value; re(); };
+  document.querySelectorAll('[data-rkm]').forEach(b => b.onclick = () => { R.modo = b.dataset.rkm; re(); });
+  $('#flrkv').onclick = () => pCards();
+  if ($('#flrkpdf')) $('#flrkpdf').onclick = () => imprimirFl(`<section class="flp-pg flp-rk">${flCab('RANKING DO PERÍODO', D.fim, `${D.txt} · ${D.ss.length} sessões${R.tipo ? ' de ' + R.tipo.toLowerCase() : ''}`)}${flRkHTML(D, true)}</section>`, `Ranking_QFC_${D.ini}_${D.fim}`);
 }
 const flH2C = () => window.html2canvas ? Promise.resolve() : new Promise((ok, err) => { const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'; sc.onload = ok; sc.onerror = () => err(new Error('Não consegui carregar o gerador de imagem (sem internet?).')); document.head.appendChild(sc); });
 async function flPNG(html, nome) {
@@ -1042,7 +1105,11 @@ function flRefConteudo(ab) {
         '<b>Risco</b> = média do grupo na sessão, na mesma régua.',
         `Vel. máxima mostra o % da referência e 🔔 a partir de ${n(V.pct)}%.`]),
       sec('Modelos', ['<b>Comissão</b>: distância, m/min, alta intensidade 19,8–25,2, sprint ≥25,2, nº sprints, vmáx, acelerações, desacelerações, PL e PL/min.',
-        '<b>Atleta</b>: distância total, alta intensidade, nº de sprints e velocidade máxima (com % da referência e 🔔).']), LIM]
+        '<b>Atleta</b>: distância total, alta intensidade, nº de sprints e velocidade máxima (com % da referência e 🔔).']),
+      sec('Top 3 (destaques)', ['<b>Na sessão</b>: os 3 maiores valores da sessão em distância total, alta intensidade 19,8–25,2, nº de sprints e velocidade máxima (linha total; jogo = 1º + 2º tempo). Vai no topo da tela, do PDF e da primeira imagem PNG.',
+        '<b>Ranking do período</b> (semana, mês, microciclo…): <b>soma do período</b> ou <b>média por sessão</b> para distância, alta intensidade e nº de sprints; velocidade máxima = <b>maior marca</b> do período. Teste de velocidade não entra; filtro treino/jogo.',
+        '<b>Destaque de cada dia</b>: maior valor de cada sessão, com o nome do atleta (barra dourada = jogo).',
+        '<b>Vezes no top 3</b>: quantas sessões o atleta terminou entre os 3 primeiros em cada métrica (1º · 2º · 3º lugar). Em caso de empate no valor, a ordem é a da lista da sessão.']), LIM]
   };
   return (C[ab] || C.pos).join('');
 }
