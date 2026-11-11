@@ -899,10 +899,10 @@ const flRkFt = (r, cls = '') => { const a = r.atleta_id && S.atletas.find(x => x
 const flRkNome = r => { const t = flNomeAt(r), ap = t.match(/\(([^)]+)\)/); if (ap) return ap[1].trim(); const n = t.trim().split(/\s+/); return n.length > 1 ? `${n[0]} ${n[n.length - 1][0]}.` : n[0]; };
 // página do PDF: pódio com fotos grandes (2º · 1º · 3º)
 function flPodioPDF(L, tit, sub) {
-  return `<div class="flrp"><div class="flrp-cab"><b>${esc(tit)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}<span class="flr-tag">TOP 3</span></div>
+  return `<div class="flrp"><div class="flrp-cab"><img src="${LOGO}" alt=""><div><b>${esc(tit)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</div><span class="flr-tag">TOP 3</span></div>
     <div class="flrp-gs">${FL_RK.map(([k, l, u, d]) => { const T = flTop3(L, k), ordem = [1, 0, 2];
       return `<div class="flrp-m"><h5>${esc(l)}</h5><div class="flrp-pod">${ordem.map(i => { const r = T[i]; if (!r) return '<div class="flrp-c vazio"></div>';
-        return `<div class="flrp-c p${i + 1}">${flRkFt(r, 'g')}<i>${i + 1}</i><span>${esc(flRkNome(r))}</span><b>${flFmt(r[k], d)}${u ? ` <small>${u}</small>` : ''}</b><div class="flrp-deg"></div></div>`; }).join('')}</div></div>`; }).join('')}</div></div>`;
+        return `<div class="flrp-c p${i + 1}">${flRkFt(r, 'g')}<i>${i + 1}</i><span>${esc(flRkNome(r))}</span><b>${flFmt(r[k], d)}${u ? ` <small>${u}</small>` : ''}</b><div class="flrp-deg">${i + 1}º</div></div>`; }).join('')}</div></div>`; }).join('')}</div></div>`;
 }
 // L = linhas com o valor de cada métrica (sessão: totais; período: soma/média/maior por atleta)
 function flPodio(L, tit, sub) {
@@ -916,7 +916,7 @@ function pCards() {
   const tot = s ? flTotais(s.id).sort((a, b) => flOrdPos(flPos(a)) - flOrdPos(flPos(b)) || flNomeAt(a).localeCompare(flNomeAt(b), 'pt')) : [];
   const um = c.vis === 'individual' ? tot.find(r => r.nome_origem === c.at) || tot[0] : null;
   $('#main').innerHTML = topo('Fisiologia', 'Relatório de treino', 'Card de cada atleta na sessão: modelo da comissão (completo) ou do atleta (simples, para mandar para ele).',
-    s ? `<button class="btn" id="flkrk">🏆 Ranking semanal / mensal</button><button class="btn" id="flkpdf">Baixar PDF</button><button class="btn pri" id="flkpng">Baixar ${c.vis === 'todos' ? 'imagens' : 'imagem'} (PNG)</button>` : '') + flTabs('cards') + (!s ? '<div class="panel empty">Nenhuma sessão importada ainda.</div>' : `
+    s ? `<button class="btn" id="flkrk">🏆 Ranking semanal / mensal</button>${tot.length ? '<button class="btn" id="flktop">🥇 Exportar só o top 3</button>' : ''}<button class="btn" id="flkpdf">Baixar PDF</button><button class="btn pri" id="flkpng">Baixar ${c.vis === 'todos' ? 'imagens' : 'imagem'} (PNG)</button>` : '') + flTabs('cards') + (!s ? '<div class="panel empty">Nenhuma sessão importada ainda.</div>' : `
     <div class="dm-dia fl-filtros"><select class="in" id="flksel">${sess.map(x => `<option value="${x.id}"${x.id === s.id ? ' selected' : ''}>${esc(flSessOpt(x))}</option>`).join('')}</select>
       <div class="ind-tabs fl-modo"><button data-km="comissao" class="${c.modelo === 'comissao' ? 'on' : ''}">Comissão</button><button data-km="atleta" class="${c.modelo === 'atleta' ? 'on' : ''}">Atleta</button></div>
       <div class="ind-tabs fl-modo"><button data-kv="todos" class="${c.vis === 'todos' ? 'on' : ''}">Todos</button><button data-kv="individual" class="${c.vis === 'individual' ? 'on' : ''}">Individual</button></div>
@@ -929,6 +929,7 @@ function pCards() {
   if (!s) return;
   $('#flksel').onchange = e => { c.sel = +e.target.value; pCards(); };
   $('#flkrk').onclick = () => pRanking();
+  if ($('#flktop')) $('#flktop').onclick = () => flExportTop3(s, tot);
   document.querySelectorAll('[data-km]').forEach(b => b.onclick = () => { c.modelo = b.dataset.km; pCards(); });
   document.querySelectorAll('[data-kv]').forEach(b => b.onclick = () => { c.vis = b.dataset.kv; pCards(); });
   if ($('#flkat')) $('#flkat').onchange = e => { c.at = e.target.value; pCards(); };
@@ -1046,6 +1047,16 @@ function pCardsCompleto() {
     try { const L = sel.linhas; for (let i = 0, k = 1; i < L.length; i += 8, k++) await flPNG(`<div class="flk-exp"><div class="flk-expcab"><img src="${LOGO}" alt=""><b>QFC · ${esc(nomeA)} · ${esc(D.txt)} · 🏆 ${nTop(sel)}× no top 3</b></div><div class="flk-grid">${L.slice(i, i + 8).map(x => flCard(x.s, x.r, x.tot, c.modelo)).join('')}</div></div>`, `Historico_${arq}_${k}`);
       toast('Imagens baixadas.'); } catch (e) { toast(e.message || 'Não consegui gerar a imagem.', true); }
     b.disabled = false; b.textContent = 'Baixar imagens (PNG)'; };
+}
+// exportação só da tabela classificatória (para mostrar aos atletas); os cards continuam com os botões de sempre
+function flExportTop3(s, tot) {
+  const tit = `Destaques do ${s.tipo === 'Jogo' ? 'jogo' : 'treino'} · ${dataBR(s.data)}`, sub = s.md?.length ? flMdTxt(s) : '', nome = `Top3_${s.tipo}_QFC_${s.data}`;
+  modal(`<h2>Exportar só o top 3</h2><p class="m">${esc(tit)}. Só a tabela classificatória (pódio de cada métrica), sem os cards.</p>
+    <div class="mfoot"><button class="btn" id="fltx">Cancelar</button><div class="row"><button class="btn" id="fltpdf">PDF</button><button class="btn pri" id="fltpng">Imagem (PNG)</button></div></div>`);
+  $('#fltx').onclick = fechar;
+  $('#fltpdf').onclick = () => { fechar(); imprimirFl(`<section class="flp-pg flp-top3">${flPodioPDF(tot, tit, sub)}</section>`, nome); };
+  $('#fltpng').onclick = async () => { const b = $('#fltpng'); b.disabled = true; b.textContent = 'Gerando…';
+    try { await flPNG(`<div class="flrp-png">${flPodioPDF(tot, tit, sub)}</div>`, nome); fechar(); toast('Imagem baixada.'); } catch (e) { b.disabled = false; b.textContent = 'Imagem (PNG)'; toast(e.message || 'Não consegui gerar a imagem.', true); } };
 }
 const flH2C = () => window.html2canvas ? Promise.resolve() : new Promise((ok, err) => { const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'; sc.onload = ok; sc.onerror = () => err(new Error('Não consegui carregar o gerador de imagem (sem internet?).')); document.head.appendChild(sc); });
 async function flPNG(html, nome) {
@@ -1172,7 +1183,7 @@ function flRefConteudo(ab) {
         `Vel. máxima mostra o % da referência e 🔔 a partir de ${n(V.pct)}%.`]),
       sec('Modelos', ['<b>Comissão</b>: distância, m/min, alta intensidade 19,8–25,2, sprint ≥25,2, nº sprints, vmáx, acelerações, desacelerações, PL e PL/min.',
         '<b>Atleta</b>: distância total, alta intensidade, nº de sprints e velocidade máxima (com % da referência e 🔔).']),
-      sec('Top 3 (destaques)', ['<b>Na sessão</b>: os 3 maiores valores da sessão em distância total, alta intensidade 19,8–25,2, nº de sprints e velocidade máxima (linha total; jogo = 1º + 2º tempo). Vai no topo da tela, do PDF e da primeira imagem PNG.',
+      sec('Top 3 (destaques)', ['<b>Na sessão</b>: os 3 maiores valores da sessão em distância total, alta intensidade 19,8–25,2, nº de sprints e velocidade máxima (linha total; jogo = 1º + 2º tempo). Vai no topo da tela, numa página própria do PDF (pódio com fotos) e na primeira imagem PNG. O botão “Exportar só o top 3” gera só o pódio (PDF ou PNG), para mostrar aos atletas.',
         '<b>Ranking do período</b> (semana, mês, microciclo…): <b>soma do período</b> ou <b>média por sessão</b> para distância, alta intensidade e nº de sprints; velocidade máxima = <b>maior marca</b> do período. Teste de velocidade não entra; filtro treino/jogo.',
         '<b>Destaque de cada dia</b>: maior valor de cada sessão, com o nome do atleta (barra dourada = jogo).',
         '<b>Vezes no top 3</b>: quantas sessões o atleta terminou entre os 3 primeiros em cada métrica (1º · 2º · 3º lugar). Gráfico de barras: cada cor é uma métrica e o número no fim é o total. Em caso de empate no valor, a ordem é a da lista da sessão.',

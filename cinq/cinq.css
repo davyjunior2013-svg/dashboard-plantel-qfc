@@ -996,19 +996,6 @@ img.av{object-position:50% 20%}.av.avz{overflow:hidden;padding:0}.av.avz img{wid
 .flp-rk .flr{padding:8px 12px 10px;border-radius:10px}.flp-rk .flr-cab{margin-bottom:6px}.flp-rk .flr-cab img{width:26px;height:26px}.flp-rk .flr-cab b{font-size:13px}.flp-rk .flr-m{padding:6px 8px}.flp-rk .flr-m h5{margin-bottom:3px;font-size:9.5px}.flp-rk .flr-l{grid-template-columns:18px 24px minmax(0,1fr) auto;gap:6px;padding:1px 0}.flp-rk .flr-ft{width:24px;height:24px}.flp-rk .flr-l i{width:18px;height:18px;font-size:10px}.flp-rk .flr-l .flr-n{font-size:11px}.flp-rk .flr-l b{font-size:12px}
 
 .flr-ft img{width:100%;height:100%;object-fit:cover;display:block}
-/* pódio do PDF (fotos grandes) */
-.flrp{margin:18px 22px 0;background:linear-gradient(135deg,#13295b,#1d3f7a);border-radius:14px;padding:14px 16px 0;color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.flrp-cab{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}.flrp-cab b{font-size:20px}.flrp-cab small{color:#c9d3e6;font-size:12px}.flrp-cab .flr-tag{margin-left:auto}
-.flrp-gs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
-.flrp-m h5{margin:6px 0 14px;text-align:center;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#e0a526}
-.flrp-pod{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr) minmax(0,1fr);align-items:end;gap:4px}
-.flrp-c{display:flex;flex-direction:column;align-items:center;text-align:center;position:relative}
-.flrp-c .flr-ft.g{width:76px;height:76px;border-width:3px}.flrp-c.p1 .flr-ft.g{width:102px;height:102px;border-width:4px;border-color:#f2c94c}.flrp-c .flr-ini.g{font-size:28px}.flrp-c.p2 .flr-ft.g{border-color:#cfd6dd}.flrp-c.p3 .flr-ft.g{border-color:#d99a5b}
-.flrp-c i{font-style:normal;font-weight:900;font-size:14px;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#13295b;margin-top:-12px;position:relative;border:2px solid #13295b}
-.flrp-c.p1 i{background:#f2c94c}.flrp-c.p2 i{background:#cfd6dd}.flrp-c.p3 i{background:#d99a5b}
-.flrp-c span{font-weight:800;font-size:13px;margin-top:4px;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}.flrp-c b{font-size:15px;margin:2px 0 8px;white-space:nowrap}.flrp-c b small{font-size:9.5px;color:#c9d3e6}
-.flrp-c.p1 span,.flrp-c.p1 b{color:#ffd875}
-.flrp-deg{width:100%;border-radius:8px 8px 0 0}.flrp-c.p1 .flrp-deg{height:200px;background:#f2c94c}.flrp-c.p2 .flrp-deg{height:145px;background:#cfd6dd}.flrp-c.p3 .flrp-deg{height:100px;background:#d99a5b}
 /* vezes no top 3: barras */
 .flrb-leg{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;margin:0 0 10px}.flrb-leg span{display:flex;align-items:center;gap:5px}.flrb-leg i{width:12px;height:12px;border-radius:3px;display:inline-block}
 .flrb{display:flex;flex-direction:column;gap:7px;margin-bottom:14px}
@@ -1030,3 +1017,22 @@ img.av{object-position:50% 20%}.av.avz{overflow:hidden;padding:0}.av.avz img{wid
 .flc-top{margin-left:auto;text-align:right;background:#fff8e6;border:1px solid #f1dca6;border-radius:12px;padding:10px 14px}.flc-top b{display:block;font-size:26px;color:#9a6200}.flc-top span{display:block;font-size:12px;font-weight:700}.flc-top small{font-size:11px;color:var(--muted)}
 @media (max-width:700px){.flrb-l{grid-template-columns:130px 1fr}.flc-top{margin-left:0;text-align:left}}
 .flc-h .flr-ini.g{font-size:30px}
+
+/* pódio do top 3 (PDF e imagem): página inteira, cada métrica num quadro (opção B) */
+.flrp{margin:6mm 6mm 0;height:174mm;display:flex;flex-direction:column;background:linear-gradient(135deg,#0f2150,#1d3f7a);border-radius:5mm;padding:4mm 5mm 5mm;color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.flrp-cab{display:flex;align-items:center;gap:3mm;margin-bottom:4mm}.flrp-cab img{width:11mm;height:11mm;object-fit:contain}.flrp-cab b{font-size:7mm;display:block}.flrp-cab small{color:#c9d3e6;font-size:3.6mm}.flrp-cab .flr-tag{margin-left:auto;font-size:4mm;padding:1.2mm 3.5mm}
+.flrp-gs{flex:1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5mm;min-height:0}
+.flrp-m{display:flex;flex-direction:column;background:rgba(255,255,255,.09);border:.35mm solid rgba(224,165,38,.45);border-radius:4mm;overflow:hidden;min-height:0}
+.flrp-m h5{margin:0;text-align:center;font-size:4.4mm;letter-spacing:.08em;text-transform:uppercase;color:#13295b;background:#e0a526;padding:2.4mm 2mm;font-weight:900}
+.flrp-pod{flex:1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.55fr) minmax(0,1fr);align-items:end;gap:1.6mm;padding:3mm 3mm 0}
+.flrp-c{display:flex;flex-direction:column;align-items:center;text-align:center;position:relative;min-width:0}
+.flrp-c .flr-ft.g{width:92%;height:auto;aspect-ratio:1;border-width:.9mm;border-color:#cfd6dd}.flrp-c.p1 .flr-ft.g{width:100%;border-width:1.2mm;border-color:#f2c94c}.flrp-c.p3 .flr-ft.g{border-color:#d99a5b}
+.flrp-c .flr-ini.g{font-size:9mm}
+.flrp-c i{font-style:normal;font-weight:900;font-size:4mm;width:7.5mm;height:7.5mm;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#13295b;margin-top:-3.8mm;position:relative;border:.6mm solid #13295b}
+.flrp-c.p1 i{background:#f2c94c}.flrp-c.p2 i{background:#cfd6dd}.flrp-c.p3 i{background:#d99a5b}
+.flrp-c span{font-weight:800;font-size:3.6mm;line-height:1.1;margin-top:1mm;max-width:100%;overflow-wrap:anywhere}.flrp-c.p1 span{font-size:4.6mm}
+.flrp-c b{font-size:4.6mm;margin:.4mm 0 2mm;white-space:nowrap}.flrp-c.p1 b{font-size:6.2mm}.flrp-c b small{font-size:3mm;color:#c9d3e6}
+.flrp-c.p1 span,.flrp-c.p1 b{color:#ffd875}
+.flrp-deg{width:100%;border-radius:2mm 2mm 0 0;display:flex;align-items:flex-start;justify-content:center;padding-top:2mm;font-weight:900;color:rgba(19,41,91,.35);font-size:9mm}
+.flrp-c.p1 .flrp-deg{height:88mm;background:linear-gradient(#f6d77a,#e0a526)}.flrp-c.p2 .flrp-deg{height:64mm;background:linear-gradient(#e3e8ec,#b9c3cc)}.flrp-c.p3 .flrp-deg{height:46mm;background:linear-gradient(#e8b47e,#c9813f)}
+.flp-top3{padding:0!important;min-height:0!important}.flp-top3 .flrp{height:192mm;width:285mm}.flrp-png{width:297mm;background:#fff;padding:0 0 6mm}.flrp-png .flrp{margin:6mm 6mm 0}
