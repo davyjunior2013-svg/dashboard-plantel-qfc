@@ -935,3 +935,30 @@ img.av{object-position:50% 20%}.av.avz{overflow:hidden;padding:0}.av.avz img{wid
 .gol-hi>div{flex:1;min-width:0}.gol-hi .gol-chs{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
 .gol-ho{margin:6px 0 0;font-size:13px;color:#13295b;background:#eef3fb;border-left:3px solid #13295b;padding:5px 9px;border-radius:0 8px 8px 0}
 @media (max-width:760px){.gol-flk{grid-template-columns:1fr auto}.gol-flk [data-l=rot]{grid-column:1}}
+/* ===== Nutrição ===== */
+.nut-sp{flex:1}.nut-h2b{float:right;margin-top:-4px}.nut-nota{margin:8px 0 0;font-size:12px}
+.nut-at{display:flex;align-items:center;gap:8px}.nut-at .av{width:30px;height:30px;flex:0 0 30px}.nut-at b{display:block;font-size:13px;white-space:nowrap}.nut-at small{display:block;font-size:11px;color:var(--muted)}
+.nut-tb td,.nut-tb th{white-space:nowrap}.nut-tb .c{text-align:center}
+.nut-d{font-size:11px;font-weight:700;margin-left:4px;color:#74808a}.nut-d.bom{color:#0f7a3d}.nut-d.ruim{color:#c62828}
+.nut-grs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:6px 0 12px}.nut-gr{border:1px solid var(--line);border-radius:10px;padding:4px;background:#fff}.nut-gr svg,.nut-gj svg{width:100%;height:auto;display:block}
+.nut-gt{font-size:11px;font-weight:700;fill:#15202b}.nut-gg{stroke:#eef1f4}.nut-gy,.nut-gx{font-size:9px;fill:#8a96a0}.nut-gv{font-size:9.5px;font-weight:700;fill:#15202b}
+.nut-ftb .nut-in{width:70px;padding:6px 8px;text-align:center}.nut-res{font-weight:700;color:#13295b}.nut-fd{max-width:220px}
+.nut-ac{display:flex;gap:4px}
+.nut-skpis{grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}.nut-skpis .v{font-size:24px}
+.nut-chs{display:inline-flex;gap:6px;flex-wrap:wrap;vertical-align:middle;margin-left:6px}.nut-chs .chip{padding:4px 12px;font-size:12px}
+.nut-grade th small{font-weight:500}.nut-tod{margin-top:4px;padding:2px 8px;font-size:10.5px}
+.nut-ck{width:30px;height:30px;border:1.5px solid #c9d1d7;border-radius:8px;background:#fff;cursor:pointer;font-weight:800;color:#fff}.nut-ck.on{background:var(--accent);border-color:var(--accent)}.nut-ck:disabled{cursor:default}
+.nut-pct{font-weight:800;padding:2px 7px;border-radius:10px;font-size:12px}.nut-pct.bom{background:#e6f4ea;color:#0f7a3d}.nut-pct.med{background:#fff6d6;color:#8a5a00}.nut-pct.ruim{background:#fdecea;color:#c62828}
+.nut-usg{display:inline-block;font-weight:800;font-size:12px;padding:2px 8px;border-radius:10px;margin:1px 0}.h-ok.nut-usg{background:#e6f4ea;color:#0f7a3d}.h-leve.nut-usg{background:#fff6d6;color:#8a5a00}.h-sig.nut-usg{background:#ffe6cc;color:#b45309}.h-grave.nut-usg{background:#fde0dd;color:#c62828}
+.nut-bar.h-ok{fill:#2e9e5b}.nut-bar.h-leve{fill:#e0a526}.nut-bar.h-sig{fill:#ef6c00}.nut-bar.h-grave{fill:#c62828}
+.nut-dot{display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:middle}.nut-dot.h-ok{background:#2e9e5b}.nut-dot.h-leve{background:#e0a526}.nut-dot.h-sig{background:#ef6c00}.nut-dot.h-grave{background:#c62828}
+.nut-jtb .nut-in{width:78px;padding:6px 8px}.nut-jtb .nut-obs{width:150px}.nut-alto{color:#c62828}
+.nut-prot{display:flex;flex-direction:column;gap:6px;margin-bottom:6px}.nut-pm{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.nut-pm>b{min-width:72px}.nut-pm>span{display:flex;gap:6px;flex-wrap:wrap}.nut-pm .chip{padding:4px 12px;font-size:12px}
+.nut-aj{gap:0 12px}.nut-pdj{margin:4px 0}.nut-pdj span{font-size:12px}
+.nutp-tb{width:100%;border-collapse:collapse;font-size:9.5px;margin:4px 0 8px}.nutp-tb th{background:#13295b;color:#fff;font-weight:700;padding:4px 5px;text-align:left;font-size:9px}.nutp-tb td{padding:3px 5px;border-bottom:1px solid #e6ebef}.nutp-tb tr:nth-child(even) td{background:#f7f9fb}
+.nutp-gr td:not(:first-child),.nutp-gr th:not(:first-child){text-align:center}
+.nutp-at{display:flex;align-items:center;gap:12px;margin:12px 0 4px}.nutp-at .golp-ft{margin:0;width:56px;height:56px}.nutp-at b{display:block;font-size:15px}.nutp-at small{font-size:10.5px;color:#74808a}
+.nutp .nut-grs{grid-template-columns:repeat(3,1fr)}.nutp .nut-gr{break-inside:avoid}.nutp-j{break-inside:avoid}
+.nutp .nut-usg{font-size:9px;padding:1px 6px}.nutp .nut-d{font-size:9px}
+@media (max-width:760px){.nut-grs{grid-template-columns:1fr}.nut-h2b{float:none;display:block;margin:8px 0 0}}
+@media print{body.imprimindo:has(#print-area.nutp-w){background:#fff}}
