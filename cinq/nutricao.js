@@ -71,7 +71,7 @@ async function pNutricao() {
   $('#main').innerHTML = cab() + '<div class="panel empty">Carregando…</div>';
   try { await carregarNut(); } catch (e) { $('#main .panel').innerHTML = esc(erroAmigavel(e)); return; }
   const f = nutFaixa(), A = S.nut.aba;
-  const abas = `<div class="ind-tabs nut-abas">${[['aval', 'Avaliação física'], ['sup', 'Suplementação'], ['jogo', 'Jogos']].map(([k, l]) => `<button data-na="${k}" class="${A === k ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+  const abas = `<div class="ind-tabs nut-abas">${[['aval', 'Avaliação física'], ['sup', 'Suplementação'], ['jogo', 'Jogos']].map(([k, l]) => `<button data-na="${k}" class="${A === k ? 'on' : ''}">${l}</button>`).join('')}<span class="fl-sep"></span><button class="fl-refb" id="nutref" title="critérios, cálculos e referências desta aba">📘 Referências</button></div>`;
   const per = `<div class="gol-per"><div class="gol-seg"><button data-np="semana" class="${S.nut.per === 'semana' ? 'on' : ''}">Semana</button><button data-np="mes" class="${S.nut.per === 'mes' ? 'on' : ''}">Mês</button></div>
     <button class="btn sm" id="nutprev">◀</button><b>${esc(f.txt)}</b><button class="btn sm" id="nutnext">▶</button>${S.nut.ref !== nutRefHoje() ? '<button class="btn sm" id="nuthoje">Atual</button>' : ''}
     <span class="nut-sp"></span><button class="btn sm" id="nutpdfp">PDF do período</button><button class="btn sm" id="nutpdfi">PDF individual</button></div>`;
@@ -83,6 +83,7 @@ async function pNutricao() {
   $('#nutpdfp').onclick = () => nutPDFPeriodo(f);
   $('#nutpdfi').onclick = () => nutEscolherAtleta(id => nutPDFIndividual(id, f));
   if ($('#nutaj')) $('#nutaj').onclick = nutAjustes;
+  $('#nutref').onclick = () => nutReferencias(A);
   if (A === 'sup') nutSupLigar(f); else if (A === 'jogo') nutJogosLigar(f); else nutAvalLigar(f);
 }
 const nutKpi = (l, v, s) => `<div class="card"><div class="l">${l}</div><div class="v">${v}</div>${s ? `<div class="s">${s}</div>` : ''}</div>`;
@@ -136,7 +137,7 @@ function nutAvalHTML(f) {
       <div class="tablewrap"><table class="tb nut-tb"><thead><tr><th>Atleta</th><th>Data</th><th>Peso</th><th>Σ dobras</th><th>% gordura</th><th>Massa gorda</th><th>Massa livre de gordura</th></tr></thead><tbody>
       ${R.L.map(x => `<tr class="dm-tr" data-na-at="${x.a.id}"><td>${nutAtlCel(x.a)}</td><td>${x.u ? dataBR(x.u.data) : '<span class="m">sem avaliação</span>'}</td><td>${x.cu?.peso ? nutF(x.cu.peso) + ' kg' : '—'}</td><td>${x.cu ? nutF(x.cu.soma) + ' mm' : '—'}</td>
         <td><b>${x.cu ? nutF(x.cu.g) + '%' : '—'}</b> ${nutDelta(x.cu?.g, x.cp?.g)}</td><td>${x.cu?.mg != null ? nutF(x.cu.mg) + ' kg' : '—'}</td><td><b>${x.cu?.mlg != null ? nutF(x.cu.mlg) + ' kg' : '—'}</b> ${nutDelta(x.cu?.mlg, x.cp?.mlg, true)}</td></tr>`).join('')}</tbody></table></div>
-      <p class="m nut-nota">%G pela equação de Reilly (4 dobras). ▲▼ = diferença para a avaliação anterior do atleta. Clique no atleta para ver a evolução.</p></div>
+      <p class="m nut-nota">Clique no atleta para ver a evolução. Critérios e cálculos em 📘 Referências.</p></div>
     ${R.pos.length ? `<div class="panel"><h2>Por posição</h2><div class="tablewrap"><table class="tb nut-tb"><thead><tr><th>Posição</th><th>Atletas</th><th>% gordura</th><th>Massa livre de gordura</th></tr></thead><tbody>
       ${R.pos.map(([p, n, g, m]) => `<tr><td><b>${esc(p)}</b></td><td>${n}</td><td>${nutF(g)}%</td><td>${m != null ? nutF(m) + ' kg' : '—'}</td></tr>`).join('')}</tbody></table></div></div>` : ''}`;
 }
@@ -238,8 +239,7 @@ function nutSupHTML(f) {
       ${pode ? '<p class="m nut-nota">Clique na célula para marcar ou desmarcar. “todos” marca o elenco inteiro no dia.</p>' : ''}</div>`;
   }
   const resumo = `<div class="panel"><h2>Adesão por atleta · ${esc(f.txt)}</h2>${S.nut.per === 'mes' ? '<p class="m">Para marcar quem tomou, use a visão Semana.</p>' : ''}<div class="tablewrap"><table class="tb nut-tb"><thead><tr><th>Atleta</th>${SP.map(s => `<th>${esc(s)}</th>`).join('')}</tr></thead><tbody>
-    ${L.map(a => `<tr class="dm-tr" data-sat="${a.id}"><td>${nutAtlCel(a)}</td>${SP.map(s => { const x = ad[s].de(a.id); return `<td>${x.p != null ? `<span class="nut-pct ${x.p >= 80 ? 'bom' : x.p >= 50 ? 'med' : 'ruim'}">${x.p}%</span> <small class="m">${x.n}/${ad[s].dias}</small>` : '<span class="m">—</span>'}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>
-    <p class="m nut-nota">Adesão = dias em que o atleta tomou ÷ dias em que o suplemento foi dado no período.</p></div>`;
+    ${L.map(a => `<tr class="dm-tr" data-sat="${a.id}"><td>${nutAtlCel(a)}</td>${SP.map(s => { const x = ad[s].de(a.id); return `<td>${x.p != null ? `<span class="nut-pct ${x.p >= 80 ? 'bom' : x.p >= 50 ? 'med' : 'ruim'}">${x.p}%</span> <small class="m">${x.n}/${ad[s].dias}</small>` : '<span class="m">—</span>'}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div></div>`;
   return kpis + grade + resumo;
 }
 function nutSupLigar(f) {
@@ -355,6 +355,40 @@ function nutJogo(j) {
     if (error) return toast(erroAmigavel(error), true);
     Object.assign(j, data); fechar(); toast('Jogo salvo.'); pNutricao();
   };
+}
+
+/* ---------- referências: critérios, cálculos e fontes de cada aba ---------- */
+function nutReferencias(ab) {
+  const sec = (t, itens) => `<h4 class="dm-h4">${t}</h4><ul class="fl-refl">${itens.map(i => `<li>${i}</li>`).join('')}</ul>`, BIB = l => sec('Referências bibliográficas', l);
+  const C = {
+    aval: [sec('Coleta', ['Peso em kg e 4 dobras cutâneas em mm: <b>coxa, abdominal, tríceps e panturrilha</b>. Equação definida pelo nutricionista do clube.']),
+      sec('Cálculos', ['<b>% de gordura (Reilly, 4 dobras)</b> = 5,174 + (0,124 × coxa) + (0,147 × abdominal) + (0,196 × tríceps) + (0,13 × panturrilha).',
+        '<b>Massa gorda (kg)</b> = peso × %G ÷ 100. <b>Massa livre de gordura (kg)</b> = peso − massa gorda.',
+        '<b>Σ 4 dobras</b> = soma das quatro dobras (mm), acompanhada junto com o %G.',
+        'Sem o peso, o sistema calcula o %G e a Σ dobras, mas não a massa gorda nem a massa livre de gordura.']),
+      sec('Leitura', ['▲▼ = diferença para a avaliação anterior do próprio atleta. Verde = queda do %G ou aumento da MLG; vermelho = o contrário.',
+        '“Desde a 1ª avaliação” = última − primeira, em pontos percentuais (pp).',
+        'Elenco = última avaliação de cada atleta até o fim do período escolhido. Médias = média simples dos atletas com avaliação. Por posição = mesma média, separada pela posição do Elenco.',
+        'Gráfico em destaque: cada ponto é uma data de avaliação; a linha azul é a média do elenco (ou da posição) naquela data e “n” é o número de atletas na média. A linha dourada é o atleta escolhido (se houver duas avaliações no mesmo dia, vale a mais recente).']),
+      BIB(['Reilly T, George K, Marfell-Jones M, Scott M, Sutton L, Wallace JA. How well do skinfold equations predict percent body fat in elite soccer players? Int J Sports Med, 2009.'])],
+    sup: [sec('Registro', ['Lista de suplementos definida pelo nutricionista em Ajustes.',
+        'Cada marcação = o atleta tomou aquele suplemento naquele dia. “todos”/“nenhum” marca ou desmarca o elenco inteiro no dia (desmarcar pede confirmação).']),
+      sec('Adesão', ['<b>Adesão</b> = dias em que o atleta tomou ÷ dias em que o suplemento foi dado no período (dias com pelo menos um atleta marcado).',
+        'Cores: <b>verde</b> 80% ou mais · <b>amarelo</b> 50% a 79% · <b>vermelho</b> abaixo de 50%.',
+        'Adesão média do suplemento = média simples da adesão dos atletas. O período segue o filtro Semana/Mês; para marcar, use a visão Semana.'])],
+    jogo: [sec('Hidratação pré-jogo (densidade da urina)', ['Densidade aceita como 1,015, 1.015 ou 1015 (o sistema converte).',
+        '<b>&lt; 1,010</b> hidratado · <b>1,010–1,020</b> desidratação leve · <b>1,021–1,030</b> desidratação significativa · <b>&gt; 1,030</b> desidratação grave. Faixas de referência; o nutricionista pode pedir ajuste.',
+        'Densidade média do jogo = média simples dos atletas medidos. O gráfico mostra a média dos últimos 10 jogos sobre as faixas.']),
+      sec('Peso pré e pós-jogo', ['<b>% de perda</b> = (peso pré − peso pós) ÷ peso pré × 100.',
+        'Destaque em vermelho quando a perda passa de <b>2%</b> do peso corporal.']),
+      sec('Suplementação no jogo', ['Protocolo do jogo = o que foi dado no Pré, no Intervalo e no Pós (lista em Ajustes; o protocolo padrão vem marcado em cada jogo novo).',
+        'Marcação por atleta = tomou o protocolo daquele momento. Exceções vão na observação do atleta.']),
+      BIB(['Casa DJ et al. National Athletic Trainers’ Association position statement: fluid replacement for athletes. J Athl Train, 2000 (faixas de densidade da urina).',
+        'Sawka MN et al. American College of Sports Medicine position stand: exercise and fluid replacement. Med Sci Sports Exerc, 2007 (perda acima de 2% do peso corporal).'])]
+  };
+  modal(`<h2>Referências · ${{ aval: 'Avaliação física', sup: 'Suplementação', jogo: 'Jogos' }[ab] || ''}</h2><p class="m">Critérios, cálculos e fontes usados nesta aba, para conferência técnica.</p>
+    <div class="fl-ref">${(C[ab] || C.aval).join('')}</div><div class="mfoot"><span></span><button class="btn" id="nutrfc">Fechar</button></div>`, true);
+  $('#nutrfc').onclick = fechar;
 }
 
 /* ---------- ajustes ---------- */
