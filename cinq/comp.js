@@ -1,6 +1,6 @@
 /* CINQ – Competição de treinos: classificação semanal pelos resultados das atividades do treino.
    Cada atividade: atletas do grupo vencedor = Vitória, perdedor = Derrota, ou Empate. Pontos: V 2 · E 1 · D 0.
-   Desempate: mais vitórias. Quem não participou não pontua. Tabela semanal (segunda a domingo), com pódio e
+   Desempate: mais vitórias, menos derrotas, melhor aproveitamento. Quem não participou não pontua. Tabela semanal (segunda a domingo), com pódio e
    exportação para imprimir (A4 retrato) e imagem.
    Lança: Análise de desempenho e admin. Leitura: comissão. */
 const podeComp = () => isAdmin() || S.perfil?.funcao === 'analise';
@@ -21,14 +21,14 @@ async function carregarComp() {
   if (r.error) throw r.error;
   S.comp.at = a.data; S.comp.res = r.data;
 }
-// classificação: pontos, depois vitórias (desempate), depois nome
+// classificação sem posição repetida: pontos → mais vitórias → menos derrotas → melhor aproveitamento (pontos ÷ possíveis) → nome
 function compTabela(at = S.comp.at, res = S.comp.res) {
   const ids = new Set(at.map(x => x.id)), m = {};
   res.filter(r => ids.has(r.atividade_id)).forEach(r => { const o = m[r.atleta_id] = m[r.atleta_id] || { id: r.atleta_id, V: 0, E: 0, D: 0 }; o[r.res]++; });
   const L = Object.values(m).map(o => ({ ...o, a: compAtl(o.id), J: o.V + o.E + o.D, P: o.V * COMP_PTS.V + o.E * COMP_PTS.E + o.D * COMP_PTS.D }))
     .map(o => ({ ...o, apr: o.J ? Math.round(o.P / (o.J * COMP_PTS.V) * 100) : 0 }))
-    .sort((x, y) => y.P - x.P || y.V - x.V || compNome(x.a).localeCompare(compNome(y.a), 'pt'));
-  L.forEach((o, i) => { o.pos = i && L[i - 1].P === o.P && L[i - 1].V === o.V ? L[i - 1].pos : i + 1; });
+    .sort((x, y) => y.P - x.P || y.V - x.V || x.D - y.D || (y.J ? y.P / y.J : 0) - (x.J ? x.P / x.J : 0) || compNome(x.a).localeCompare(compNome(y.a), 'pt'));
+  L.forEach((o, i) => { o.pos = i + 1; });
   return L;
 }
 
@@ -36,7 +36,7 @@ function compTabela(at = S.comp.at, res = S.comp.res) {
 async function pCompeticao() {
   S.comp.ref = S.comp.ref || segunda(hoje());
   const pode = podeComp(), ini = S.comp.ref, fim = addDays(ini, 6);
-  const cab = topo('Comissão', 'Competição de treinos', 'Vitória 2 pontos · empate 1 · derrota 0. Desempate: mais vitórias. Quem não participou não pontua.',
+  const cab = topo('Comissão', 'Competição de treinos', 'Vitória 2 pontos · empate 1 · derrota 0. Desempate: mais vitórias, menos derrotas, melhor aproveitamento. Quem não participou não pontua.',
     `<button class="btn pri" id="cpexp">🖨️ Exportar tabela</button>${pode ? '<button class="btn" id="cpnova">+ Atividade</button>' : ''}`);
   $('#main').innerHTML = cab + '<div class="panel empty">Carregando…</div>';
   try { await carregarComp(); } catch (e) { $('#main .panel').innerHTML = esc(erroAmigavel(e)); return; }
@@ -118,7 +118,7 @@ function compExportHTML(L) {
     ${L.map(o => `<tr><td><b>${esc(o.a?.nome || '?')}</b></td>${A.map(x => { const r = S.comp.res.find(y => y.atividade_id === x.id && y.atleta_id === o.id); return `<td class="${r ? r.res : ''}">${r ? { V: 'V', E: 'E', D: 'D' }[r.res] : '–'}</td>`; }).join('')}<td><b>${o.P}</b></td></tr>`).join('')}</tbody></table>
     <p class="cpp-leg"><span class="V">V</span> venceu (2 pts) · <span class="E">E</span> empate (1 pt) · <span class="D">D</span> perdeu (0) · – não participou</p></section>` : '';
   return `<section class="cpp-pg"><div class="cpp-cab"><img src="${LOGO}" alt=""><div><small>QFC · COMPETIÇÃO DE TREINOS</small><h1>Classificação da semana</h1></div><div class="cpp-dt"><b>${fmt(ini)} a ${fmt(fim)}</b><span>${A.length} atividades</span></div></div>
-    ${compPodio(L, true)}${compTabelaHTML(L, true)}<p class="cpp-leg">Vitória = 2 pontos · empate = 1 · derrota = 0 · desempate: mais vitórias · <span class="cp-leg-v">abaixo da linha vermelha = metade de baixo</span></p></section>${grade}`;
+    ${compPodio(L, true)}${compTabelaHTML(L, true)}<p class="cpp-leg">Vitória = 2 pontos · empate = 1 · derrota = 0 · desempate: mais vitórias, menos derrotas, melhor aproveitamento · <span class="cp-leg-v">abaixo da linha vermelha = metade de baixo</span></p></section>${grade}`;
 }
 function compExportar(L) {
   modal(`<h2>Exportar tabela</h2><p class="m">Semana ${fmt(S.comp.ref)} a ${fmt(addDays(S.comp.ref, 6))}. Página 1: pódio e classificação; página 2: resultado de cada atividade.</p>
