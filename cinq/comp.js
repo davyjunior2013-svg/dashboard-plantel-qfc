@@ -37,7 +37,7 @@ async function pCompeticao() {
   S.comp.ref = S.comp.ref || segunda(hoje());
   const pode = podeComp(), ini = S.comp.ref, fim = addDays(ini, 6);
   const cab = topo('Comissão', 'Competição de treinos', 'Vitória 2 pontos · empate 1 · derrota 0. Desempate: mais vitórias, menos derrotas, melhor aproveitamento. Quem não participou não pontua.',
-    `<button class="btn pri" id="cpexp">🖨️ Exportar tabela</button>${pode ? '<button class="btn" id="cpnova">+ Atividade</button>' : ''}`);
+    `<button class="btn" id="cpcrit">📘 Critérios</button><button class="btn pri" id="cpexp">🖨️ Exportar tabela</button>${pode ? '<button class="btn" id="cpnova">+ Atividade</button>' : ''}`);
   $('#main').innerHTML = cab + '<div class="panel empty">Carregando…</div>';
   try { await carregarComp(); } catch (e) { $('#main .panel').innerHTML = esc(erroAmigavel(e)); return; }
   const L = compTabela(), A = S.comp.at, n = A.length;
@@ -52,6 +52,7 @@ async function pCompeticao() {
   $('#cpprev').onclick = () => { S.comp.ref = addDays(ini, -7); pCompeticao(); };
   $('#cpnext').onclick = () => { S.comp.ref = addDays(ini, 7); pCompeticao(); };
   if ($('#cphoje')) $('#cphoje').onclick = () => { S.comp.ref = segunda(hoje()); pCompeticao(); };
+  $('#cpcrit').onclick = compCriterios;
   $('#cpexp').onclick = () => L.length ? compExportar(L) : toast('Nenhum resultado nesta semana.', true);
   if ($('#cpnova')) $('#cpnova').onclick = () => compForm(null);
   document.querySelectorAll('[data-cpat]').forEach(b => b.onclick = () => compForm(A.find(x => x.id === +b.dataset.cpat)));
@@ -155,3 +156,21 @@ ir = function (p) {
   pCompeticao(); window.scrollTo(0, 0);
 };
 if (document.getElementById('main') && S.perfil) { navComp(); if (S.page === 'competicao') ir('competicao'); }
+
+/* ---------- critérios usados na classificação ---------- */
+function compCriterios() {
+  const sec = (t, itens) => `<h4 class="dm-h4">${t}</h4><ul class="fl-refl">${itens.map(i => `<li>${i}</li>`).join('')}</ul>`;
+  modal(`<h2>Critérios · Competição de treinos</h2><p class="m">Como a classificação da semana é calculada.</p><div class="fl-ref">
+    ${sec('Pontuação', [`<b>Vitória = ${COMP_PTS.V} pontos</b> · <b>empate = ${COMP_PTS.E} ponto</b> · <b>derrota = ${COMP_PTS.D}</b>.`,
+      'Cada atividade lançada vale um jogo para quem participou. Atleta sem resultado na atividade = não participou (–) e não pontua.',
+      'Atletas que ainda não estão no elenco não entram na tabela.'])}
+    ${sec('Período', ['Tabela <b>semanal</b>: segunda a domingo. Cada semana começa do zero.'])}
+    ${sec('Ordem da classificação (desempate)', ['<b>1º</b> mais pontos', '<b>2º</b> mais vitórias', '<b>3º</b> menos derrotas',
+      '<b>4º</b> melhor aproveitamento',
+      'Persistindo o empate (números idênticos), ordem alfabética. A posição <b>não se repete</b>: 1º, 2º, 3º… em sequência.'])}
+    ${sec('Cálculos', ['<b>Jogos (J)</b> = vitórias + empates + derrotas.', `<b>Aproveitamento</b> = pontos ÷ pontos possíveis (J × ${COMP_PTS.V}) × 100.`])}
+    ${sec('Divisão da tabela', ['A <b>linha pontilhada vermelha</b> divide a tabela ao meio (metade das linhas; com número ímpar, a metade de cima fica com um a mais).',
+      'A <b>metade de baixo</b> aparece em vermelho, na tela e na folha impressa.'])}
+    </div><div class="mfoot"><span></span><button class="btn" id="cpcritf">Fechar</button></div>`, true);
+  $('#cpcritf').onclick = fechar;
+}
