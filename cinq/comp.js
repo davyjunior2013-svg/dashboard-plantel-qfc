@@ -63,7 +63,7 @@ function compPodio(L, imp) {
 }
 function compTabelaHTML(L, imp) {
   return `<div class="${imp ? 'cp-timp' : 'panel'}">${imp ? '' : '<h2>Classificação da semana</h2>'}<div class="tablewrap"><table class="tb cp-tb"><thead><tr><th>#</th><th>Atleta</th><th class="c">Pontos</th><th class="c">V</th><th class="c">E</th><th class="c">D</th><th class="c">Jogos</th><th class="c">Aprov.</th></tr></thead><tbody>
-    ${L.map(o => `<tr class="${o.pos <= 3 ? 'cp-t' + o.pos : ''}"><td><b class="cp-pos">${o.pos}º</b></td><td><span class="cp-at-n">${compFt(o.a)}<b>${esc(o.a?.nome || '?')}</b></span></td><td class="c"><b class="cp-pts">${o.P}</b></td>
+    ${L.map((o, i) => `<tr class="${o.pos <= 3 && i < Math.ceil(L.length / 2) ? 'cp-t' + o.pos : ''}${i >= Math.ceil(L.length / 2) ? ' cp-baixo' : ''}${L.length > 1 && i === Math.ceil(L.length / 2) ? ' cp-meio' : ''}"><td><b class="cp-pos">${o.pos}º</b></td><td><span class="cp-at-n">${compFt(o.a)}<b>${esc(o.a?.nome || '?')}</b></span></td><td class="c"><b class="cp-pts">${o.P}</b></td>
       <td class="c">${o.V}</td><td class="c">${o.E}</td><td class="c">${o.D}</td><td class="c">${o.J}</td><td class="c">${o.apr}%</td></tr>`).join('')}</tbody></table></div></div>`;
 }
 
@@ -118,7 +118,7 @@ function compExportHTML(L) {
     ${L.map(o => `<tr><td><b>${esc(o.a?.nome || '?')}</b></td>${A.map(x => { const r = S.comp.res.find(y => y.atividade_id === x.id && y.atleta_id === o.id); return `<td class="${r ? r.res : ''}">${r ? { V: 'V', E: 'E', D: 'D' }[r.res] : '–'}</td>`; }).join('')}<td><b>${o.P}</b></td></tr>`).join('')}</tbody></table>
     <p class="cpp-leg"><span class="V">V</span> venceu (2 pts) · <span class="E">E</span> empate (1 pt) · <span class="D">D</span> perdeu (0) · – não participou</p></section>` : '';
   return `<section class="cpp-pg"><div class="cpp-cab"><img src="${LOGO}" alt=""><div><small>QFC · COMPETIÇÃO DE TREINOS</small><h1>Classificação da semana</h1></div><div class="cpp-dt"><b>${fmt(ini)} a ${fmt(fim)}</b><span>${A.length} atividades</span></div></div>
-    ${compPodio(L, true)}${compTabelaHTML(L, true)}<p class="cpp-leg">Vitória = 2 pontos · empate = 1 · derrota = 0 · desempate: mais vitórias</p></section>${grade}`;
+    ${compPodio(L, true)}${compTabelaHTML(L, true)}<p class="cpp-leg">Vitória = 2 pontos · empate = 1 · derrota = 0 · desempate: mais vitórias · <span class="cp-leg-v">abaixo da linha vermelha = metade de baixo</span></p></section>${grade}`;
 }
 function compExportar(L) {
   modal(`<h2>Exportar tabela</h2><p class="m">Semana ${fmt(S.comp.ref)} a ${fmt(addDays(S.comp.ref, 6))}. Página 1: pódio e classificação; página 2: resultado de cada atividade.</p>

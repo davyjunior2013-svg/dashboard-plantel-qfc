@@ -1069,3 +1069,7 @@ i.v{background:#e6f4ea;color:#0f7a3d}i.e{background:#fff6d6;color:#8a5a00}i.d{ba
 .cpp-gr td{padding:4px;border-bottom:1px solid #e6ebef;text-align:center}.cpp-gr td:first-child{text-align:left}
 .cpp-gr td.V,.cpp-leg .V{background:#0f7a3d;color:#fff;font-weight:800}.cpp-gr td.E,.cpp-leg .E{background:#e0a526;color:#13295b;font-weight:800}.cpp-gr td.D,.cpp-leg .D{background:#fdecea;color:#c62828;font-weight:800}
 .cpp-png{width:794px;padding:20px}
+
+/* competição: metade de baixo em vermelho, linha pontilhada na metade */
+.cp-tb tr.cp-baixo td{background:#fdeeee;color:#c62828;-webkit-print-color-adjust:exact;print-color-adjust:exact}.cp-tb tr.cp-baixo .cp-pos,.cp-tb tr.cp-baixo .cp-pts,.cp-tb tr.cp-baixo b{color:#c62828}
+.cp-tb tr.cp-meio td{border-top:3px dashed #d32f2f!important}.cp-leg-v{color:#c62828;font-weight:700}
