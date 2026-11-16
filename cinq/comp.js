@@ -119,7 +119,7 @@ function compExportHTML(L) {
     ${L.map(o => `<tr><td><b>${esc(o.a?.nome || '?')}</b></td>${A.map(x => { const r = S.comp.res.find(y => y.atividade_id === x.id && y.atleta_id === o.id); return `<td class="${r ? r.res : ''}">${r ? { V: 'V', E: 'E', D: 'D' }[r.res] : '–'}</td>`; }).join('')}<td><b>${o.P}</b></td></tr>`).join('')}</tbody></table>
     <p class="cpp-leg"><span class="V">V</span> venceu (2 pts) · <span class="E">E</span> empate (1 pt) · <span class="D">D</span> perdeu (0) · – não participou</p></section>` : '';
   return `<section class="cpp-pg"><div class="cpp-cab"><img src="${LOGO}" alt=""><div><small>QFC · COMPETIÇÃO DE TREINOS</small><h1>Classificação da semana</h1></div><div class="cpp-dt"><b>${fmt(ini)} a ${fmt(fim)}</b><span>${A.length} atividades</span></div></div>
-    ${compPodio(L, true)}${compTabelaHTML(L, true)}<p class="cpp-leg">Vitória = 2 pontos · empate = 1 · derrota = 0 · desempate: mais vitórias, menos derrotas, melhor aproveitamento · <span class="cp-leg-v">abaixo da linha vermelha = metade de baixo</span></p></section>${grade}`;
+    ${compPodio(L, true)}${compTabelaHTML(L, true)}<p class="cpp-leg">Vitória = 2 pontos · empate = 1 · derrota = 0 · desempate: mais vitórias, menos derrotas, melhor aproveitamento</p></section>${grade}`;
 }
 function compExportar(L) {
   modal(`<h2>Exportar tabela</h2><p class="m">Semana ${fmt(S.comp.ref)} a ${fmt(addDays(S.comp.ref, 6))}. Página 1: pódio e classificação; página 2: resultado de cada atividade.</p>
