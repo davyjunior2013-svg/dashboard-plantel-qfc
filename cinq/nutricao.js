@@ -17,6 +17,9 @@ const nutA = id => S.atletas.find(a => a.id === +id);
 const nutN = v => { const t = String(v ?? '').trim().replace(',', '.'); return t === '' || isNaN(+t) ? null : +t; };
 const nutF = (x, d = 1) => x == null || !isFinite(x) ? '—' : (+x).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
 const nutSupl = () => Array.isArray(S.nut.cfg.suplementos) ? S.nut.cfg.suplementos : [];
+// suplemento de uso livre (sem adesão): registra quem tomou, mas não cobra frequência (ex.: Pré-treino, pedido do nutricionista)
+const nutLivre = s => Array.isArray(S.nut.cfg.sem_adesao) && S.nut.cfg.sem_adesao.includes(s);
+const nutVezes = n => n ? `${n}×` : '—';
 const nutSuplJogo = () => Array.isArray(S.nut.cfg.supl_jogo) ? S.nut.cfg.supl_jogo : [];
 const nutNutri = () => S.nut.cfg.nutricionista || '';
 const NUT_DS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
@@ -229,17 +232,18 @@ function nutSupHTML(f) {
   if (!SP.includes(S.nut.sp)) S.nut.sp = SP[0];
   const R = S.nut.sup, L = nutAtl(), ad = Object.fromEntries(SP.map(s => [s, nutAdesao(R, s)]));
   const media = s => { const v = L.map(a => ad[s].de(a.id).p).filter(x => x != null); return v.length && ad[s].dias ? Math.round(v.reduce((x, y) => x + y, 0) / v.length) : null; };
-  const kpis = `<div class="cards nut-skpis">${SP.map(s => nutKpi(esc(s), media(s) != null ? media(s) + '%' : '—', `adesão média · dado em ${ad[s].dias} dia${ad[s].dias === 1 ? '' : 's'}`)).join('')}</div>`;
+  const usaram = s => new Set(R.filter(r => r.suplemento === s).map(r => r.atleta_id)).size;
+  const kpis = `<div class="cards nut-skpis">${SP.map(s => nutLivre(s) ? nutKpi(esc(s), usaram(s), `atleta${usaram(s) === 1 ? '' : 's'} usaram · uso livre, sem adesão`) : nutKpi(esc(s), media(s) != null ? media(s) + '%' : '—', `adesão média · dado em ${ad[s].dias} dia${ad[s].dias === 1 ? '' : 's'}`)).join('')}</div>`;
   let grade = '';
   if (S.nut.per === 'semana') {
     const D = nutDias(f), s = S.nut.sp, tem = (d, id) => R.find(r => r.data === d && r.atleta_id === id && r.suplemento === s);
     grade = `<div class="panel"><h2>Quem tomou · <span class="nut-chs">${SP.map(x => `<button class="chip${x === s ? ' on' : ''}" data-sp="${esc(x)}">${esc(x)}</button>`).join('')}</span></h2>
-      <div class="tablewrap"><table class="tb nut-tb nut-grade"><thead><tr><th>Atleta</th>${D.map(d => `<th class="c">${NUT_DS[parse(d).getDay()]}<br><small>${fmt(d)}</small>${pode ? (L.every(a => tem(d, a.id)) ? `<br><button class="btn sm nut-tod nenhum" data-tod="${d}" title="Desmarcar todos neste dia">nenhum</button>` : `<br><button class="btn sm nut-tod" data-tod="${d}" title="Marcar todos neste dia">todos</button>`) : ''}</th>`).join('')}<th>Adesão</th></tr></thead><tbody>
-      ${L.map(a => { const x = ad[s].de(a.id); return `<tr><td>${nutAtlCel(a)}</td>${D.map(d => `<td class="c"><button class="nut-ck${tem(d, a.id) ? ' on' : ''}" data-ck="${d}|${a.id}"${pode ? '' : ' disabled'}>${tem(d, a.id) ? '✓' : ''}</button></td>`).join('')}<td><b>${x.p != null ? x.p + '%' : '—'}</b> <small class="m">${x.n}/${ad[s].dias}</small></td></tr>`; }).join('')}</tbody></table></div>
-      ${pode ? '<p class="m nut-nota">Clique na célula para marcar ou desmarcar. “todos” marca o elenco inteiro no dia.</p>' : ''}</div>`;
+      <div class="tablewrap"><table class="tb nut-tb nut-grade"><thead><tr><th>Atleta</th>${D.map(d => `<th class="c">${NUT_DS[parse(d).getDay()]}<br><small>${fmt(d)}</small>${pode ? (L.every(a => tem(d, a.id)) ? `<br><button class="btn sm nut-tod nenhum" data-tod="${d}" title="Desmarcar todos neste dia">nenhum</button>` : `<br><button class="btn sm nut-tod" data-tod="${d}" title="Marcar todos neste dia">todos</button>`) : ''}</th>`).join('')}<th>${nutLivre(s) ? 'Vezes' : 'Adesão'}</th></tr></thead><tbody>
+      ${L.map(a => { const x = ad[s].de(a.id); return `<tr><td>${nutAtlCel(a)}</td>${D.map(d => `<td class="c"><button class="nut-ck${tem(d, a.id) ? ' on' : ''}" data-ck="${d}|${a.id}"${pode ? '' : ' disabled'}>${tem(d, a.id) ? '✓' : ''}</button></td>`).join('')}<td>${nutLivre(s) ? `<b>${nutVezes(x.n)}</b>` : `<b>${x.p != null ? x.p + '%' : '—'}</b> <small class="m">${x.n}/${ad[s].dias}</small>`}</td></tr>`; }).join('')}</tbody></table></div>
+      ${nutLivre(s) ? '<p class="m nut-nota"><b>Uso livre:</b> marcar é opcional e não conta adesão (quem não toma não fica com 0%).</p>' : ''}${pode ? '<p class="m nut-nota">Clique na célula para marcar ou desmarcar. “todos” marca o elenco inteiro no dia.</p>' : ''}</div>`;
   }
-  const resumo = `<div class="panel"><h2>Adesão por atleta · ${esc(f.txt)}</h2>${S.nut.per === 'mes' ? '<p class="m">Para marcar quem tomou, use a visão Semana.</p>' : ''}<div class="tablewrap"><table class="tb nut-tb"><thead><tr><th>Atleta</th>${SP.map(s => `<th>${esc(s)}</th>`).join('')}</tr></thead><tbody>
-    ${L.map(a => `<tr class="dm-tr" data-sat="${a.id}"><td>${nutAtlCel(a)}</td>${SP.map(s => { const x = ad[s].de(a.id); return `<td>${x.p != null ? `<span class="nut-pct ${x.p >= 80 ? 'bom' : x.p >= 50 ? 'med' : 'ruim'}">${x.p}%</span> <small class="m">${x.n}/${ad[s].dias}</small>` : '<span class="m">—</span>'}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div></div>`;
+  const resumo = `<div class="panel"><h2>Adesão por atleta · ${esc(f.txt)}</h2>${S.nut.per === 'mes' ? '<p class="m">Para marcar quem tomou, use a visão Semana.</p>' : ''}<div class="tablewrap"><table class="tb nut-tb"><thead><tr><th>Atleta</th>${SP.map(s => `<th>${esc(s)}${nutLivre(s) ? ' <small class="m">(uso livre)</small>' : ''}</th>`).join('')}</tr></thead><tbody>
+    ${L.map(a => `<tr class="dm-tr" data-sat="${a.id}"><td>${nutAtlCel(a)}</td>${SP.map(s => { const x = ad[s].de(a.id); return `<td>${nutLivre(s) ? `<span class="m">${nutVezes(x.n)}</span>` : x.p != null ? `<span class="nut-pct ${x.p >= 80 ? 'bom' : x.p >= 50 ? 'med' : 'ruim'}">${x.p}%</span> <small class="m">${x.n}/${ad[s].dias}</small>` : '<span class="m">—</span>'}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div></div>`;
   return kpis + grade + resumo;
 }
 function nutSupLigar(f) {
@@ -375,7 +379,8 @@ function nutReferencias(ab) {
         'Cada marcação = o atleta tomou aquele suplemento naquele dia. “todos”/“nenhum” marca ou desmarca o elenco inteiro no dia (desmarcar pede confirmação).']),
       sec('Adesão', ['<b>Adesão</b> = dias em que o atleta tomou ÷ dias em que o suplemento foi dado no período (dias com pelo menos um atleta marcado).',
         'Cores: <b>verde</b> 80% ou mais · <b>amarelo</b> 50% a 79% · <b>vermelho</b> abaixo de 50%.',
-        'Adesão média do suplemento = média simples da adesão dos atletas. O período segue o filtro Semana/Mês; para marcar, use a visão Semana.'])],
+        'Adesão média do suplemento = média simples da adesão dos atletas. O período segue o filtro Semana/Mês; para marcar, use a visão Semana.',
+        '<b>Uso livre (sem adesão)</b>: suplemento que o atleta toma se quiser (definido pelo nutricionista em Ajustes). A marcação é opcional e não gera adesão; aparece só quantas vezes o atleta tomou e quantos atletas usaram.'])],
     jogo: [sec('Hidratação pré-jogo (densidade da urina)', ['Densidade aceita como 1,015, 1.015 ou 1015 (o sistema converte).',
         '<b>&lt; 1,010</b> hidratado · <b>1,010–1,020</b> desidratação leve · <b>1,021–1,030</b> desidratação significativa · <b>&gt; 1,030</b> desidratação grave. Faixas de referência; o nutricionista pode pedir ajuste.',
         'Densidade média do jogo = média simples dos atletas medidos. O gráfico mostra a média dos últimos 10 jogos sobre as faixas.']),
@@ -396,16 +401,22 @@ function nutAjustes() {
   const c = S.nut.cfg, pj = c.padrao_jogo || { pre: [], int: [], pos: [] };
   modal(`<h2>Ajustes da Nutrição</h2>
     <label class="f"><span>Nutricionista</span><input class="in" id="najn" value="${esc(nutNutri())}"></label>
-    <div class="g2 nut-aj"><label class="f"><span>Suplementos do dia a dia <small class="m">um por linha</small></span><textarea class="in" id="najs" rows="6" placeholder="Creatina\nWhey\nÔmega 3">${esc(nutSupl().join('\n'))}</textarea></label>
+    <div class="g2 nut-aj"><div class="f"><span>Suplementos do dia a dia <small class="m">um por linha</small></span><textarea class="in" id="najs" rows="6" placeholder="Creatina\nWhey\nÔmega 3">${esc(nutSupl().join('\n'))}</textarea>
+      <span class="m nut-livre-t">Uso livre (sem adesão) <small>registra quem tomou, mas não cobra frequência</small></span><span class="nut-livre" id="najl"></span></div>
       <label class="f"><span>Suplementos do jogo <small class="m">um por linha</small></span><textarea class="in" id="najj" rows="6" placeholder="Carboidrato em gel\nCafeína\nIsotônico\nWhey">${esc(nutSuplJogo().join('\n'))}</textarea></label></div>
     <div class="f"><span>Protocolo padrão do jogo <small class="m">vem marcado em cada jogo novo (separe por vírgula)</small></span>
       ${NUT_MOM.map(([k, l]) => `<label class="f nut-pdj"><span>${l}</span><input class="in" data-pdj="${k}" value="${esc((pj[k] || []).join(', '))}"></label>`).join('')}</div>
     <div class="mfoot"><span></span><div class="row"><button class="btn" id="najx">Cancelar</button><button class="btn pri" id="najk">Salvar</button></div></div>`, true);
   $('#najx').onclick = fechar;
+  const livre = new Set((c.sem_adesao || []).filter(x => nutSupl().includes(x)));
+  const pintaL = () => { const L = [...new Set($('#najs').value.split('\n').map(x => x.trim()).filter(Boolean))];
+    $('#najl').innerHTML = L.map(x => `<label class="chip${livre.has(x) ? ' on' : ''}"><input type="checkbox" data-livre="${esc(x)}"${livre.has(x) ? ' checked' : ''}> ${esc(x)}</label>`).join('') || '<small class="m">Cadastre os suplementos acima.</small>';
+    document.querySelectorAll('[data-livre]').forEach(i => i.onchange = () => { i.checked ? livre.add(i.dataset.livre) : livre.delete(i.dataset.livre); i.parentElement.classList.toggle('on', i.checked); }); };
+  pintaL(); $('#najs').oninput = pintaL;
   $('#najk').onclick = async () => {
     const lst = s => [...new Set($(s).value.split('\n').map(x => x.trim()).filter(Boolean))];
     const pad = Object.fromEntries(NUT_MOM.map(([k]) => [k, [...new Set(document.querySelector(`[data-pdj=${k}]`).value.split(',').map(x => x.trim()).filter(Boolean))]]));
-    const v = [{ chave: 'nutricionista', valor: $('#najn').value.trim() }, { chave: 'suplementos', valor: lst('#najs') }, { chave: 'supl_jogo', valor: lst('#najj') }, { chave: 'padrao_jogo', valor: pad }];
+    const v = [{ chave: 'nutricionista', valor: $('#najn').value.trim() }, { chave: 'suplementos', valor: lst('#najs') }, { chave: 'supl_jogo', valor: lst('#najj') }, { chave: 'padrao_jogo', valor: pad }, { chave: 'sem_adesao', valor: [...livre].filter(x => lst('#najs').includes(x)) }];
     const { error } = await sb.from('nut_config').upsert(v); if (error) return toast(erroAmigavel(error), true);
     v.forEach(x => { S.nut.cfg[x.chave] = x.valor; }); fechar(); toast('Ajustes salvos.'); pNutricao();
   };
@@ -451,12 +462,12 @@ function nutPDFPeriodo(f) {
     const ad = Object.fromEntries(SP.map(s => [s, nutAdesao(R, s)]));
     const media = s => { const v = L.map(a => ad[s].de(a.id).p).filter(x => x != null); return v.length && ad[s].dias ? Math.round(v.reduce((x, y) => x + y, 0) / v.length) : null; };
     const D = nutDias(f), semana = S.nut.per === 'semana';
-    const corpo = `<div class="golp-k" style="grid-template-columns:repeat(${Math.min(SP.length, 5)},1fr)">${SP.map(s => nutBox(media(s) != null ? media(s) + '%' : '—', `${esc(s)} · ${ad[s].dias} dia(s)`)).join('')}</div>
-      <h2 class="golp-h2">Adesão por atleta</h2><table class="nutp-tb"><thead><tr><th>Atleta</th>${SP.map(s => `<th>${esc(s)}</th>`).join('')}</tr></thead><tbody>
-      ${L.map(a => `<tr><td><b>${esc(a.nome)}</b></td>${SP.map(s => { const x = ad[s].de(a.id); return `<td>${x.p != null ? `${x.p}% <small>(${x.n}/${ad[s].dias})</small>` : '—'}</td>`; }).join('')}</tr>`).join('')}</tbody></table>
+    const corpo = `<div class="golp-k" style="grid-template-columns:repeat(${Math.min(SP.length, 5)},1fr)">${SP.map(s => nutLivre(s) ? nutBox(new Set(R.filter(r => r.suplemento === s).map(r => r.atleta_id)).size, `${esc(s)} · atletas usaram (uso livre)`) : nutBox(media(s) != null ? media(s) + '%' : '—', `${esc(s)} · ${ad[s].dias} dia(s)`)).join('')}</div>
+      <h2 class="golp-h2">Adesão por atleta</h2><table class="nutp-tb"><thead><tr><th>Atleta</th>${SP.map(s => `<th>${esc(s)}${nutLivre(s) ? ' (uso livre)' : ''}</th>`).join('')}</tr></thead><tbody>
+      ${L.map(a => `<tr><td><b>${esc(a.nome)}</b></td>${SP.map(s => { const x = ad[s].de(a.id); return `<td>${nutLivre(s) ? nutVezes(x.n) : x.p != null ? `${x.p}% <small>(${x.n}/${ad[s].dias})</small>` : '—'}</td>`; }).join('')}</tr>`).join('')}</tbody></table>
       ${semana ? SP.filter(s => ad[s].dias).map(s => `<h2 class="golp-h2">${esc(s)} · quem tomou</h2><table class="nutp-tb nutp-gr"><thead><tr><th>Atleta</th>${D.map(d => `<th>${NUT_DS[parse(d).getDay()]} ${fmt(d)}</th>`).join('')}</tr></thead><tbody>
         ${L.map(a => `<tr><td>${esc(a.nome)}</td>${D.map(d => `<td>${R.some(r => r.data === d && r.atleta_id === a.id && r.suplemento === s) ? '✓' : ''}</td>`).join('')}</tr>`).join('')}</tbody></table>`).join('') : ''}
-      <p class="golp-m">Adesão = dias em que o atleta tomou ÷ dias em que o suplemento foi dado no período.</p>`;
+      <p class="golp-m">Adesão = dias em que o atleta tomou ÷ dias em que o suplemento foi dado no período.${SP.some(nutLivre) ? ' Uso livre = sem adesão; mostra quantas vezes o atleta tomou.' : ''}</p>`;
     return nutImprimir('Suplementação', f.txt, corpo, `Nutricao_suplementacao_${f.curto}`, semana && D.length > 7);
   }
   const J = S.nut.jg.filter(j => nutNoPer(j.data, f)); if (!J.length) return toast('Nenhum jogo neste período.', true);
@@ -485,7 +496,7 @@ function nutPDFIndividual(id, f, aba = S.nut.aba) {
   }
   if (aba === 'sup') {
     const SP = nutSupl(), R = S.nut.sup; if (!SP.length) return toast('Nenhum suplemento cadastrado.', true);
-    const corpo = cabA + `<div class="golp-k" style="grid-template-columns:repeat(${Math.min(Math.max(SP.length, 1), 5)},1fr)">${SP.map(s => { const x = nutAdesao(R, s).de(id), d = nutAdesao(R, s).dias; return nutBox(x.p != null ? x.p + '%' : '—', `${esc(s)} · ${x.n}/${d} dia(s)`); }).join('')}</div>
+    const corpo = cabA + `<div class="golp-k" style="grid-template-columns:repeat(${Math.min(Math.max(SP.length, 1), 5)},1fr)">${SP.map(s => { const x = nutAdesao(R, s).de(id), d = nutAdesao(R, s).dias; return nutLivre(s) ? nutBox(nutVezes(x.n), `${esc(s)} · uso livre`) : nutBox(x.p != null ? x.p + '%' : '—', `${esc(s)} · ${x.n}/${d} dia(s)`); }).join('')}</div>
       <h2 class="golp-h2">Dias em que tomou</h2><table class="nutp-tb"><thead><tr><th>Suplemento</th><th>Dias</th></tr></thead><tbody>${SP.map(s => `<tr><td><b>${esc(s)}</b></td><td>${R.filter(r => r.atleta_id === id && r.suplemento === s).map(r => r.data).sort().map(d => `${NUT_DS[parse(d).getDay()]} ${fmt(d)}`).join(' · ') || '—'}</td></tr>`).join('')}</tbody></table>
       <p class="golp-m">Adesão = dias em que tomou ÷ dias em que o suplemento foi dado no período.</p>`;
     return nutImprimir('Suplementação · individual', f.txt, corpo, `Nutricao_${a.nome}_suplementacao_${f.curto}`);

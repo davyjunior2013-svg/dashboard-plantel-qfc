@@ -1073,3 +1073,6 @@ i.v{background:#e6f4ea;color:#0f7a3d}i.e{background:#fff6d6;color:#8a5a00}i.d{ba
 /* competição: metade de baixo em vermelho, linha pontilhada na metade */
 .cp-tb tr.cp-baixo td{background:#fdeeee;color:#c62828;-webkit-print-color-adjust:exact;print-color-adjust:exact}.cp-tb tr.cp-baixo .cp-pos,.cp-tb tr.cp-baixo .cp-pts,.cp-tb tr.cp-baixo b{color:#c62828}
 .cp-tb tr.cp-meio td{border-top:3px dashed #d32f2f!important}.cp-leg-v{color:#c62828;font-weight:700}
+
+/* nutrição: suplemento de uso livre (sem adesão) */
+.nut-livre-t{display:block;margin-top:8px}.nut-livre{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}.nut-livre .chip{cursor:pointer;display:inline-flex;align-items:center;gap:4px}.nut-livre .chip input{margin:0}
