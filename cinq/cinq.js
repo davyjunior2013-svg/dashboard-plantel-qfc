@@ -772,15 +772,25 @@ function verAtleta(a) {
   modal(`<div class="row" style="margin-bottom:14px">${foto(a)}<div><h2 style="margin:0">${esc(a.nome)}</h2><span class="m">${esc(a.posicao)} · ${esc(a.pe || '—')}</span> <span class="badge s-${esc(a.status)}">${esc(a.status)}</span>${noXI ? ' <span class="badge t-Treino">11 inicial</span>' : ''}</div></div>
   <div class="detail">
     <h3 class="sub">Cadastro</h3>
-    <div class="g2">${c('Idade', a.idade && a.idade + ' anos')}${c('Altura', a.altura && String(a.altura).replace('.', ',') + ' m')}${c('Nº', a.numero)}${c('Contrato até', a.contrato_fim && dataBR(a.contrato_fim))}${c('Entrada', a.data_entrada && dataBR(a.data_entrada))}${c('Perfil', a.perfil)}</div>
+    <div class="g2">${c('Idade', a.idade && a.idade + ' anos')}${c('Altura', a.altura && String(a.altura).replace('.', ',') + ' m')}<div class="kv" id="fpeso" hidden></div>${c('Nº', a.numero)}${c('Contrato até', a.contrato_fim && dataBR(a.contrato_fim))}${c('Entrada', a.data_entrada && dataBR(a.data_entrada))}${c('Perfil', a.perfil)}</div>
     ${a.observacoes ? `<div class="k">Observações</div><p class="pre">${esc(a.observacoes)}</p>` : ''}
     ${blocoH}
   </div>
   <div class="mfoot"><div class="row">${isAdmin() ? '<button class="btn" id="medcad">Editar cadastro</button>' : ''}${isAdmin() ? `<button class="btn" id="medfoto">${a.foto_url ? 'Ajustar / trocar foto' : 'Adicionar foto'}</button>` : ''}${podeHistorico() ? `<button class="btn" id="medhist">${h ? 'Editar histórico' : 'Adicionar histórico'}</button>` : ''}</div><button class="btn pri" id="mf">Fechar</button></div>`);
   $('#mf').onclick = fechar;
+  fichaPeso(a.id);
   if ($('#medcad')) $('#medcad').onclick = () => formAtleta(a);
   if ($('#medfoto')) $('#medfoto').onclick = () => ajustarFoto(a, () => verAtleta(a));
   if ($('#medhist')) $('#medhist').onclick = () => formHistorico(h || { atleta_id: a.id, nome: a.nome, posicao: a.posicao });
+}
+
+// peso atual na ficha: última avaliação física da Nutrição com peso (automático, sem edição aqui)
+async function fichaPeso(id) {
+  try {
+    const { data } = await sb.from('nut_avaliacoes').select('peso, data').eq('atleta_id', id).not('peso', 'is', null).order('data', { ascending: false }).order('id', { ascending: false }).limit(1);
+    const r = data?.[0], el = document.getElementById('fpeso'); if (!r || !el) return;
+    el.innerHTML = `<span>Peso <small class="m">(${dataBR(r.data)})</small></span><b>${String(Math.round(r.peso * 10) / 10).replace('.', ',')} kg</b>`; el.hidden = false;
+  } catch (e) { /* sem acesso ou sem avaliação: não mostra */ }
 }
 
 function formAtleta(a) {
