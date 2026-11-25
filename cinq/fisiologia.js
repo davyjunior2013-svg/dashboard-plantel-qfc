@@ -49,6 +49,25 @@ async function carregarFl(forcar) {
 }
 const flSessao = id => S.fl.sess.find(s => s.id === id);
 const flTotais = sid => S.fl.gps.filter(g => g.sessao_id === sid && g.periodo === 0);
+/* filtro por parte (jogo: 1º / 2º tempo; jogo-treino: grupo de cada tempo). 0 = total da sessão */
+function flPartesFiltro(s) {
+  if (!s) return [];
+  const ps = (s.periodos || []).filter(p => S.fl.gps.some(g => g.sessao_id === s.id && g.periodo === p.num));
+  if (s.tipo === 'Jogo') return ps.filter(p => p.num !== 9).length ? ps : [];
+  // treino: só quando as partes são grupos separados (nenhum atleta em duas partes, fora o aquecimento) — ex.: jogo-treino
+  const fora = ps.filter(p => p.num !== 9); if (fora.length < 2) return [];
+  const vistos = new Set(); for (const p of fora) for (const g of S.fl.gps.filter(x => x.sessao_id === s.id && x.periodo === p.num)) { if (vistos.has(g.nome_origem)) return []; vistos.add(g.nome_origem); }
+  return ps;
+}
+const flParteSel = s => { const n = S.fl.parte?.[s?.id] || 0; return n && flPartesFiltro(s).some(p => p.num === n) ? n : 0; };
+const flTotaisSel = s => { const n = flParteSel(s); return n ? S.fl.gps.filter(g => g.sessao_id === s.id && g.periodo === n) : flTotais(s.id); };
+const flTotalNome = s => s.tipo === 'Jogo' ? 'Jogo todo (1º + 2º)' : 'Total (todos os grupos)';
+const flFiltroTxt = s => { const n = flParteSel(s); return n ? flNomeParte(s, n) : ''; };
+function flFiltroHTML(s) {
+  const P = flPartesFiltro(s); if (!P.length) return ''; const n = flParteSel(s);
+  return `<div class="fl-pfil"><span class="m">Ver:</span><div class="ind-tabs fl-modo">${[{ num: 0, nome: flTotalNome(s) }, ...P].map(p => `<button data-flpf="${p.num}" class="${p.num === n ? 'on' : ''}">${esc(p.nome)}</button>`).join('')}</div></div>`;
+}
+function ligarFlFiltro(s, re) { document.querySelectorAll('[data-flpf]').forEach(b => b.onclick = () => { S.fl.parte = S.fl.parte || {}; S.fl.parte[s.id] = +b.dataset.flpf; re(); }); }
 const flOrdS = (a, b) => (a.data + (a.hora || '')).localeCompare(b.data + (b.hora || ''));
 // linhas de sessão (periodo 0) de um atleta, em ordem
 const flLinhasAt = aid => flCache('lin', aid, () => S.fl.gps.filter(g => g.atleta_id === aid && g.periodo === 0).map(g => ({ g, s: flSessao(g.sessao_id) })).filter(x => x.s).sort((a, b) => flOrdS(a.s, b.s)));
@@ -91,7 +110,7 @@ function flVH(aid) {
   });
 }
 const flVref = aid => aid ? flVH(aid).ref : null;
-const flVEntrada = r => r?.atleta_id ? flVH(r.atleta_id).lista.find(e => e.g.id === r.id || (e.g.sessao_id === r.sessao_id && r.periodo === 0)) : null;
+const flVEntrada = r => r?.atleta_id ? flVH(r.atleta_id).lista.find(e => e.g.id === r.id || e.g.sessao_id === r.sessao_id) : null;
 // exposição na sessão: pico ≥ pct% da referência (por parte; o aquecimento não conta) ou jogo com ≥ jogo_min minutos
 function flExpo(e) {
   if (!e) return null;
@@ -106,7 +125,7 @@ function flExpo(e) {
 const flExpos = aid => flVH(aid).lista.filter(e => e.s.data <= hoje()).map(e => ({ e, x: flExpo(e) })).filter(o => o.x);
 const flPctTxt = r => { const e = flVEntrada(r); if (!e) return '—'; if (e.st === 'pendente') return '<span class="badge fl-pend" title="passou a referência anterior em mais do limite: confirmar se não é pico falso do GPS">a confirmar</span>';
   if (e.st === 'falso') return '<span class="m" title="marcado como falso pico">falso</span>'; if (!e.ref) return '<span class="m" title="a referência aparece a partir de algumas sessões do atleta (ou com o teste de velocidade)">—</span>';
-  const p = e.v / e.ref * 100; return `${Math.round(p)}%${p >= flCfg('vmax').pct ? ' <span class="fl-sino" title="exposição à velocidade máxima">🔔</span>' : ''}${e.recorde ? ' <span class="badge fl-rec">recorde</span>' : ''}`; };
+  const p = (r.periodo > 0 ? +r.vmax || 0 : e.v) / e.ref * 100; return `${Math.round(p)}%${p >= flCfg('vmax').pct ? ' <span class="fl-sino" title="exposição à velocidade máxima">🔔</span>' : ''}${e.recorde && !(r.periodo > 0) ? ' <span class="badge fl-rec">recorde</span>' : ''}`; };
 async function flMarcarVmax(id, status) {
   const { error } = await sb.from('fisl_gps').update({ vmax_status: status }).eq('id', id); if (error) return toast(erroAmigavel(error), true);
   const g = S.fl.gps.find(x => x.id === id); if (g) g.vmax_status = status; S.fl.rev++; toast(status === 'ok' ? 'Falso pico desfeito: a marca volta a contar.' : 'Marcada como falso pico: fora da referência.'); pFisiologia();
@@ -155,6 +174,11 @@ function lerCatapult(txt) {
     rows.push(r);
   }
   if (!rows.length) throw new Error('O arquivo não tem linhas de atletas.');
+  // o OpenField às vezes repete o Period Number em partes de nomes diferentes (ex.: "1 TEMPO" e "2 TEMPO" com número 1): separa pelo nome
+  { const dono = {}, novo = {}; let prox = Math.max(0, ...rows.map(r => r.periodo)) + 1;
+    rows.filter(r => r.periodo > 0).forEach(r => { const k = r.periodo + '|' + fNorm(r.periodo_nome);
+      if (novo[k] == null) novo[k] = dono[r.periodo] == null || dono[r.periodo] === k ? (dono[r.periodo] = k, r.periodo) : prox++;
+      r.periodo = novo[k]; }); }
   const dm = (meta.date || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
   const data = dm ? `${dm[3]}-${dm[2].padStart(2, '0')}-${dm[1].padStart(2, '0')}` : null;
   const nomes = [...new Set(rows.map(r => r.nome_origem))];
@@ -303,13 +327,13 @@ const FL_MET = [['dist', 'Distância total', 'm', 0], ['mmin', 'Distância relat
 const flNomeParte = (s, n) => n === 0 ? (s.tipo === 'Jogo' ? 'Jogo (1º + 2º)' : 'Sessão') : s.periodos.find(p => p.num === n)?.nome || FL_PJ[n] || 'Parte ' + n;
 // histórico do atleta: média das sessões anteriores do mesmo tipo (mínimo 3)
 function flHist(r, s) {
-  if (!r.atleta_id) return null;
+  if (!r.atleta_id || r.periodo > 0) return null;
   return flCache('hist', r.id, () => { const ant = flLinhasAt(r.atleta_id).filter(x => x.s.id !== s.id && x.s.tipo === s.tipo && x.s.data < s.data).map(x => x.g);
     return ant.length < 3 ? null : Object.fromEntries(['dist', 'mmin', 'ai', 'sprint', 'hsr_total', 'pl', 'plmin'].map(k => [k, flMedia(ant, k)])); });
 }
 const flSeta = (v, ref) => { if (v == null || !ref) return ''; const d = Math.round((v - ref) / ref * 100); return Math.abs(d) < 10 ? '' : `<small class="fl-d ${d > 0 ? 'up' : 'dn'}">${d > 0 ? '+' : ''}${d}%</small>`; };
 function flDados(s) {
-  const tot = flTotais(s.id).sort((a, b) => flNomeAt(a).localeCompare(flNomeAt(b), 'pt'));
+  const tot = flTotaisSel(s).sort((a, b) => flNomeAt(a).localeCompare(flNomeAt(b), 'pt'));
   const durMax = Math.max(0, ...tot.map(r => r.duracao_s || 0)), C = flCfg('vmax');
   const per = s.periodos.map(p => { const rs = S.fl.gps.filter(g => g.sessao_id === s.id && g.periodo === p.num); return { ...p, rs, dur: Math.max(0, ...rs.map(r => r.duracao_s || 0)) || null, dist: flMedia(rs, 'dist'), mmin: flMedia(rs, 'mmin'), ai: flMedia(rs, 'ai'), hsr: flMedia(rs, 'hsr_total'), pl: flMedia(rs, 'pl') }; });
   const maior = k => tot.reduce((m, r) => (r[k] ?? -1) > (m?.[k] ?? -1) ? r : m, null);
@@ -369,7 +393,7 @@ function pPosTreino() {
     return `<div class="dm-dia"><select class="in" id="flsel">${sess.map(x => `<option value="${x.id}"${x.id === s.id ? ' selected' : ''}>${esc(flSessOpt(x))}</option>`).join('')}</select>
       <b>${esc(fmtLong(s.data))}</b><span class="m">${esc(s.tipo)} · ${flDur(s.duracao_s)} · ${D.tot.length} atletas${cal ? ` · calendário: ${esc([cal.tipo, cal.titulo].filter(Boolean).join(' · '))}` : ''}</span>
       <span class="fl-mds">${(s.md || []).map(t => `<span class="badge fl-mdb">${esc(t)}</span>`).join('') || '<span class="m">sem MD</span>'}</span>${pode ? '<button class="btn sm" id="flmd">Tags / tipo</button><button class="btn sm" id="flrm">Excluir sessão</button>' : ''}</div>
-    <h3 class="dc-bloco">Visão da sessão <small>média do grupo${s.tipo === 'Jogo' ? ' · jogo = 1º + 2º tempo' : ''}</small></h3>
+    ${flFiltroHTML(s)}<h3 class="dc-bloco">Visão da sessão <small>média do grupo${flParteSel(s) ? ' · ' + esc(flFiltroTxt(s)) : s.tipo === 'Jogo' ? ' · jogo = 1º + 2º tempo' : flPartesFiltro(s).length ? ' · todos os grupos' : ''}</small></h3>
     <div class="cards fs-kpis fl-kpis fl-r fl-r5">${kpi('Distância total', flFmt(m.dist, 1) + ' m')}${kpi('Distância relativa', flFmt(m.mmin, 1) + ' m/min')}${kpi('Alta intensidade 19,8–25,2', flFmt(m.ai, 1) + ' m')}${kpi('Sprint ≥25,2', flFmt(m.sprint, 1) + ' m')}${kpi('Nº de sprints', flFmt(m.n_sprints, 1))}</div>
     <div class="cards fs-kpis fl-kpis fl-r fl-r4">${kpi('Player Load', flFmt(m.pl, 0) + ' UA')}${kpi('PL/min', flFmt(m.plmin, 2))}${kpi('Acelerações', flFmt(m.n_acel, 1), `média · ${flFmt(m.acel_m, 1)} m`)}${kpi('Desacelerações', flFmt(m.n_desac, 1), `média · ${flFmt(m.desac_m, 1)} m`)}</div>
     <div class="cards fs-kpis fl-kpis fl-r fl-r3">${kpi('Vel. máxima', flFmt(m.vmax, 1) + ' km/h', `média · ${sinos} 🔔`)}${kpi('Maior distância', flFmt(D.maior('dist')?.dist) + ' m', esc(flNomeAt(D.maior('dist') || {})))}${kpi('Maior vel.', flFmt(D.maior('vmax')?.vmax, 1) + ' km/h', esc(flNomeAt(D.maior('vmax') || {})))}</div>
@@ -389,7 +413,8 @@ function pPosTreino() {
   if ($('#flimp')) $('#flimp').onclick = escolherCatapult;
   if (!s) return;
   $('#flsel').onchange = e => { S.fl.sel = +e.target.value; pPosTreino(); };
-  $('#flpdf').onclick = () => imprimirFl(relPosHTML(s), `Relatorio_${s.tipo}_QFC_${s.data}`);
+  ligarFlFiltro(s, pPosTreino);
+  $('#flpdf').onclick = () => imprimirFl(relPosHTML(s), `Relatorio_${s.tipo}_QFC_${s.data}${flParteSel(s) ? '_' + flFiltroTxt(s).replace(/[^\w]+/g, '_') : ''}`);
   document.querySelectorAll('[data-flat]').forEach(tr => tr.onclick = () => flPartesAtleta(s, tr.dataset.flat));
   document.querySelectorAll('[data-vok]').forEach(b => b.onclick = () => flMarcarVmax(+b.dataset.vok, 'ok'));
   document.querySelectorAll('[data-vfalso]').forEach(b => b.onclick = () => flMarcarVmax(+b.dataset.vfalso, 'falso'));
@@ -913,7 +938,7 @@ function flPodio(L, tit, sub) {
 function pCards() {
   if (S.fl.ck.vis === 'completo') return pCardsCompleto();
   const c = S.fl.ck, sess = [...S.fl.sess].sort((a, b) => flOrdS(b, a)), s = flSessao(c.sel) || sess[0];
-  const tot = s ? flTotais(s.id).sort((a, b) => flOrdPos(flPos(a)) - flOrdPos(flPos(b)) || flNomeAt(a).localeCompare(flNomeAt(b), 'pt')) : [];
+  const tot = s ? flTotaisSel(s).sort((a, b) => flOrdPos(flPos(a)) - flOrdPos(flPos(b)) || flNomeAt(a).localeCompare(flNomeAt(b), 'pt')) : [];
   const um = c.vis === 'individual' ? tot.find(r => r.nome_origem === c.at) || tot[0] : null;
   $('#main').innerHTML = topo('Fisiologia', 'Relatório de treino', 'Card de cada atleta na sessão: modelo da comissão (completo) ou do atleta (simples, para mandar para ele).',
     s ? `<button class="btn" id="flkrk">🏆 Ranking semanal / mensal</button>${tot.length ? '<button class="btn" id="flktop">🥇 Exportar só o top 3</button>' : ''}<button class="btn" id="flkpdf">Baixar PDF</button><button class="btn pri" id="flkpng">Baixar ${c.vis === 'todos' ? 'imagens' : 'imagem'} (PNG)</button>` : '') + flTabs('cards') + (!s ? '<div class="panel empty">Nenhuma sessão importada ainda.</div>' : `
@@ -922,12 +947,14 @@ function pCards() {
       <div class="ind-tabs fl-modo"><button data-kv="todos" class="${c.vis === 'todos' ? 'on' : ''}">Todos</button><button data-kv="individual" class="${c.vis === 'individual' ? 'on' : ''}">Individual</button></div>
       <button class="btn flk-compb" data-kv="completo">📂 Relatório completo</button>
       ${c.vis === 'individual' ? `<select class="in" id="flkat">${opts(tot.map(r => [r.nome_origem, flNomeAt(r)]), um?.nome_origem)}</select>` : ''}</div>
-    ${c.vis === 'todos' && tot.length ? flPodio(tot, `Destaques do ${s.tipo === 'Jogo' ? 'jogo' : 'treino'} · ${dataBR(s.data)}`, s.md?.length ? flMdTxt(s) : '') : ''}
+    ${flFiltroHTML(s)}
+    ${c.vis === 'todos' && tot.length ? flPodio(tot, `Destaques do ${s.tipo === 'Jogo' ? 'jogo' : 'treino'} · ${dataBR(s.data)}`, [s.md?.length ? flMdTxt(s) : '', flFiltroTxt(s)].filter(Boolean).join(' · ')) : ''}
     <div class="flk-grid${c.vis === 'individual' ? ' um' : ''}" id="flkg">${(um ? [um] : tot).map(r => flCard(s, r, tot, c.modelo)).join('')}</div>
     <p class="m fl-nota">PNG: ${c.vis === 'todos' ? 'sai em imagens com até 8 atletas cada' : 'imagem do card do atleta, para mandar no WhatsApp'}. PDF: 4 cards por página A4.</p>`);
   ligarFlTabs();
   if (!s) return;
   $('#flksel').onchange = e => { c.sel = +e.target.value; pCards(); };
+  ligarFlFiltro(s, pCards);
   $('#flkrk').onclick = () => pRanking();
   if ($('#flktop')) $('#flktop').onclick = () => flExportTop3(s, tot);
   document.querySelectorAll('[data-km]').forEach(b => b.onclick = () => { c.modelo = b.dataset.km; pCards(); });
@@ -941,7 +968,7 @@ function pCards() {
     const b = $('#flkpng'); b.disabled = true; b.textContent = 'Gerando…';
     try { const grupos = []; for (let i = 0; i < lista.length; i += um ? 1 : 8) grupos.push(lista.slice(i, i + (um ? 1 : 8)));
       for (const [k, g] of grupos.entries()) { const nome = um ? `Relatorio_de_treino_${flTitulo(um.nome_origem).replace(/\s+/g, '_')}_${s.data}` : `Relatorio_de_treino_${s.data}_${k + 1}`;
-        await flPNG(`<div class="flk-exp${um ? ' um' : ''}">${um ? '' : `<div class="flk-expcab"><img src="${LOGO}" alt=""><b>QFC · Relatório de treino · ${esc(s.tipo)} de ${dataBR(s.data)}${s.md?.length ? ' · ' + esc(flMdTxt(s)) : ''}</b></div>`}${!um && k === 0 ? flPodio(tot, `Destaques do ${s.tipo === 'Jogo' ? 'jogo' : 'treino'} · ${dataBR(s.data)}`, s.md?.length ? flMdTxt(s) : '') : ''}<div class="flk-grid">${g.map(r => flCard(s, r, tot, c.modelo)).join('')}</div></div>`, nome); }
+        await flPNG(`<div class="flk-exp${um ? ' um' : ''}">${um ? '' : `<div class="flk-expcab"><img src="${LOGO}" alt=""><b>QFC · Relatório de treino · ${esc(s.tipo)} de ${dataBR(s.data)}${s.md?.length ? ' · ' + esc(flMdTxt(s)) : ''}</b></div>`}${!um && k === 0 ? flPodio(tot, `Destaques do ${s.tipo === 'Jogo' ? 'jogo' : 'treino'} · ${dataBR(s.data)}`, [s.md?.length ? flMdTxt(s) : '', flFiltroTxt(s)].filter(Boolean).join(' · ')) : ''}<div class="flk-grid">${g.map(r => flCard(s, r, tot, c.modelo)).join('')}</div></div>`, nome); }
       toast(grupos.length > 1 ? `${grupos.length} imagens baixadas.` : 'Imagem baixada.');
     } catch (e) { toast(e.message || 'Não consegui gerar a imagem.', true); }
     b.disabled = false; b.textContent = `Baixar ${c.vis === 'todos' ? 'imagens' : 'imagem'} (PNG)`; };
@@ -1071,9 +1098,9 @@ async function flPNG(html, nome) {
 /* ============ PDF no padrão do Departamento de Saúde e Performance ============ */
 const flCab = (tit, data, sub) => `<div class="flp-cab"><img src="${LOGO}" alt=""><div><small>QFC | DEPARTAMENTO DE SAÚDE E PERFORMANCE</small><h1>${esc(tit)}</h1></div><div class="flp-dt"><b>${parse(data).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/\./g, '').toUpperCase()}</b><span>${esc(sub)}</span></div></div>`;
 function relPosHTML(s) {
-  const D = flDados(s), m = D.med, sub = `${s.tipo}${s.md?.length ? ' ' + flMdTxt(s) : ''} | ${flDur(s.duracao_s)} | ${D.tot.length} atletas`, card = (l, v) => `<div class="flp-k"><small>${l}</small><b>${v}</b></div>`;
+  const D = flDados(s), m = D.med, sub = `${s.tipo}${s.md?.length ? ' ' + flMdTxt(s) : ''}${flParteSel(s) ? ' | ' + flFiltroTxt(s) : ''} | ${flDur(flParteSel(s) ? D.durMax : s.duracao_s)} | ${D.tot.length} atletas`, card = (l, v) => `<div class="flp-k"><small>${l}</small><b>${v}</b></div>`;
   const bl = (t, k, d = 0, cor = '') => `<div class="flp-box"><h4>${t}</h4>${flBarras(D.tot, k, d, '', cor)}</div>`, tit = s.tipo === 'Jogo' ? 'RELATÓRIO DE JOGO' : 'RELATÓRIO DE TREINO';
-  return `<section class="flp-pg">${flCab(tit, s.data, sub)}<h3>VISÃO DA SESSÃO <small>média do grupo${s.tipo === 'Jogo' ? ' · 1º + 2º tempo' : ''}</small></h3>
+  return `<section class="flp-pg">${flCab(tit, s.data, sub)}<h3>VISÃO DA SESSÃO <small>média do grupo${flParteSel(s) ? ' · ' + esc(flFiltroTxt(s)) : s.tipo === 'Jogo' ? ' · 1º + 2º tempo' : ''}</small></h3>
       <div class="flp-ks">${card('Distância total', flFmt(m.dist, 1) + ' m')}${card('Distância relativa', flFmt(m.mmin, 1) + ' m/min')}${card('Alta intensidade 19,8–25,2', flFmt(m.ai, 1) + ' m')}${card('Sprint ≥25,2', `${flFmt(m.sprint, 1)} m · ${flFmt(m.n_sprints, 1)}`)}
         ${card('Velocidade máxima', flFmt(m.vmax, 1) + ' km/h')}${card('Acelerações', `${flFmt(m.acel_m, 1)} m · ${flFmt(m.n_acel, 1)}`)}${card('Desacelerações', `${flFmt(m.desac_m, 1)} m · ${flFmt(m.n_desac, 1)}`)}${card('Player Load', `${flFmt(m.pl, 0)} · ${flFmt(m.plmin, 2)}/min`)}</div>
       ${D.per.length ? `<h3>DISTRIBUIÇÃO POR PERÍODO</h3><div class="flp-ks">${D.per.map(p => card(p.nome + (p.num === 9 ? ' (fora do total)' : ''), `${flDur(p.dur)} · ${flFmt(p.dist)} m · ${flFmt(p.mmin)} m/min`)).join('')}</div>` : ''}
@@ -1125,7 +1152,8 @@ function flRefConteudo(ab) {
         'Gráficos de barras: barra cheia = maior valor do grupo na sessão; risco = média do grupo.']), LIM,
       sec('Jogo', ['3 arquivos: aquecimento, 1º e 2º tempo. Total do jogo = 1º + 2º tempo (somas; vmáx = maior das partes; m/min e PL/min = total ÷ minutos).',
         'Aquecimento fica separado: não entra no total, na carga, no ACWR nem na exposição à velocidade.',
-        '1º × 2º tempo: cada métrica ÷ minutos jogados na parte; Δ = (2º − 1º) ÷ 1º. Destaque com queda ou aumento de 10% ou mais.']),
+        '1º × 2º tempo: cada métrica ÷ minutos jogados na parte; Δ = (2º − 1º) ÷ 1º. Destaque com queda ou aumento de 10% ou mais.',
+        'Filtro “Ver”: no jogo, mostra o jogo todo (1º + 2º, padrão), só o 1º ou só o 2º tempo; no treino em grupos separados (ex.: jogo-treino, cada grupo jogou um tempo), mostra o total ou cada grupo. Vale para a tela, os cards e o PDF. Com uma parte filtrada não há setas de comparação com o habitual. As partes são separadas pelo nome que vem no CSV (Period Name).']),
       sec('Partes do GPS × exercícios', ['Cada parte do GPS é ligada a um exercício do treino do calendário (sugestão pela ordem, ajustável).',
         'Referência de metodologia do QFC: espaço grande → resistência → distância; médio → velocidade → sprint; pequeno → força → acelerações/desacelerações. A célula destacada é a métrica-alvo do exercício.',
         'Espaço = comprimento × largura do plano; m²/jogador = área ÷ nº de jogadores. Limites numéricos entre grande, médio e pequeno ainda a definir com o treinador e o fisiologista.']),

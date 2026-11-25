@@ -1076,3 +1076,6 @@ i.v{background:#e6f4ea;color:#0f7a3d}i.e{background:#fff6d6;color:#8a5a00}i.d{ba
 
 /* nutrição: suplemento de uso livre (sem adesão) */
 .nut-livre-t{display:block;margin-top:8px}.nut-livre{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}.nut-livre .chip{cursor:pointer;display:inline-flex;align-items:center;gap:4px}.nut-livre .chip input{margin:0}
+
+/* fisiologia: filtro por parte (jogo / jogo-treino) */
+.fl-pfil{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0 4px}
