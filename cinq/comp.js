@@ -5,7 +5,8 @@
    Lança: Análise de desempenho e admin. Leitura: comissão. */
 const podeComp = () => isAdmin() || S.perfil?.funcao === 'analise';
 const COMP_PTS = { V: 2, E: 1, D: 0 };
-const compPV = x => +x?.pts_v || COMP_PTS.V;   // pontos da vitória da atividade (padrão 2; ex.: jogo-treino 3)
+const compPV = x => x?.pts_v == null ? COMP_PTS.V : +x.pts_v;   // pontos da vitória da atividade (padrão 2; jogo-treino 3; 0 = não vale pontos → fora da tabela)
+const compVale = x => compPV(x) > 0;
 const COMP_RES = [['V', 'Venceu'], ['E', 'Empate'], ['D', 'Perdeu']];
 S.comp = { ref: null, at: [], res: [] };
 const compDS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'], compDL = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
@@ -24,7 +25,7 @@ async function carregarComp() {
 }
 // classificação sem posição repetida: pontos → mais vitórias → menos derrotas → melhor aproveitamento (pontos ÷ possíveis) → nome
 function compTabela(at = S.comp.at, res = S.comp.res) {
-  const pv = Object.fromEntries(at.map(x => [x.id, compPV(x)])), m = {};
+  const pv = Object.fromEntries(at.filter(compVale).map(x => [x.id, compPV(x)])), m = {};
   res.filter(r => pv[r.atividade_id]).forEach(r => { const o = m[r.atleta_id] = m[r.atleta_id] || { id: r.atleta_id, V: 0, E: 0, D: 0, P: 0, Pmax: 0 }; const v = pv[r.atividade_id];
     o[r.res]++; o.P += r.res === 'V' ? v : r.res === 'E' ? COMP_PTS.E : COMP_PTS.D; o.Pmax += v; });
   const L = Object.values(m).map(o => ({ ...o, a: compAtl(o.id), J: o.V + o.E + o.D, apr: o.Pmax ? Math.round(o.P / o.Pmax * 100) : 0 }))
@@ -41,13 +42,13 @@ async function pCompeticao() {
     `<button class="btn" id="cpcrit">📘 Critérios</button><button class="btn pri" id="cpexp">🖨️ Exportar tabela</button>${pode ? '<button class="btn" id="cpnova">+ Atividade</button>' : ''}`);
   $('#main').innerHTML = cab + '<div class="panel empty">Carregando…</div>';
   try { await carregarComp(); } catch (e) { $('#main .panel').innerHTML = esc(erroAmigavel(e)); return; }
-  const L = compTabela(), A = S.comp.at, n = A.length;
+  const L = compTabela(), A = S.comp.at, n = A.filter(compVale).length, nz = A.length - n;
   const nav = `<div class="gol-per"><button class="btn sm" id="cpprev">◀</button><b>Semana ${fmt(ini)} a ${fmt(fim)}</b><button class="btn sm" id="cpnext">▶</button>${ini !== segunda(hoje()) ? '<button class="btn sm" id="cphoje">Atual</button>' : ''}
-    <span class="m">${n} atividade${n === 1 ? '' : 's'} · ${L.length} atletas pontuaram</span></div>`;
+    <span class="m">${n} atividade${n === 1 ? '' : 's'} valendo pontos${nz ? ` · ${nz} sem pontos (fora da tabela)` : ''} · ${L.length} atletas pontuaram</span></div>`;
   const dias = [...new Set(A.map(x => x.data))];
   const ativ = `<div class="panel"><h2>Atividades da semana</h2>${dias.length ? `<div class="cp-dias">${dias.map(d => `<div class="cp-dia"><h4>${compDL[parse(d).getDay()]} <small>${fmt(d)}</small></h4>
       ${A.filter(x => x.data === d).map(x => { const R = S.comp.res.filter(r => r.atividade_id === x.id), c = k => R.filter(r => r.res === k).length;
-        return `<button class="cp-at" data-cpat="${x.id}"><b>${esc(x.nome)}${compPV(x) !== COMP_PTS.V ? ` <small class="cp-pv">vitória = ${compPV(x)} pts</small>` : ''}</b><span><i class="v">${c('V')} V</i><i class="e">${c('E')} E</i><i class="d">${c('D')} D</i></span></button>`; }).join('')}</div>`).join('')}</div>`
+        return `<button class="cp-at" data-cpat="${x.id}"><b>${esc(x.nome)}${!compVale(x) ? ' <small class="cp-pv cp-pv0">não vale pontos</small>' : compPV(x) !== COMP_PTS.V ? ` <small class="cp-pv">vitória = ${compPV(x)} pts</small>` : ''}</b><span><i class="v">${c('V')} V</i><i class="e">${c('E')} E</i><i class="d">${c('D')} D</i></span></button>`; }).join('')}</div>`).join('')}</div>`
     : `<p class="empty">Nenhuma atividade lançada nesta semana.${pode ? ' Use “+ Atividade”.' : ''}</p>`}</div>`;
   $('#main').innerHTML = cab + nav + (L.length ? compPodio(L) + compTabelaHTML(L) : '') + ativ;
   $('#cpprev').onclick = () => { S.comp.ref = addDays(ini, -7); pCompeticao(); };
@@ -81,7 +82,7 @@ function compForm(x) {
     <div class="gol-f3"><label class="f"><span>Data</span><input type="date" class="in" id="cpd" value="${esc(d0)}"${pode ? '' : ' disabled'}></label>
       <label class="f"><span>Nome da atividade</span><input class="in" id="cpn" value="${esc(x?.nome || `Atividade ${nAt(S.comp.at) + 1}`)}"${pode ? '' : ' disabled'}></label>
       <label class="f"><span>Do plano de treino <small class="m">(opcional)</small></span><select class="in" id="cpex"${pode ? '' : ' disabled'}>${opts(exs(d0), '', '—')}</select></label>
-      <label class="f"><span>Vitória vale <small class="m">pontos (padrão ${COMP_PTS.V})</small></span><input type="number" min="1" max="10" class="in" id="cppv" value="${compPV(x)}"${pode ? '' : ' disabled'}></label></div>
+      <label class="f"><span>Vitória vale <small class="m">pontos (padrão ${COMP_PTS.V}; 0 = não vale, fica fora da tabela)</small></span><input type="number" min="0" max="10" class="in" id="cppv" value="${compPV(x)}"${pode ? '' : ' disabled'}></label></div>
     ${pode ? `<div class="cp-bulk"><span class="m">Clique no resultado de cada atleta (clicar de novo desmarca = não participou).</span><button type="button" class="btn sm" id="cpallE">Todos empataram</button><button type="button" class="btn sm" id="cplimpa">Limpar</button></div>` : ''}
     <div class="cp-cont" id="cpcont"></div>
     <div class="cp-ls">${ats.map(linha).join('')}</div>
@@ -99,8 +100,8 @@ function compForm(x) {
   if ($('#cpdel')) $('#cpdel').onclick = async () => { if (!confirm(`Excluir “${x.nome}” de ${dataBR(x.data)} e os resultados dela?`)) return;
     const { error } = await sb.from('comp_atividades').delete().eq('id', x.id); if (error) return toast(erroAmigavel(error), true); fechar(); toast('Atividade excluída.'); pCompeticao(); };
   $('#cps').onclick = async () => {
-    const data = $('#cpd').value, nome = $('#cpn').value.trim(), pts_v = Math.round(+$('#cppv').value) || COMP_PTS.V; if (!data || !nome) return toast('Informe a data e o nome.', true);
-    if (pts_v < 1 || pts_v > 10) return toast('A vitória vale de 1 a 10 pontos.', true);
+    const data = $('#cpd').value, nome = $('#cpn').value.trim(), pts_v = $('#cppv').value === '' ? COMP_PTS.V : Math.round(+$('#cppv').value); if (!data || !nome) return toast('Informe a data e o nome.', true);
+    if (!(pts_v >= 0 && pts_v <= 10)) return toast('A vitória vale de 0 a 10 pontos (0 = não vale pontos).', true);
     if (!Object.keys(R).length) return toast('Marque o resultado de ao menos um atleta.', true);
     $('#cps').disabled = true;
     try {
@@ -116,7 +117,7 @@ function compForm(x) {
 
 /* ---------- exportação (para imprimir e pendurar no vestiário) ---------- */
 function compExportHTML(L) {
-  const ini = S.comp.ref, fim = addDays(ini, 6), A = S.comp.at;
+  const ini = S.comp.ref, fim = addDays(ini, 6), A = S.comp.at.filter(compVale);
   const grade = A.length ? `<section class="cpp-pg"><div class="cpp-cab"><img src="${LOGO}" alt=""><div><small>QFC · COMPETIÇÃO DE TREINOS</small><h1>Resultados de cada atividade</h1></div><div class="cpp-dt"><b>Semana ${fmt(ini)} a ${fmt(fim)}</b></div></div>
     <table class="cpp-gr"><thead><tr><th>Atleta</th>${A.map(x => `<th>${compDS[parse(x.data).getDay()]} ${fmt(x.data)}<br><small>${esc(x.nome)}${compPV(x) !== COMP_PTS.V ? ` (V = ${compPV(x)} pts)` : ''}</small></th>`).join('')}<th>Pts</th></tr></thead><tbody>
     ${L.map(o => `<tr><td><b>${esc(o.a?.nome || '?')}</b></td>${A.map(x => { const r = S.comp.res.find(y => y.atividade_id === x.id && y.atleta_id === o.id); return `<td class="${r ? r.res : ''}">${r ? { V: 'V', E: 'E', D: 'D' }[r.res] : '–'}</td>`; }).join('')}<td><b>${o.P}</b></td></tr>`).join('')}</tbody></table>
@@ -165,6 +166,7 @@ function compCriterios() {
   const sec = (t, itens) => `<h4 class="dm-h4">${t}</h4><ul class="fl-refl">${itens.map(i => `<li>${i}</li>`).join('')}</ul>`;
   modal(`<h2>Critérios · Competição de treinos</h2><p class="m">Como a classificação da semana é calculada.</p><div class="fl-ref">
     ${sec('Pontuação', [`<b>Vitória = ${COMP_PTS.V} pontos</b> · <b>empate = ${COMP_PTS.E} ponto</b> · <b>derrota = ${COMP_PTS.D}</b>.`, 'Uma atividade pode valer mais na vitória (ex.: jogo-treino = 3 pontos, combinado com o grupo). Ela aparece marcada com “vitória = N pts”.',
+      '<b>Atividade que não vale pontos</b> (vitória vale 0) fica <b>fora da tabela</b>: não soma pontos nem conta como jogo. Sem marcação = não entra.',
       'Cada atividade lançada vale um jogo para quem participou. Atleta sem resultado na atividade = não participou (–) e não pontua.',
       'Atletas que ainda não estão no elenco não entram na tabela.'])}
     ${sec('Período', ['Tabela <b>semanal</b>: segunda a domingo. Cada semana começa do zero.'])}
