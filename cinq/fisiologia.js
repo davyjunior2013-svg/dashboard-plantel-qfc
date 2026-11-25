@@ -86,13 +86,13 @@ const flHm = sg => { const m = Math.round((sg || 0) / 60), h = Math.floor(m / 60
 function flComparaPartes(s, pdf) {
   if (flParteSel(s)) return ''; const P = flPartesComp(s); if (P.length < 2) return '';
   const G = flGrupos(s), tit = P.map(p => flGCurto(p.nome)).join(' × ');
-  const soma = flCmpSoma(s), CMP = [['duracao_s', soma ? 'Minutos somados' : 'Duração', '', 0], ...FL_MET.map(([k, l, u, d]) => [k, l, u, d])].filter(([k]) => !soma || !['vmax', 'mmin', 'plmin'].includes(k));
-  const bloco = ([k, l, u, d]) => { const v = P.map(p => soma ? flSoma(p.rs, k) : flMedia(p.rs, k)), mx = Math.max(1e-9, ...v.map(x => +x || 0));
+  const soma = flCmpSoma(s), CMP = [['duracao_s', soma ? 'Tempo de jogo' : 'Duração', '', 0], ...FL_MET.map(([k, l, u, d]) => [k, l, u, d])].filter(([k]) => !soma || !['vmax', 'mmin', 'plmin'].includes(k));
+  const bloco = ([k, l, u, d]) => { const v = P.map(p => soma ? (k === 'duracao_s' ? Math.max(0, ...p.rs.map(r => +r.duracao_s || 0)) : flSoma(p.rs, k)) : flMedia(p.rs, k)), mx = Math.max(1e-9, ...v.map(x => +x || 0));
     const dl = P.length === 2 && v[0] && v[1] != null ? Math.round((v[1] - v[0]) / v[0] * 100) : null;
-    return `<div class="flgc-m"><h5>${esc(l)}${u ? ` <small>${u}</small>` : ''}</h5>${P.map((p, i) => `<div class="flgc-l"><span>${esc(flGCurto(p.nome))}</span><div><i style="width:${(+v[i] || 0) / mx * 100}%;background:${p.cor}"></i></div><b>${k === 'duracao_s' ? (soma ? flHm(v[i]) : flDur(v[i])) : flFmt(v[i], d)}</b></div>`).join('')}
+    return `<div class="flgc-m"><h5>${esc(l)}${u ? ` <small>${u}</small>` : ''}</h5>${P.map((p, i) => `<div class="flgc-l"><span>${esc(flGCurto(p.nome))}</span><div><i style="width:${(+v[i] || 0) / mx * 100}%;background:${p.cor}"></i></div><b>${k === 'duracao_s' ? flDur(v[i]) : flFmt(v[i], d)}</b></div>`).join('')}
       ${dl != null ? `<small class="flgc-d${dl >= 10 ? ' up' : dl <= -10 ? ' dn' : ''}">${esc(flGCurto(P[1].nome))}: ${dl > 0 ? '+' : ''}${dl}%</small>` : ''}</div>`; };
   const leg = P.map(p => `<span><i style="background:${p.cor}"></i>${esc(p.nome)} <small>(${p.rs.length} atletas)</small></span>`).join('');
-  return `<div class="${pdf ? 'flgc-pdf' : 'panel'} flgc"><${pdf ? 'h3' : 'h2'}>${pdf ? 'COMPARATIVO ' + esc(tit.toUpperCase()) : 'Comparativo ' + esc(tit)} <small class="m">${soma ? `soma de todos os atletas de cada ${G ? 'grupo' : 'parte'} (sem vel. máxima, m/min e PL/min)` : `média de cada ${G ? 'grupo' : 'parte'} · valores totais`}${P.length === 2 ? ` · % = ${esc(flGCurto(P[1].nome))} em relação a ${esc(flGCurto(P[0].nome))}` : ''}</small></${pdf ? 'h3' : 'h2'}>
+  return `<div class="${pdf ? 'flgc-pdf' : 'panel'} flgc"><${pdf ? 'h3' : 'h2'}>${pdf ? 'COMPARATIVO ' + esc(tit.toUpperCase()) : 'Comparativo ' + esc(tit)} <small class="m">${soma ? `soma de todos os atletas de cada ${G ? 'grupo' : 'parte'} (tempo de jogo = duração do grupo, não somado; sem vel. máxima, m/min e PL/min)` : `média de cada ${G ? 'grupo' : 'parte'} · valores totais`}${P.length === 2 ? ` · % = ${esc(flGCurto(P[1].nome))} em relação a ${esc(flGCurto(P[0].nome))}` : ''}</small></${pdf ? 'h3' : 'h2'}>
     ${FL_CMP_SOMA.has(s.id) && !pdf ? `<div class="ind-tabs fl-modo flgc-modo"><button data-flcm="media" class="${soma ? '' : 'on'}">Média</button><button data-flcm="soma" class="${soma ? 'on' : ''}">Soma</button></div>` : ''}
     <div class="flgc-leg">${leg}</div><div class="flgc-g">${CMP.map(bloco).join('')}</div></div>`;
 }
