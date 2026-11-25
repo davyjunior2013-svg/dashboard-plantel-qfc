@@ -8,14 +8,24 @@ const COMP_PTS = { V: 2, E: 1, D: 0 };
 const compPV = x => x?.pts_v == null ? COMP_PTS.V : +x.pts_v;   // pontos da vitória da atividade (padrão 2; jogo-treino 3; 0 = não vale pontos → fora da tabela)
 const compVale = x => compPV(x) > 0;
 const COMP_RES = [['V', 'Venceu'], ['E', 'Empate'], ['D', 'Perdeu']];
-S.comp = { ref: null, at: [], res: [] };
+S.comp = { ref: null, at: [], res: [], per: [] };
+// período da tabela: padrão segunda a domingo; a análise pode ajustar (ex.: 16/11 a 24/11 para incluir o jogo-treino) – tabela comp_periodos
+function compPeriodo(d) {
+  const c = S.comp.per.find(p => p.inicio <= d && d <= p.fim); if (c) return { ini: c.inicio, fim: c.fim, id: c.id };
+  let ini = segunda(d), fim = addDays(ini, 6);
+  S.comp.per.forEach(p => { if (p.fim < d && p.fim >= ini) ini = addDays(p.fim, 1); if (p.inicio > d && p.inicio <= fim) fim = addDays(p.inicio, -1); });
+  return { ini, fim, id: null };
+}
+const compPer = () => compPeriodo(S.comp.ref || hoje());
+const compPerTxt = P => P.id || P.ini !== segunda(P.ini) || P.fim !== addDays(P.ini, 6) ? `Período ${fmt(P.ini)} a ${fmt(P.fim)}` : `Semana ${fmt(P.ini)} a ${fmt(P.fim)}`;
 const compDS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'], compDL = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 const compAtl = id => S.atletas.find(a => a.id === id);
 const compNome = a => { const ap = String(a?.nome || '').match(/\(([^)]+)\)/); return ap ? ap[1].trim() : (a?.nome || '?'); };
 const compFt = (a, cls = '') => { const q = fotoQ(a); return a?.foto_url ? `<span class="cp-ft ${cls}"><img src="${esc(a.foto_url)}" alt="" style="object-position:${q.x}% ${q.y}%"></span>` : `<span class="cp-ft cp-ini ${cls}">${esc(iniciais(a?.nome || '?'))}</span>`; };
 
 async function carregarComp() {
-  const ini = S.comp.ref, fim = addDays(ini, 6);
+  const pr = await sb.from('comp_periodos').select('*').order('inicio'); if (pr.error) throw pr.error; S.comp.per = pr.data || [];
+  const { ini, fim } = compPer();
   const a = await sb.from('comp_atividades').select('*').gte('data', ini).lte('data', fim).order('data').order('ordem').order('id');
   if (a.error) throw a.error;
   const ids = a.data.map(x => x.id);
@@ -36,26 +46,29 @@ function compTabela(at = S.comp.at, res = S.comp.res) {
 
 /* ---------- página ---------- */
 async function pCompeticao() {
-  S.comp.ref = S.comp.ref || segunda(hoje());
-  const pode = podeComp(), ini = S.comp.ref, fim = addDays(ini, 6);
+  S.comp.ref = S.comp.ref || hoje();
+  const pode = podeComp();
+  let { ini, fim } = compPer();
   const cab = topo('Comissão', 'Competição de treinos', 'Vitória 2 pontos (ou o valor da atividade) · empate 1 · derrota 0. Desempate: mais vitórias, menos derrotas, melhor aproveitamento. Quem não participou não pontua.',
     `<button class="btn" id="cpcrit">📘 Critérios</button><button class="btn pri" id="cpexp">🖨️ Exportar tabela</button>${pode ? '<button class="btn" id="cpnova">+ Atividade</button>' : ''}`);
   $('#main').innerHTML = cab + '<div class="panel empty">Carregando…</div>';
   try { await carregarComp(); } catch (e) { $('#main .panel').innerHTML = esc(erroAmigavel(e)); return; }
+  const P = compPer(); ini = P.ini; fim = P.fim;
   const L = compTabela(), A = S.comp.at, n = A.filter(compVale).length, nz = A.length - n;
-  const nav = `<div class="gol-per"><button class="btn sm" id="cpprev">◀</button><b>Semana ${fmt(ini)} a ${fmt(fim)}</b><button class="btn sm" id="cpnext">▶</button>${ini !== segunda(hoje()) ? '<button class="btn sm" id="cphoje">Atual</button>' : ''}
+  const nav = `<div class="gol-per"><button class="btn sm" id="cpprev">◀</button><b>${compPerTxt(P)}</b><button class="btn sm" id="cpnext">▶</button>${hoje() < ini || hoje() > fim ? '<button class="btn sm" id="cphoje">Atual</button>' : ''}${pode ? '<button class="btn sm" id="cpper">Ajustar período</button>' : ''}
     <span class="m">${n} atividade${n === 1 ? '' : 's'} valendo pontos${nz ? ` · ${nz} sem pontos (fora da tabela)` : ''} · ${L.length} atletas pontuaram</span></div>`;
   const dias = [...new Set(A.map(x => x.data))];
-  const ativ = `<div class="panel"><h2>Atividades da semana</h2>${dias.length ? `<div class="cp-dias">${dias.map(d => `<div class="cp-dia"><h4>${compDL[parse(d).getDay()]} <small>${fmt(d)}</small></h4>
+  const ativ = `<div class="panel"><h2>Atividades do período</h2>${dias.length ? `<div class="cp-dias">${dias.map(d => `<div class="cp-dia"><h4>${compDL[parse(d).getDay()]} <small>${fmt(d)}</small></h4>
       ${A.filter(x => x.data === d).map(x => { const R = S.comp.res.filter(r => r.atividade_id === x.id), c = k => R.filter(r => r.res === k).length;
         return `<button class="cp-at" data-cpat="${x.id}"><b>${esc(x.nome)}${!compVale(x) ? ' <small class="cp-pv cp-pv0">não vale pontos</small>' : compPV(x) !== COMP_PTS.V ? ` <small class="cp-pv">vitória = ${compPV(x)} pts</small>` : ''}</b><span><i class="v">${c('V')} V</i><i class="e">${c('E')} E</i><i class="d">${c('D')} D</i></span></button>`; }).join('')}</div>`).join('')}</div>`
-    : `<p class="empty">Nenhuma atividade lançada nesta semana.${pode ? ' Use “+ Atividade”.' : ''}</p>`}</div>`;
+    : `<p class="empty">Nenhuma atividade lançada neste período.${pode ? ' Use “+ Atividade”.' : ''}</p>`}</div>`;
   $('#main').innerHTML = cab + nav + (L.length ? compPodio(L) + compTabelaHTML(L) : '') + ativ;
-  $('#cpprev').onclick = () => { S.comp.ref = addDays(ini, -7); pCompeticao(); };
-  $('#cpnext').onclick = () => { S.comp.ref = addDays(ini, 7); pCompeticao(); };
-  if ($('#cphoje')) $('#cphoje').onclick = () => { S.comp.ref = segunda(hoje()); pCompeticao(); };
+  $('#cpprev').onclick = () => { S.comp.ref = addDays(ini, -1); pCompeticao(); };
+  $('#cpnext').onclick = () => { S.comp.ref = addDays(fim, 1); pCompeticao(); };
+  if ($('#cphoje')) $('#cphoje').onclick = () => { S.comp.ref = hoje(); pCompeticao(); };
+  if ($('#cpper')) $('#cpper').onclick = () => compAjustarPer(P);
   $('#cpcrit').onclick = compCriterios;
-  $('#cpexp').onclick = () => L.length ? compExportar(L) : toast('Nenhum resultado nesta semana.', true);
+  $('#cpexp').onclick = () => L.length ? compExportar(L) : toast('Nenhum resultado neste período.', true);
   if ($('#cpnova')) $('#cpnova').onclick = () => compForm(null);
   document.querySelectorAll('[data-cpat]').forEach(b => b.onclick = () => compForm(A.find(x => x.id === +b.dataset.cpat)));
 }
@@ -65,14 +78,14 @@ function compPodio(L, imp) {
     return `<div class="cp-pc p${i + 1}">${compFt(o.a, 'g')}<em>${o.pos}º</em><b>${esc(compNome(o.a))}</b><span>${o.P} pts · ${o.V} V</span><div class="cp-deg"></div></div>`; }).join('')}</div>`;
 }
 function compTabelaHTML(L, imp) {
-  return `<div class="${imp ? 'cp-timp' : 'panel'}">${imp ? '' : '<h2>Classificação da semana</h2>'}<div class="tablewrap"><table class="tb cp-tb"><thead><tr><th>#</th><th>Atleta</th><th class="c">Pontos</th><th class="c">V</th><th class="c">E</th><th class="c">D</th><th class="c">Jogos</th><th class="c">Aprov.</th></tr></thead><tbody>
+  return `<div class="${imp ? 'cp-timp' : 'panel'}">${imp ? '' : '<h2>Classificação</h2>'}<div class="tablewrap"><table class="tb cp-tb"><thead><tr><th>#</th><th>Atleta</th><th class="c">Pontos</th><th class="c">V</th><th class="c">E</th><th class="c">D</th><th class="c">Jogos</th><th class="c">Aprov.</th></tr></thead><tbody>
     ${L.map((o, i) => `<tr class="${o.pos <= 3 && i < Math.ceil(L.length / 2) ? 'cp-t' + o.pos : ''}${i >= Math.ceil(L.length / 2) ? ' cp-baixo' : ''}${L.length > 1 && i === Math.ceil(L.length / 2) ? ' cp-meio' : ''}"><td><b class="cp-pos">${o.pos}º</b></td><td><span class="cp-at-n">${compFt(o.a)}<b>${esc(o.a?.nome || '?')}</b></span></td><td class="c"><b class="cp-pts">${o.P}</b></td>
       <td class="c">${o.V}</td><td class="c">${o.E}</td><td class="c">${o.D}</td><td class="c">${o.J}</td><td class="c">${o.apr}%</td></tr>`).join('')}</tbody></table></div></div>`;
 }
 
 /* ---------- lançar / editar uma atividade ---------- */
 function compForm(x) {
-  const pode = podeComp(), novo = !x, d0 = x?.data || (S.comp.ref <= hoje() && hoje() <= addDays(S.comp.ref, 6) ? hoje() : S.comp.ref);
+  const pode = podeComp(), novo = !x, d0 = x?.data || (() => { const P = compPer(); return P.ini <= hoje() && hoje() <= P.fim ? hoje() : P.ini; })();
   const R = {}; if (x) S.comp.res.filter(r => r.atividade_id === x.id).forEach(r => { R[r.atleta_id] = r.res; });
   const ats = S.atletas.filter(a => a.ativo && a.status !== 'Inativo' || R[a.id]).sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
   const exs = data => S.sessoes.filter(s => s.data === data).flatMap(s => exDe(s.id).map(e => [e.nome, `${horaTxt(s)} · ${e.ordem}. ${e.nome}`]));
@@ -110,26 +123,26 @@ function compForm(x) {
       else { const { error } = await sb.from('comp_atividades').update({ data, nome, pts_v }).eq('id', id); if (error) throw error;
         const { error: e2 } = await sb.from('comp_resultados').delete().eq('atividade_id', id); if (e2) throw e2; }
       const { error } = await sb.from('comp_resultados').insert(Object.entries(R).map(([a, k]) => ({ atividade_id: id, atleta_id: +a, res: k }))); if (error) throw error;
-      fechar(); toast('Atividade salva.'); S.comp.ref = segunda(data); pCompeticao();
+      fechar(); toast('Atividade salva.'); S.comp.ref = data; pCompeticao();
     } catch (e) { $('#cps').disabled = false; toast(erroAmigavel(e), true); }
   };
 }
 
 /* ---------- exportação (para imprimir e pendurar no vestiário) ---------- */
 function compExportHTML(L) {
-  const ini = S.comp.ref, fim = addDays(ini, 6), A = S.comp.at.filter(compVale);
-  const grade = A.length ? `<section class="cpp-pg"><div class="cpp-cab"><img src="${LOGO}" alt=""><div><small>QFC · COMPETIÇÃO DE TREINOS</small><h1>Resultados de cada atividade</h1></div><div class="cpp-dt"><b>Semana ${fmt(ini)} a ${fmt(fim)}</b></div></div>
+  const { ini, fim } = compPer(), A = S.comp.at.filter(compVale);
+  const grade = A.length ? `<section class="cpp-pg"><div class="cpp-cab"><img src="${LOGO}" alt=""><div><small>QFC · COMPETIÇÃO DE TREINOS</small><h1>Resultados de cada atividade</h1></div><div class="cpp-dt"><b>${fmt(ini)} a ${fmt(fim)}</b></div></div>
     <table class="cpp-gr"><thead><tr><th>Atleta</th>${A.map(x => `<th>${compDS[parse(x.data).getDay()]} ${fmt(x.data)}<br><small>${esc(x.nome)}${compPV(x) !== COMP_PTS.V ? ` (V = ${compPV(x)} pts)` : ''}</small></th>`).join('')}<th>Pts</th></tr></thead><tbody>
     ${L.map(o => `<tr><td><b>${esc(o.a?.nome || '?')}</b></td>${A.map(x => { const r = S.comp.res.find(y => y.atividade_id === x.id && y.atleta_id === o.id); return `<td class="${r ? r.res : ''}">${r ? { V: 'V', E: 'E', D: 'D' }[r.res] : '–'}</td>`; }).join('')}<td><b>${o.P}</b></td></tr>`).join('')}</tbody></table>
     <p class="cpp-leg"><span class="V">V</span> venceu (2 pts) · <span class="E">E</span> empate (1 pt) · <span class="D">D</span> perdeu (0) · – não participou</p></section>` : '';
-  return `<section class="cpp-pg"><div class="cpp-cab"><img src="${LOGO}" alt=""><div><small>QFC · COMPETIÇÃO DE TREINOS</small><h1>Classificação da semana</h1></div><div class="cpp-dt"><b>${fmt(ini)} a ${fmt(fim)}</b><span>${A.length} atividades</span></div></div>
+  return `<section class="cpp-pg"><div class="cpp-cab"><img src="${LOGO}" alt=""><div><small>QFC · COMPETIÇÃO DE TREINOS</small><h1>Classificação${(P => P.id ? '' : ' da semana')(compPer())}</h1></div><div class="cpp-dt"><b>${fmt(ini)} a ${fmt(fim)}</b><span>${A.length} atividades</span></div></div>
     ${compPodio(L, true)}${compTabelaHTML(L, true)}<p class="cpp-leg">Vitória = 2 pontos${A.some(x => compPV(x) !== COMP_PTS.V) ? ' (atividades marcadas valem mais)' : ''} · empate = 1 · derrota = 0 · desempate: mais vitórias, menos derrotas, melhor aproveitamento</p></section>${grade}`;
 }
 function compExportar(L) {
-  modal(`<h2>Exportar tabela</h2><p class="m">Semana ${fmt(S.comp.ref)} a ${fmt(addDays(S.comp.ref, 6))}. Página 1: pódio e classificação; página 2: resultado de cada atividade.</p>
+  modal(`<h2>Exportar tabela</h2><p class="m">${compPerTxt(compPer())}. Página 1: pódio e classificação; página 2: resultado de cada atividade.</p>
     <div class="mfoot"><button class="btn" id="cpex0">Cancelar</button><div class="row">${typeof flPNG === 'function' ? '<button class="btn" id="cppng">Imagem (PNG)</button>' : ''}<button class="btn pri" id="cppdf">🖨️ Imprimir / PDF</button></div></div>`);
   $('#cpex0').onclick = fechar;
-  const nome = `Competicao_treinos_${S.comp.ref}`;
+  const nome = `Competicao_treinos_${compPer().ini}_${compPer().fim}`;
   $('#cppdf').onclick = () => { fechar();
     document.querySelectorAll('#print-area').forEach(x => x.remove());
     const w = document.createElement('div'); w.id = 'print-area'; w.className = 'cpp-w'; w.innerHTML = compExportHTML(L);
@@ -169,7 +182,7 @@ function compCriterios() {
       '<b>Atividade que não vale pontos</b> (vitória vale 0) fica <b>fora da tabela</b>: não soma pontos nem conta como jogo. Sem marcação = não entra.',
       'Cada atividade lançada vale um jogo para quem participou. Atleta sem resultado na atividade = não participou (–) e não pontua.',
       'Atletas que ainda não estão no elenco não entram na tabela.'])}
-    ${sec('Período', ['Tabela <b>semanal</b>: segunda a domingo. Cada semana começa do zero.'])}
+    ${sec('Período', ['Tabela <b>semanal</b>: segunda a domingo. Cada período começa do zero.', 'A análise pode <b>ajustar o período</b> (ex.: esticar até o jogo-treino de terça). Aí a tabela vale para as datas definidas e a semana seguinte começa no dia depois.'])}
     ${sec('Ordem da classificação (desempate)', ['<b>1º</b> mais pontos', '<b>2º</b> mais vitórias', '<b>3º</b> menos derrotas',
       '<b>4º</b> melhor aproveitamento',
       'Persistindo o empate (números idênticos), ordem alfabética. A posição <b>não se repete</b>: 1º, 2º, 3º… em sequência.'])}
@@ -178,4 +191,21 @@ function compCriterios() {
       'A <b>metade de baixo</b> aparece em vermelho, na tela e na folha impressa.'])}
     </div><div class="mfoot"><span></span><button class="btn" id="cpcritf">Fechar</button></div>`, true);
   $('#cpcritf').onclick = fechar;
+}
+
+/* ---------- ajustar o período da tabela ---------- */
+function compAjustarPer(P) {
+  modal(`<h2>Ajustar período</h2><p class="m">Defina as datas da tabela. As atividades fora dessas datas passam para o período anterior ou seguinte (padrão: segunda a domingo).</p>
+    <div class="g2"><label class="f"><span>Início</span><input type="date" class="in" id="cpi" value="${P.ini}"></label><label class="f"><span>Fim</span><input type="date" class="in" id="cpf" value="${P.fim}"></label></div>
+    <div class="mfoot">${P.id ? '<button class="btn" id="cppad">Voltar ao padrão (segunda a domingo)</button>' : '<span></span>'}<div class="row"><button class="btn" id="cppx">Cancelar</button><button class="btn pri" id="cpps">Salvar</button></div></div>`);
+  $('#cppx').onclick = fechar;
+  if ($('#cppad')) $('#cppad').onclick = async () => { const { error } = await sb.from('comp_periodos').delete().eq('id', P.id); if (error) return toast(erroAmigavel(error), true); fechar(); toast('Período voltou ao padrão.'); pCompeticao(); };
+  $('#cpps').onclick = async () => {
+    const inicio = $('#cpi').value, fimN = $('#cpf').value; if (!inicio || !fimN || inicio > fimN) return toast('Confira as datas: o início precisa ser antes do fim.', true);
+    if (diasEntre(inicio, fimN) > 20) return toast('Período longo demais (máximo 3 semanas).', true);
+    const choca = S.comp.per.find(p => p.id !== P.id && p.inicio <= fimN && inicio <= p.fim); if (choca) return toast(`Encosta em outro período ajustado (${fmt(choca.inicio)} a ${fmt(choca.fim)}).`, true);
+    const q = P.id ? sb.from('comp_periodos').update({ inicio, fim: fimN }).eq('id', P.id) : sb.from('comp_periodos').insert({ inicio, fim: fimN });
+    const { error } = await q; if (error) return toast(erroAmigavel(error), true);
+    S.comp.ref = inicio; fechar(); toast('Período salvo.'); pCompeticao();
+  };
 }
