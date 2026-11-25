@@ -1091,3 +1091,12 @@ tr.flgc-row td{background:#f6f8fa;font-size:12px;color:#4a5866}
 .flgc-pdf .flgc-g{grid-template-columns:repeat(3,1fr);gap:6px}.flgc-pdf .flgc-m{padding:6px 8px;-webkit-print-color-adjust:exact;print-color-adjust:exact}.flgc-pdf .flgc-l i,.flgc-leg i{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .bar.fl-bar i{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .flgc-modo{margin:0 0 8px}
+
+/* fisioterapia: comparativo de avaliações */
+.fsc-sin{font-weight:800}.fsc-up{color:#2e9e5b}.fsc-dn{color:#d64545}.fsc-eq{color:#13295b}
+.fsc-ul{margin:4px 0 0;padding-left:16px;font-size:13px}.fsc-ul li{margin:3px 0}.fsc-ul small{color:#7a8794}
+.panel.fsc-bom{border-left:4px solid #2e9e5b}.panel.fsc-ruim{border-left:4px solid #d64545}.flp-box.fsc-bom{border-top:3px solid #2e9e5b}.flp-box.fsc-ruim{border-top:3px solid #d64545}
+.fsc-g3{grid-template-columns:repeat(3,1fr)}@media (max-width:760px){.fsc-g3{grid-template-columns:1fr}}
+.fsc-tab td,.fsc-gtab td{vertical-align:top}.fsc-conc{background:#f6f8fa;border-radius:8px;padding:10px 12px}
+.fsc-per{gap:12px;margin:8px 0}.fsc-bm .bar i{background:#2e9e5b}.fsc-bp .bar i{background:#d64545}
+.flp .fsc-tab{font-size:9px}.flp .fsc-tab td,.flp .fsc-tab th{padding:2px 5px}.flp .fsc-ul{font-size:10px}.flp .fsc-gtab{font-size:10px}

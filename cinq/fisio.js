@@ -237,7 +237,7 @@ async function pFisio() {
   const cols = []; avaliados.forEach(a => ult[a.id].T.forEach(t => { if (!cols.includes(t.nome)) cols.push(t.nome); }));
   const kpi = (l, v, s) => `<div class="card"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
   $('#main').innerHTML = topo('Fisioterapia', 'Avaliações', 'Relatórios do Phast lidos automaticamente: testes, evolução e focos de cada atleta.',
-    `<button class="btn" id="frelg">Relatório geral (PDF)</button>${podeFisio() ? '<button class="btn pri" id="fimp">+ Importar avaliações (Phast)</button>' : ''}`) + `
+    `<button class="btn" id="fcompg">Comparativo de reavaliações</button><button class="btn" id="frelg">Relatório geral (PDF)</button>${podeFisio() ? '<button class="btn pri" id="fimp">+ Importar avaliações (Phast)</button>' : ''}`) + `
   ${fsTabs('avaliacoes')}
   <div class="cards fs-kpis">
     ${kpi('Avaliados', `${avaliados.length}/${ativos.length}`, 'atletas ativos com avaliação')}
@@ -262,6 +262,7 @@ async function pFisio() {
   </div>`;
   if ($('#fimp')) $('#fimp').onclick = escolherPhast;
   if ($('#frelg')) $('#frelg').onclick = () => { if (!avaliados.length) return toast('Nenhuma avaliação ainda.', true); imprimirFl(relAvalHTML(ativos, ult, cols, focos, sem, vencidas, proximas), `Relatorio_geral_avaliacoes_${h}`); };
+  if ($('#fcompg')) $('#fcompg').onclick = () => fsCompGrupo();
   ligarAbasFs();
   if ($('#fsbusca')) $('#fsbusca').oninput = e => { const q = fNorm(e.target.value); document.querySelectorAll('.fs-mapa tr[data-fa]').forEach(tr => { tr.hidden = !!q && !tr.dataset.busca.includes(q); }); };
   $('#main').querySelectorAll('[data-fa]').forEach(el => el.onclick = () => fichaFisio(+el.dataset.fa));
@@ -319,10 +320,11 @@ async function fichaFisio(atletaId, avId) {
       <table>${ordItens(t.itens).map(i => `<tr><td>${dotF(i.cor)}</td><td>${esc(rotItem(i))}</td><td class="v">${i.texto != null ? esc(i.texto) : i.cor === 'na' ? 'não realizado' : `${fNum(i.valor)}${i.unidade ? ' ' + esc(i.unidade) : ''}`}</td><td class="r">${refTxt(t, i)}</td><td>${deltaTxt(t, i, ant)}</td></tr>`).join('')}</table></div>`).join('')}</div>
     ${Object.keys(av.anamnese || {}).length ? `<h3 class="fs-h">Anamnese</h3><div class="fs-anam">${Object.entries(av.anamnese).map(([k, v]) => `<span><small>${esc(k)}</small>${esc(v)}</span>`).join('')}</div>` : ''}
     <p class="m fs-aviso">O CINQ não faz diagnóstico nem prevê lesão. Ele organiza os testes, compara com o próprio atleta e sugere focos; a decisão é do fisioterapeuta. Referências do Phast; nos isquiossurais vale a diferença entre os lados.</p>
-    <div class="mfoot"><div class="row">${av.arquivo_path ? '<button class="btn" id="fspdf">Ver PDF</button>' : ''}${podeFisio() ? '<button class="btn" id="fsdel">Excluir avaliação</button>' : ''}</div>
+    <div class="mfoot"><div class="row">${lista.length > 1 ? '<button class="btn pri" id="fscomp">Comparar avaliações</button>' : ''}${av.arquivo_path ? '<button class="btn" id="fspdf">Ver PDF</button>' : ''}${podeFisio() ? '<button class="btn" id="fsdel">Excluir avaliação</button>' : ''}</div>
       <div class="row">${podeFisio() ? `<label class="m fs-reav">Reavaliar em <input type="date" class="in" id="fsreav" value="${av.proxima_reavaliacao || ''}"></label><button class="btn sm" data-sem="4">+4 sem</button><button class="btn sm" data-sem="6">+6 sem</button><button class="btn pri" id="fssal">Salvar</button>` : ''}<button class="btn" id="fsfec">Fechar</button></div></div>`, true);
   $('#fsfec').onclick = fechar;
   if ($('#fsav')) $('#fsav').onchange = e => fichaFisio(atletaId, +e.target.value);
+  if ($('#fscomp')) $('#fscomp').onclick = () => fsCompararAtleta(atletaId, anteriorAv(av)?.id, av.id);
   if ($('#fspdf')) $('#fspdf').onclick = async () => { const { data, error } = await sb.storage.from('fisio').createSignedUrl(av.arquivo_path, 600); if (error) return toast(erroAmigavel(error), true); window.open(data.signedUrl, '_blank'); };
   if (!podeFisio()) return;
   document.querySelectorAll('#modal [data-sem]').forEach(b => b.onclick = () => { $('#fsreav').value = addDays(hoje(), 7 * +b.dataset.sem); });
@@ -501,4 +503,114 @@ function relAvalHTML(ativos, ult, cols, focos, sem, vencidas, proximas) {
         ${ach.length ? `<ul>${ach.slice(0, 5).map(x => `<li>${dotF(x.nivel)} <b>${esc(x.titulo)}</b>${rev[x.chave] === 'confirmado' ? ' ✓' : ''}</li>`).join('')}${ach.length > 5 ? `<li class="flp-nota">+ ${ach.length - 5} achado(s) na ficha</li>` : ''}</ul>` : '<p class="flp-nota">Sem achados em atenção ou alerta.</p>'}
         <p><b>Conclusão:</b> ${esc(v.conclusao || '—')}</p></div>`; }).join('')}</div><p class="flp-nota">✓ = achado confirmado pelo fisioterapeuta; achados descartados não aparecem.</p>`));
   return [p1, ...mapa, ...det].join('');
+}
+
+/* ============ comparação entre avaliações (reavaliação): por atleta e do elenco ============ */
+// cada item: mudou de faixa (melhorou/piorou), mudou só o valor (melhor/pior) ou igual; teste: pela pior cor do teste
+const FS_ST = { melhorou: ['▲', 'melhorou de faixa', 'up'], piorou: ['▼', 'piorou de faixa', 'down'], melhor: ['△', 'melhor (mesma faixa)', 'up'], pior: ['▽', 'pior (mesma faixa)', 'down'], igual: ['=', 'igual', ''], sem: ['', 'sem comparação', ''] };
+function fsComparar(ant, av) {
+  const it0 = (ta, i) => ta && ta.itens.find(x => x.medida === i.medida && x.lado === i.lado);
+  const testes = av.T.map(t => {
+    const ta = ant.T.find(x => x.nome === t.nome), a = ta ? COR_RANK[ta.cor] : 0, b = COR_RANK[t.cor];
+    const st = !ta ? 'sem' : a && b ? (b < a ? 'melhorou' : b > a ? 'piorou' : 'igual') : 'sem';
+    const its = ordItens(t.itens).map(i => { const ia = it0(ta, i); let s = 'sem', d = null;
+      if (ia) { const x = COR_RANK[ia.cor], y = COR_RANK[i.cor];
+        if (i.valor != null && ia.valor != null) d = Math.round((i.valor - ia.valor) * 10) / 10;
+        if (x && y && x !== y) s = y < x ? 'melhorou' : 'piorou';
+        else if (d != null) { const mm = i.lado === 'ASS' || i.lado === 'DIF'; s = !d ? 'igual' : (mm ? d < 0 : d > 0) ? 'melhor' : 'pior'; }
+        else if (i.texto != null && ia.texto != null && fNorm(i.texto) === fNorm(ia.texto)) s = 'igual'; }
+      return { i, ia, st: s, d }; });
+    return { t, ta, st, its };
+  });
+  const r0 = ant.revisao || {}, r1 = av.revisao || {}, vale = (x, r) => x.nivel !== 'info' && r[x.chave] !== 'descartado';
+  const aA = ant.achados.filter(x => vale(x, r0)), aB = av.achados.filter(x => vale(x, r1)), kA = new Set(aA.map(x => x.chave)), kB = new Set(aB.map(x => x.chave));
+  const n = (v, c) => v.T.filter(t => t.cor === c).length, todos = testes.flatMap(x => x.its.map(y => ({ ...y, t: x.t })));
+  const tm = testes.filter(x => x.st === 'melhorou').length, tp = testes.filter(x => x.st === 'piorou').length;
+  return { ant, av, testes, tm, tp, ti: testes.filter(x => x.st === 'igual').length,
+    sinal: tm > tp ? 'melhorou' : tp > tm ? 'piorou' : 'estavel', al: [n(ant, 'al'), n(av, 'al')], at: [n(ant, 'at'), n(av, 'at')],
+    itMelhorou: todos.filter(x => x.st === 'melhorou'), itPiorou: todos.filter(x => x.st === 'piorou'), itMelhor: todos.filter(x => x.st === 'melhor'), itPior: todos.filter(x => x.st === 'pior'),
+    contAlerta: todos.filter(x => x.ia && x.i.cor === 'al' && x.ia.cor === 'al'),
+    resolvidos: aA.filter(x => !kB.has(x.chave)), continuam: aB.filter(x => kA.has(x.chave)), novos: aB.filter(x => !kA.has(x.chave)),
+    focos: [focosDe(ant.achados, r0), focosDe(av.achados, r1)], dias: diasEntre(ant.data, av.data) };
+}
+const FS_SINAL = { melhorou: ['Melhorou', 'fsc-up'], piorou: ['Piorou', 'fsc-dn'], estavel: ['Estável', 'fsc-eq'] };
+const fsVal = i => !i ? '—' : i.texto != null ? esc(i.texto) : i.cor === 'na' ? 'não realizado' : i.valor == null ? '—' : `${fNum(i.valor)}${i.unidade ? ' ' + esc(i.unidade) : ''}`;
+const fsItemTxt = x => `${esc(curtoTeste(x.t.nome))}${rotItem(x.i) !== 'Resultado' ? ' · ' + esc(rotItem(x.i)) : ''}`;
+const fsFaixa = x => `${dotF(x.ia?.cor)}${COR_TXT[x.ia?.cor || '']} → ${dotF(x.i.cor)}${COR_TXT[x.i.cor || '']} <small>(${fsVal(x.ia)} → ${fsVal(x.i)})</small>`;
+const fsLista = (L, vazio, max = 99) => L.length ? `<ul class="fsc-ul">${L.slice(0, max).map(x => `<li><b>${fsItemTxt(x)}</b>: ${fsFaixa(x)}</li>`).join('')}${L.length > max ? `<li class="m">+ ${L.length - max} na tabela</li>` : ''}</ul>` : `<p class="m">${vazio}</p>`;
+const fsAch = (L, vazio) => L.length ? `<ul class="fsc-ul">${L.map(x => `<li>${dotF(x.nivel)} ${esc(x.titulo)}</li>`).join('')}</ul>` : `<p class="m">${vazio}</p>`;
+// corpo da comparação (tela e PDF)
+function fsCompHTML(C, pdf) {
+  const a = atletaF(C.av.atleta_id), [sl, sc] = FS_SINAL[C.sinal], card = (l, v, s) => pdf ? `<div class="flp-k"><small>${l}</small><b>${v}</b></div>` : `<div class="card"><div class="l">${l}</div><div class="v">${v}</div>${s ? `<div class="s">${s}</div>` : ''}</div>`;
+  const box = (t, c, cls = '') => pdf ? `<div class="flp-box ${cls}"><h4>${t}</h4>${c}</div>` : `<div class="panel ${cls}"><h2>${t}</h2>${c}</div>`;
+  const atenc = [...C.itPiorou, ...C.contAlerta.filter(x => !C.itPiorou.includes(x))];
+  const tab = `<table class="tb fl-tab fsc-tab"><thead><tr><th>Teste</th><th>Item</th><th>${dataBR(C.ant.data)}</th><th>${dataBR(C.av.data)}</th><th>Diferença</th><th>Situação</th></tr></thead><tbody>
+    ${C.testes.map(x => x.its.map((y, k) => { const [sy, stx, scl] = FS_ST[y.st]; return `<tr>${k ? '' : `<td rowspan="${x.its.length}"><b>${esc(curtoTeste(x.t.nome))}</b>${x.st !== 'sem' && x.st !== 'igual' ? `<br><small class="fdl ${FS_ST[x.st][2]}">${FS_ST[x.st][0]} teste ${x.st}</small>` : ''}</td>`}
+      <td>${esc(rotItem(y.i))}</td><td>${dotF(y.ia?.cor)} ${fsVal(y.ia)}</td><td>${dotF(y.i.cor)} ${fsVal(y.i)}</td><td>${y.d != null && y.d ? `${y.d > 0 ? '+' : ''}${fNum(y.d)}` : '—'}</td><td>${sy ? `<span class="fdl ${scl}">${sy} ${stx}</span>` : `<span class="m">${stx}</span>`}</td></tr>`; }).join('')).join('')}</tbody></table>`;
+  const topo = `<div class="${pdf ? 'flp-ks' : 'cards fs-kpis fsc-kpis'}">${card('Resultado geral', `<span class="fsc-sin ${sc}">${sl}</span>`, `${C.tm} teste(s) melhoraram · ${C.tp} pioraram`)}${card('Testes em alerta', `${C.al[0]} → ${C.al[1]}`, 'antes → agora')}${card('Testes em atenção', `${C.at[0]} → ${C.at[1]}`, 'antes → agora')}${card('Intervalo', `${C.dias} dias`, `${dataBR(C.ant.data)} → ${dataBR(C.av.data)}`)}</div>`;
+  const listas = `<div class="${pdf ? 'flp-g2' : 'grid2'}">${box(`O que melhorou <small class="m">${C.itMelhorou.length} item(ns) mudaram para uma faixa melhor${C.itMelhor.length ? ` · ${C.itMelhor.length} melhoraram o valor na mesma faixa` : ''}</small>`, fsLista(C.itMelhorou, 'Nenhum item mudou para uma faixa melhor.', pdf ? 8 : 99), 'fsc-bom')}
+    ${box(`Pontos de atenção <small class="m">piorou de faixa ou continua em alerta</small>`, fsLista(atenc, 'Nenhum item piorou de faixa nem continua em alerta.', pdf ? 8 : 99), 'fsc-ruim')}</div>`;
+  const ach = `<div class="${pdf ? 'flp-g2 fsc-g3' : 'grid2 fsc-g3'}">${box('Achados resolvidos', fsAch(C.resolvidos, 'Nenhum.'))}${box('Achados que continuam', fsAch(C.continuam, 'Nenhum.'))}${box('Achados novos', fsAch(C.novos, 'Nenhum.'))}</div>
+    <p class="${pdf ? 'flp-nota' : 'm'}"><b>Focos antes:</b> ${C.focos[0].map(esc).join(' · ') || '—'} &nbsp; · &nbsp; <b>Focos agora:</b> ${C.focos[1].map(esc).join(' · ') || '—'}</p>
+    <p class="${pdf ? '' : 'fsc-conc'}"><b>Conclusão do fisioterapeuta (${dataBR(C.av.data)}):</b> ${esc(C.av.conclusao || '—')}</p>`;
+  return { topo, listas, ach, tab, a };
+}
+const fsLeg = pdf => `<p class="${pdf ? 'flp-nota' : 'm fs-aviso'}">▲ melhorou de faixa · ▼ piorou de faixa · △ ▽ mudou só o valor, na mesma faixa · ${dotF('ok')} dentro ${dotF('at')} atenção ${dotF('al')} alerta. Assimetria e diferença entre os lados: menor é melhor. Achados descartados pelo fisio não entram. O CINQ não faz diagnóstico: organiza a comparação; a decisão é do fisioterapeuta.</p>`;
+function fsCompPDF(C) {
+  const H = fsCompHTML(C, true), cab = t => flCab(t, C.av.data, `${H.a.nome} · ${dataBR(C.ant.data)} → ${dataBR(C.av.data)}`);
+  return `<section class="flp-pg">${cab('COMPARATIVO DE AVALIAÇÕES')}${H.topo}${H.listas}${H.ach}</section>
+    <section class="flp-pg fsc-pgt">${cab('TESTE A TESTE')}${H.tab}${fsLeg(true)}</section>`;
+}
+// tela: escolhe antes e depois (padrão: as duas últimas)
+async function fsCompararAtleta(atletaId, idAnt, idAv) {
+  try { await carregarFisio(); } catch (e) { return toast(erroAmigavel(e), true); }
+  const L = avDe(atletaId); if (L.length < 2) return toast('O atleta precisa de pelo menos duas avaliações.', true);
+  let av = L.find(x => x.id === idAv) || L[L.length - 1], ant = L.find(x => x.id === idAnt) || L[L.indexOf(av) - 1] || L[0];
+  if (ant.data > av.data) [ant, av] = [av, ant];
+  const C = fsComparar(ant, av), H = fsCompHTML(C), op = sel => opts(L.map(x => [x.id, `${dataBR(x.data)} · ${x.motivo || ''}`]), sel);
+  modal(`<div class="fs-head">${foto(H.a)}<div><h2>${esc(H.a.nome)} · comparativo de avaliações</h2><div class="m">${esc(H.a.posicao || '')}</div></div>
+      <div class="fs-sel row"><label class="m">Antes <select class="in" id="fscA">${op(ant.id)}</select></label><label class="m">Depois <select class="in" id="fscB">${op(av.id)}</select></label></div></div>
+    ${H.topo}${H.listas}${H.ach}<h3 class="fs-h">Teste a teste</h3><div class="tablewrap">${H.tab}</div>${fsLeg()}
+    <div class="mfoot"><button class="btn" id="fscV">Voltar à ficha</button><div class="row"><button class="btn pri" id="fscP">PDF do comparativo</button><button class="btn" id="fscF">Fechar</button></div></div>`, true);
+  const re = () => fsCompararAtleta(atletaId, +$('#fscA').value, +$('#fscB').value);
+  $('#fscA').onchange = re; $('#fscB').onchange = re; $('#fscF').onclick = fechar; $('#fscV').onclick = () => fichaFisio(atletaId, av.id);
+  $('#fscP').onclick = () => imprimirFl(fsCompPDF(C), `Comparativo_avaliacoes_${H.a.nome}_${ant.data}_${av.data}`);
+}
+// elenco: reavaliados num período (última avaliação do período × a anterior a ela)
+function fsCompGrupoDados(de, ate) {
+  const ativos = S.atletas.filter(a => a.ativo && a.status !== 'Inativo').sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
+  const R = [], falta = [], primeira = [];
+  ativos.forEach(a => { const L = avDe(a.id); if (!L.length) return; const no = L.filter(x => x.data >= de && x.data <= ate);
+    if (!no.length) { if (L[0].data < de) falta.push({ a, ult: L.filter(x => x.data < de).slice(-1)[0] }); return; }
+    const av = no[no.length - 1], ant = anteriorAv(av); if (!ant) { primeira.push({ a, av }); return; }
+    R.push({ a, C: fsComparar(ant, av) }); });
+  const porTeste = {}; R.forEach(({ C }) => C.testes.forEach(x => { if (x.st !== 'melhorou' && x.st !== 'piorou') return; const o = porTeste[x.t.nome] = porTeste[x.t.nome] || { m: 0, p: 0 }; o[x.st === 'melhorou' ? 'm' : 'p']++; }));
+  return { R, falta, primeira, porTeste: Object.entries(porTeste), n: s => R.filter(x => x.C.sinal === s).length, soma: (k, j) => R.reduce((t, x) => t + x.C[k][j], 0) };
+}
+function fsCompGrupoHTML(G, de, ate, pdf) {
+  const card = (l, v, s) => pdf ? `<div class="flp-k"><small>${l}</small><b>${v}</b></div>` : `<div class="card"><div class="l">${l}</div><div class="v">${v}</div>${s ? `<div class="s">${s}</div>` : ''}</div>`;
+  const box = (t, c) => pdf ? `<div class="flp-box"><h4>${t}</h4>${c}</div>` : `<div class="panel"><h2>${t}</h2>${c}</div>`;
+  const top = (k, cls) => { const L = G.porTeste.filter(x => x[1][k]).sort((a, b) => b[1][k] - a[1][k]).slice(0, 6); return L.length ? `<div class="bars fs-bars ${cls}">${L.map(([t, o]) => `<div class="bar"><span>${esc(curtoTeste(t))}</span><i style="width:${Math.round(o[k] / G.R.length * 100)}%"></i><b>${o[k]}</b></div>`).join('')}</div>` : '<p class="m">Nenhum.</p>'; };
+  const kp = `<div class="${pdf ? 'flp-ks' : 'cards fs-kpis'}">${card('Reavaliados', G.R.length, `${dataBR(de)} a ${dataBR(ate)}`)}${card('Melhoraram', G.n('melhorou'), 'mais testes melhoraram que pioraram')}${card('Estáveis', G.n('estavel'))}${card('Pioraram', G.n('piorou'))}${card('Testes em alerta', `${G.soma('al', 0)} → ${G.soma('al', 1)}`, 'soma do grupo, antes → agora')}${card('Falta reavaliar', G.falta.length)}</div>`;
+  const tab = `<table class="tb fl-tab fsc-gtab"><thead><tr><th>Atleta</th><th>Antes</th><th>Agora</th><th>Alertas</th><th>Atenções</th><th>Testes ▲</th><th>Testes ▼</th><th>Resultado</th><th>Atenção agora</th></tr></thead><tbody>
+    ${G.R.map(({ a, C }) => { const [sl, sc] = FS_SINAL[C.sinal], at = [...C.itPiorou, ...C.contAlerta.filter(x => !C.itPiorou.includes(x))];
+      return `<tr${pdf ? '' : ` class="dm-tr" data-fsc="${a.id}|${C.ant.id}|${C.av.id}"`}><td><b>${esc(a.nome)}</b><br><small>${esc(a.posicao || '')}</small></td><td>${dataBR(C.ant.data)}</td><td>${dataBR(C.av.data)}</td><td>${C.al[0]} → ${C.al[1]}</td><td>${C.at[0]} → ${C.at[1]}</td><td>${C.tm}</td><td>${C.tp}</td><td><span class="fsc-sin ${sc}">${sl}</span></td>
+        <td class="sm">${at.slice(0, 3).map(fsItemTxt).join(' · ') || '—'}${at.length > 3 ? ` <small class="m">+${at.length - 3}</small>` : ''}</td></tr>`; }).join('') || `<tr><td colspan="9" class="m">Nenhum atleta reavaliado neste período.</td></tr>`}</tbody></table>`;
+  const outros = `${G.falta.length ? `<p><b>Falta reavaliar (${G.falta.length}):</b> ${G.falta.map(x => `${esc(x.a.nome)} <small class="m">(últ. ${dataBR(x.ult.data)})</small>`).join(' · ')}</p>` : ''}${G.primeira.length ? `<p class="m"><b>Primeira avaliação no período (sem comparação):</b> ${G.primeira.map(x => esc(x.a.nome)).join(' · ')}</p>` : ''}`;
+  return { kp, tops: `<div class="${pdf ? 'flp-g2' : 'grid2'}">${box('Testes que mais melhoraram <small class="m">atletas que mudaram para faixa melhor</small>', top('m', 'fsc-bm'))}${box('Testes que mais pioraram <small class="m">atletas que mudaram para faixa pior</small>', top('p', 'fsc-bp'))}</div>`, tab, outros };
+}
+async function fsCompGrupo(de, ate) {
+  try { await carregarFisio(); } catch (e) { return toast(erroAmigavel(e), true); }
+  ate = ate || hoje(); de = de || addDays(ate, -60);
+  const G = fsCompGrupoDados(de, ate), H = fsCompGrupoHTML(G, de, ate);
+  modal(`<h2>Comparativo de reavaliações · elenco</h2><p class="m">Atletas reavaliados no período: a última avaliação de cada um no período é comparada com a avaliação anterior dele. Clique no atleta para ver o comparativo completo.</p>
+    <div class="row fsc-per"><label class="m">De <input type="date" class="in" id="fsgD" value="${de}"></label><label class="m">Até <input type="date" class="in" id="fsgA" value="${ate}"></label></div>
+    ${H.kp}${H.tops}<div class="panel"><h2>Por atleta</h2><div class="tablewrap">${H.tab}</div>${H.outros}</div>${fsLeg()}
+    <div class="mfoot"><span></span><div class="row"><button class="btn pri" id="fsgP">PDF do elenco</button><button class="btn" id="fsgF">Fechar</button></div></div>`, true);
+  const re = () => fsCompGrupo($('#fsgD').value, $('#fsgA').value);
+  $('#fsgD').onchange = re; $('#fsgA').onchange = re; $('#fsgF').onclick = fechar;
+  document.querySelectorAll('[data-fsc]').forEach(tr => tr.onclick = () => { const [id, x, y] = tr.dataset.fsc.split('|').map(Number); fsCompararAtleta(id, x, y); });
+  $('#fsgP').onclick = () => { if (!G.R.length) return toast('Nenhum atleta reavaliado neste período.', true);
+    const Hp = fsCompGrupoHTML(G, de, ate, true), cab = t => flCab(t, ate, `Reavaliações de ${dataBR(de)} a ${dataBR(ate)} · ${G.R.length} atleta(s)`);
+    imprimirFl(`<section class="flp-pg">${cab('COMPARATIVO DE REAVALIAÇÕES | ELENCO')}${Hp.kp}${Hp.tops}</section><section class="flp-pg">${cab('REAVALIAÇÕES POR ATLETA')}${Hp.tab}${Hp.outros}${fsLeg(true)}</section>${G.R.map(x => fsCompPDF(x.C)).join('')}`, `Comparativo_reavaliacoes_elenco_${de}_${ate}`); };
 }
