@@ -67,6 +67,31 @@ function flFiltroHTML(s) {
   const P = flPartesFiltro(s); if (!P.length) return ''; const n = flParteSel(s);
   return `<div class="fl-pfil"><span class="m">Ver:</span><div class="ind-tabs fl-modo">${[{ num: 0, nome: flTotalNome(s) }, ...P].map(p => `<button data-flpf="${p.num}" class="${p.num === n ? 'on' : ''}">${esc(p.nome)}</button>`).join('')}</div></div>`;
 }
+/* grupos: partes com atletas diferentes (ex.: jogo-treino, cada grupo um tempo) — cor por grupo nos gráficos do total */
+const FL_GCOR = ['#1d3f7a', '#e0a526', '#0e9384', '#b4232a'];
+const flGCurto = n => String(n || '').split(/\s+[–-]\s+/)[0];
+function flPartesComp(s) { return flPartesFiltro(s).filter(p => p.num !== 9).map((p, i) => ({ ...p, cor: FL_GCOR[i % FL_GCOR.length], rs: S.fl.gps.filter(g => g.sessao_id === s.id && g.periodo === p.num) })); }
+function flGrupos(s) {
+  if (!s || flParteSel(s)) return null;
+  const P = flPartesComp(s); if (P.length < 2) return null;
+  const de = {}; for (const p of P) for (const g of p.rs) { if (de[g.nome_origem]) return null; de[g.nome_origem] = p; }
+  return { P, de };
+}
+
+// comparativo entre as partes (grupo 1 × grupo 2 ou 1º × 2º tempo): média de cada uma, lado a lado, total (não por minuto)
+function flComparaPartes(s, pdf) {
+  if (flParteSel(s)) return ''; const P = flPartesComp(s); if (P.length < 2) return '';
+  const G = flGrupos(s), tit = P.map(p => flGCurto(p.nome)).join(' × ');
+  const CMP = [['duracao_s', 'Duração', '', 0], ...FL_MET.map(([k, l, u, d]) => [k, l, u, d])];
+  const bloco = ([k, l, u, d]) => { const v = P.map(p => flMedia(p.rs, k)), mx = Math.max(1e-9, ...v.map(x => +x || 0));
+    const dl = P.length === 2 && v[0] && v[1] != null ? Math.round((v[1] - v[0]) / v[0] * 100) : null;
+    return `<div class="flgc-m"><h5>${esc(l)}${u ? ` <small>${u}</small>` : ''}</h5>${P.map((p, i) => `<div class="flgc-l"><span>${esc(flGCurto(p.nome))}</span><div><i style="width:${(+v[i] || 0) / mx * 100}%;background:${p.cor}"></i></div><b>${k === 'duracao_s' ? flDur(v[i]) : flFmt(v[i], d)}</b></div>`).join('')}
+      ${dl != null ? `<small class="flgc-d${dl >= 10 ? ' up' : dl <= -10 ? ' dn' : ''}">${esc(flGCurto(P[1].nome))}: ${dl > 0 ? '+' : ''}${dl}%</small>` : ''}</div>`; };
+  const leg = P.map(p => `<span><i style="background:${p.cor}"></i>${esc(p.nome)} <small>(${p.rs.length} atletas)</small></span>`).join('');
+  return `<div class="${pdf ? 'flgc-pdf' : 'panel'} flgc"><${pdf ? 'h3' : 'h2'}>${pdf ? 'COMPARATIVO ' + esc(tit.toUpperCase()) : 'Comparativo ' + esc(tit)} <small class="m">média de cada ${G ? 'grupo' : 'parte'} · valores totais${P.length === 2 ? ` · % = ${esc(flGCurto(P[1].nome))} em relação a ${esc(flGCurto(P[0].nome))}` : ''}</small></${pdf ? 'h3' : 'h2'}>
+    <div class="flgc-leg">${leg}</div><div class="flgc-g">${CMP.map(bloco).join('')}</div></div>`;
+}
+const flGLeg = G => G ? `<p class="m fl-nota flgc-leg">${G.P.map(p => `<span><i style="background:${p.cor}"></i>${esc(p.nome)}</span>`).join('')}<span><em class="fl-mk-s flgc-mk2"></em> traço = média de cada grupo</span></p>` : '';
 function ligarFlFiltro(s, re) { document.querySelectorAll('[data-flpf]').forEach(b => b.onclick = () => { S.fl.parte = S.fl.parte || {}; S.fl.parte[s.id] = +b.dataset.flpf; re(); }); }
 const flOrdS = (a, b) => (a.data + (a.hora || '')).localeCompare(b.data + (b.hora || ''));
 // linhas de sessão (periodo 0) de um atleta, em ordem
@@ -348,11 +373,15 @@ function flDados(s) {
     if (r.atleta_id && typeof situacao === 'function' && S.dm?.ok) { const st = situacao(r.atleta_id); if (st.sit !== 'Liberado') dest.push(['DM', r, `está em ${st.sit} (${st.lesao.etapa})`]);
       const lib = S.dm.lesoes.find(l => l.atleta_id === r.atleta_id && l.data_retorno && l.data_retorno <= s.data && diasEntre(l.data_retorno, s.data) <= 14);
       if (lib) dest.push(['Recém-liberado', r, `liberado em ${fmt(lib.data_retorno)} (${tituloLesao(lib)})`]); } });
+  tot.G = flGrupos(s);
   return { tot, per, durMax, maior, dest, med: Object.fromEntries(FL_MET.map(m => [m[0], flMedia(tot, m[0])])) };
 }
 // barras: régua = maior valor do grupo na sessão; risco = média do grupo
-const flBarras = (tot, k, d = 0, suf = '', cor = '') => { const mx = Math.max(1, ...tot.map(r => +r[k] || 0)), md = flMedia(tot, k), mk = md == null ? '' : `<em class="fl-mk" style="left:${md / mx * 100}%" title="média do grupo: ${k === 'duracao_s' ? flDur(md) : flFmt(md, d) + suf}"></em>`;
-  return [...tot].sort((a, b) => (+b[k] || 0) - (+a[k] || 0) || flNomeAt(a).localeCompare(flNomeAt(b), 'pt')).map(r => `<div class="bar fl-bar${cor}"><span>${esc(flNomeAt(r))}</span><div><i style="width:${(+r[k] || 0) / mx * 100}%"></i>${mk}</div><b>${k === 'duracao_s' ? flDur(r[k]) : flFmt(r[k], d) + suf}</b></div>`).join(''); };
+const flBarras = (tot, k, d = 0, suf = '', cor = '') => { const G = tot.G, mx = Math.max(1, ...tot.map(r => +r[k] || 0)), md = flMedia(tot, k), vt = v => k === 'duracao_s' ? flDur(v) : flFmt(v, d) + suf;
+  const mk = G ? G.P.map(p => { const m = flMedia(tot.filter(r => G.de[r.nome_origem] === p), k); return m == null ? '' : `<em class="fl-mk flgc-mk" style="left:${m / mx * 100}%;background:${p.cor}" title="média ${esc(flGCurto(p.nome))}: ${vt(m)}"></em>`; }).join('')
+    : md == null ? '' : `<em class="fl-mk" style="left:${md / mx * 100}%" title="média do grupo: ${vt(md)}"></em>`;
+  return [...tot].sort((a, b) => (+b[k] || 0) - (+a[k] || 0) || flNomeAt(a).localeCompare(flNomeAt(b), 'pt')).map(r => { const p = G && G.de[r.nome_origem];
+    return `<div class="bar fl-bar${cor}"><span>${esc(flNomeAt(r))}</span><div><i style="width:${(+r[k] || 0) / mx * 100}%${p ? ';background:' + p.cor : ''}"></i>${mk}</div><b>${vt(r[k])}</b></div>`; }).join(''); };
 function flTabela(s, D, pdf) {
   return `<table class="tb fl-tab"><thead><tr><th>Atleta</th><th>${s.tipo === 'Jogo' ? 'Minutos' : 'Duração'}</th><th>Total (m)</th><th>m/min</th><th>Alta int. 19,8–25,2</th><th>Sprint ≥25,2</th><th>Nº spr.</th><th>Vmáx</th><th>% vmáx</th><th>Acc (m)</th><th>Nº acc</th><th>Dcc (m)</th><th>Nº dcc</th><th>PL</th><th>PL/min</th></tr></thead><tbody>
     ${D.tot.map(r => { const h = pdf ? null : flHist(r, s);
@@ -402,7 +431,8 @@ function pPosTreino() {
       <p class="m fl-nota">${FL_LIMIARES}. % vmáx = em relação à maior velocidade válida do atleta (treinos, jogos e teste); 🔔 = ${flCfg('vmax').pct}% ou mais.</p></div>
     ${D.dest.length ? `<div class="panel"><h2>Destaques <small class="m">o sistema sinaliza, o fisiologista decide</small></h2><div class="dc-al">${D.dest.map(([t, r, x, gid]) => `<div class="dc-ali n-${/Tempo|DM|Recém|confirmar|MD-1/.test(t) ? 'al' : 'at'}"><span class="dc-tp">${esc(t)}</span><b>${esc(flNomeAt(r))}</b><span class="m">${esc(x)}</span>${gid && pode ? `<span class="row fl-vc"><button class="btn sm pri" data-vok="${gid}">É real</button><button class="btn sm" data-vfalso="${gid}">Falso pico</button></span>` : ''}</div>`).join('')}</div></div>` : ''}
     ${flAquec(s)}
-    <p class="m fl-nota fl-mkleg"><em class="fl-mk-s"></em> risco = média do grupo na sessão · barra cheia = maior valor do grupo</p>
+    ${flComparaPartes(s)}
+    ${D.tot.G ? flGLeg(D.tot.G) : '<p class="m fl-nota fl-mkleg"><em class="fl-mk-s"></em> risco = média do grupo na sessão · barra cheia = maior valor do grupo</p>'}
     <div class="grid2"><div class="panel"><h2>Distância total (m)</h2><div class="fs-bars">${flBarras(D.tot, 'dist')}</div></div><div class="panel"><h2>Distância relativa (m/min)</h2><div class="fs-bars">${flBarras(D.tot, 'mmin')}</div></div>
       <div class="panel"><h2>Alta intensidade 19,8–25,2 (m)</h2><div class="fs-bars">${flBarras(D.tot, 'ai')}</div></div><div class="panel"><h2>Velocidade máxima (km/h)</h2><div class="fs-bars">${flBarras(D.tot, 'vmax', 2)}</div></div>
       <div class="panel"><h2>Sprint ≥25,2 (m)</h2><div class="fs-bars">${flBarras(D.tot, 'sprint')}</div></div><div class="panel"><h2>Nº de sprints</h2><div class="fs-bars">${flBarras(D.tot, 'n_sprints')}</div></div>
@@ -453,10 +483,10 @@ function ligarPartesEx(s) {
 }
 function flPartesAtleta(s, nome) {
   const rs = S.fl.gps.filter(g => g.sessao_id === s.id && g.nome_origem === nome).sort((a, b) => (a.periodo === 9 ? -1 : a.periodo || 99) - (b.periodo === 9 ? -1 : b.periodo || 99));
-  const tot = rs.find(r => r.periodo === 0), vr = flVEntrada(tot)?.ref;
+  const tot = rs.find(r => r.periodo === 0), vr = flVEntrada(tot)?.ref, Gm = flGrupos(s) || (flParteSel(s) ? (() => { const o = S.fl.parte[s.id]; S.fl.parte[s.id] = 0; const g = flGrupos(s); S.fl.parte[s.id] = o; return g; })() : null);
   modal(`<h2>${esc(flNomeAt(tot || rs[0]))} · ${dataBR(s.data)}</h2><div class="tablewrap"><table class="tb"><thead><tr><th>Parte</th><th>Duração</th><th>Distância</th><th>m/min</th><th>Alta int. 19,8–25,2</th><th>Sprint</th><th>Vmáx</th><th>% ref.</th><th>Acc</th><th>Dcc</th><th>PL</th><th>PL/min</th></tr></thead><tbody>
-    ${[...rs.filter(r => r.periodo > 0), tot].filter(Boolean).map(r => { const p = vr && r.vmax ? r.vmax / vr * 100 : null;
-      return `<tr class="${r.periodo === 0 ? 'fl-totrow' : r.periodo === 9 ? 'fl-aqrow' : ''}"><td><b>${esc(flNomeParte(s, r.periodo))}</b>${r.periodo === 9 ? ' <small class="m">fora do total</small>' : ''}</td><td>${flDur(r.duracao_s)}</td><td>${flFmt(r.dist)} m</td><td>${flFmt(r.mmin)}</td><td>${flFmt(r.ai)} m</td><td>${flFmt(r.sprint)} m</td><td>${flFmt(r.vmax, 2)}</td><td>${p ? Math.round(p) + '%' + (p >= flCfg('vmax').pct ? ' 🔔' : '') : '—'}</td><td>${flFmt(r.n_acel)}</td><td>${flFmt(r.n_desac)}</td><td>${flFmt(r.pl)}</td><td>${flFmt(r.plmin, 2)}</td></tr>`; }).join('')}
+    ${[...rs.filter(r => r.periodo > 0), tot, ...(Gm ? Gm.P.map(p => ({ ...Object.fromEntries(['duracao_s', 'dist', 'mmin', 'ai', 'sprint', 'vmax', 'n_acel', 'n_desac', 'pl', 'plmin', 'acel_m', 'desac_m'].map(k => [k, flMedia(p.rs, k)])), periodo: -1, _g: p })) : [])].filter(Boolean).map(r => { const p = vr && r.vmax && !r._g ? r.vmax / vr * 100 : null;
+      return `<tr class="${r._g ? 'flgc-row' : r.periodo === 0 ? 'fl-totrow' : r.periodo === 9 ? 'fl-aqrow' : ''}"><td><b>${r._g ? `<i class="flgc-dot" style="background:${r._g.cor}"></i>Média ${esc(flGCurto(r._g.nome))}` : esc(flNomeParte(s, r.periodo))}</b>${r.periodo === 9 ? ' <small class="m">fora do total</small>' : ''}</td><td>${flDur(r.duracao_s)}</td><td>${flFmt(r.dist)} m</td><td>${flFmt(r.mmin)}</td><td>${flFmt(r.ai)} m</td><td>${flFmt(r.sprint)} m</td><td>${flFmt(r.vmax, 2)}</td><td>${p ? Math.round(p) + '%' + (p >= flCfg('vmax').pct ? ' 🔔' : '') : '—'}</td><td>${flFmt(r.n_acel)}</td><td>${flFmt(r.n_desac)}</td><td>${flFmt(r.pl)}</td><td>${flFmt(r.plmin, 2)}</td></tr>`; }).join('')}
     </tbody></table></div><div class="mfoot"><span class="m">${vr ? `referência de velocidade: ${flFmt(vr, 2)} km/h` : ''}</span><button class="btn" id="flpf">Fechar</button></div>`, true);
   $('#flpf').onclick = fechar;
 }
@@ -1108,9 +1138,10 @@ function relPosHTML(s) {
     <section class="flp-pg">${flCab('INDICADORES INDIVIDUAIS', s.data, sub)}${flTabela(s, D, true)}<p class="flp-nota">${FL_LIMIARES} · 🔔 = ${flCfg('vmax').pct}% ou mais da velocidade máxima de referência.</p>
       <h3>MAIORES VALORES OBSERVADOS</h3><div class="flp-ks">${[['dist', 'Distância total', ' m', 0], ['ai', 'Alta intensidade', ' m', 0], ['vmax', 'Vmáx.', ' km/h', 2], ['pl', 'Player Load', '', 0]].map(([k, l, u, d]) => { const r = D.maior(k); return card(l, r ? `${esc(flNomeAt(r))} · ${flFmt(r[k], d)}${u}` : '—'); }).join('')}</div></section>
     ${s.tipo === 'Jogo' && flTempos(s) ? `<section class="flp-pg">${flCab('1º × 2º TEMPO', s.data, sub)}${flTempos(s, true)}</section>` : ''}
-    <section class="flp-pg">${flCab('DURAÇÃO E DISTÂNCIAS', s.data, sub)}<div class="flp-g2">${bl('Duração individual', 'duracao_s')}${bl('Distância total (m)', 'dist')}${bl('Distância relativa (m/min)', 'mmin')}${bl('Alta intensidade 19,8–25,2 (m)', 'ai')}</div></section>
-    <section class="flp-pg">${flCab('VELOCIDADE, SPRINT E ACELERAÇÕES', s.data, sub)}<div class="flp-g2">${bl('Velocidade máxima (km/h)', 'vmax', 2)}${bl('Sprint ≥25,2 (m)', 'sprint')}${bl('Número de acelerações', 'n_acel', 0, ' fl-am')}${bl('Número de desacelerações', 'n_desac', 0, ' fl-am')}</div></section>
-    <section class="flp-pg">${flCab('PLAYER LOAD', s.data, sub)}<div class="flp-g2">${bl('Player Load (UA)', 'pl', 0, ' fl-pl')}${bl('Player Load por minuto', 'plmin', 2, ' fl-pl')}</div></section>`;
+    ${flComparaPartes(s, true) ? `<section class="flp-pg">${flCab('COMPARATIVO ENTRE ' + (D.tot.G ? 'GRUPOS' : 'TEMPOS'), s.data, sub)}${flComparaPartes(s, true)}</section>` : ''}
+    <section class="flp-pg">${flCab('DURAÇÃO E DISTÂNCIAS', s.data, sub)}${flGLeg(D.tot.G)}<div class="flp-g2">${bl('Duração individual', 'duracao_s')}${bl('Distância total (m)', 'dist')}${bl('Distância relativa (m/min)', 'mmin')}${bl('Alta intensidade 19,8–25,2 (m)', 'ai')}</div></section>
+    <section class="flp-pg">${flCab('VELOCIDADE, SPRINT E ACELERAÇÕES', s.data, sub)}${flGLeg(D.tot.G)}<div class="flp-g2">${bl('Velocidade máxima (km/h)', 'vmax', 2)}${bl('Sprint ≥25,2 (m)', 'sprint')}${bl('Número de acelerações', 'n_acel', 0, ' fl-am')}${bl('Número de desacelerações', 'n_desac', 0, ' fl-am')}</div></section>
+    <section class="flp-pg">${flCab('PLAYER LOAD', s.data, sub)}${flGLeg(D.tot.G)}<div class="flp-g2">${bl('Player Load (UA)', 'pl', 0, ' fl-pl')}${bl('Player Load por minuto', 'plmin', 2, ' fl-pl')}</div></section>`;
 }
 function relCmjHTML(d) {
   const cs = S.fl.cmj.filter(c => c.data === d).sort((a, b) => flNomeAt(a).localeCompare(flNomeAt(b), 'pt')), L = cs.map(c => ({ c, s: flSemaforo(c, d) })), n = k => L.filter(x => x.s.cor === k).length, R = flCfg('prontidao');
