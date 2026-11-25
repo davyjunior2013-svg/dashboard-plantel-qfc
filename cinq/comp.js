@@ -99,9 +99,9 @@ function compPodio(L, imp) {
     return `<div class="cp-pc p${i + 1}">${compFt(o.a, 'g')}<em>${o.pos}º</em><b>${esc(compNome(o.a))}</b><span>${o.P} pts · ${o.V} V</span><div class="cp-deg"></div></div>`; }).join('')}</div>`;
 }
 function compTabelaHTML(L, imp) {
-  return `<div class="${imp ? 'cp-timp' : 'panel'}">${imp ? '' : `<h2>${compGeral() ? 'Classificação geral (acumulado)' : 'Classificação'}</h2>`}<div class="tablewrap"><table class="tb cp-tb"><thead><tr><th>#</th><th>Atleta</th><th class="c">Pontos</th><th class="c">V</th><th class="c">E</th><th class="c">D</th><th class="c">Jogos</th><th class="c">Aprov.</th></tr></thead><tbody>
+  return `<div class="${imp ? 'cp-timp' : 'panel'}">${imp ? '' : `<h2>${compGeral() ? 'Classificação geral (acumulado)' : 'Classificação'}</h2>`}<div class="tablewrap"><table class="tb cp-tb"><thead><tr><th>#</th><th>Atleta</th><th class="c">Pontos</th><th class="c">V</th><th class="c">E</th><th class="c">D</th><th class="c">Atividades</th>${imp ? '' : '<th class="c">Aprov.</th>'}</tr></thead><tbody>
     ${L.map((o, i) => `<tr class="${o.pos <= 3 && i < Math.ceil(L.length / 2) ? 'cp-t' + o.pos : ''}${i >= Math.ceil(L.length / 2) ? ' cp-baixo' : ''}${L.length > 1 && i === Math.ceil(L.length / 2) ? ' cp-meio' : ''}"><td><b class="cp-pos">${o.pos}º</b></td><td><span class="cp-at-n">${compFt(o.a)}<b>${esc(o.a?.nome || '?')}</b></span></td><td class="c"><b class="cp-pts">${o.P}</b></td>
-      <td class="c">${o.V}</td><td class="c">${o.E}</td><td class="c">${o.D}</td><td class="c">${o.J}</td><td class="c">${o.apr}%</td></tr>`).join('')}</tbody></table></div></div>`;
+      <td class="c">${o.V}</td><td class="c">${o.E}</td><td class="c">${o.D}</td><td class="c">${o.J}</td>${imp ? '' : `<td class="c">${o.apr}%</td>`}</tr>`).join('')}</tbody></table></div></div>`;
 }
 
 /* ---------- lançar / editar uma atividade ---------- */
@@ -205,14 +205,14 @@ function compCriterios() {
   const sec = (t, itens) => `<h4 class="dm-h4">${t}</h4><ul class="fl-refl">${itens.map(i => `<li>${i}</li>`).join('')}</ul>`;
   modal(`<h2>Critérios · Competição de treinos</h2><p class="m">Como a classificação da semana é calculada.</p><div class="fl-ref">
     ${sec('Pontuação', [`<b>Vitória = ${COMP_PTS.V} pontos</b> · <b>empate = ${COMP_PTS.E} ponto</b> · <b>derrota = ${COMP_PTS.D}</b>.`, 'Uma atividade pode valer mais na vitória (ex.: jogo-treino = 3 pontos, combinado com o grupo). Ela aparece marcada com “vitória = N pts”.',
-      '<b>Atividade que não vale pontos</b> (vitória vale 0) fica <b>fora da tabela</b>: não soma pontos nem conta como jogo. Sem marcação = não entra.',
-      'Cada atividade lançada vale um jogo para quem participou. Atleta sem resultado na atividade = não participou (–) e não pontua.',
+      '<b>Atividade que não vale pontos</b> (vitória vale 0) fica <b>fora da tabela</b>: não soma pontos nem conta como atividade disputada. Sem marcação = não entra.',
+      'Cada atividade lançada conta como uma atividade disputada para quem participou. Atleta sem resultado na atividade = não participou (–) e não pontua.',
       'Atletas que ainda não estão no elenco não entram na tabela.'])}
     ${sec('Período', ['Tabela <b>semanal</b>: segunda a domingo. Cada período começa do zero.', '<b>Geral (acumulado)</b>: soma de todas as semanas (ou a partir da data escolhida em “desde”), com os mesmos critérios de pontos e desempate.', 'A análise pode <b>ajustar o período</b> (ex.: esticar até o jogo-treino de terça). Aí a tabela vale para as datas definidas e a semana seguinte começa no dia depois.'])}
     ${sec('Ordem da classificação (desempate)', ['<b>1º</b> mais pontos', '<b>2º</b> mais vitórias', '<b>3º</b> menos derrotas',
       '<b>4º</b> melhor aproveitamento',
       'Persistindo o empate (números idênticos), ordem alfabética. A posição <b>não se repete</b>: 1º, 2º, 3º… em sequência.'])}
-    ${sec('Cálculos', ['<b>Jogos (J)</b> = vitórias + empates + derrotas.', '<b>Aproveitamento</b> = pontos ÷ pontos possíveis (soma do valor da vitória de cada atividade disputada) × 100.'])}
+    ${sec('Cálculos', ['<b>Atividades</b> = atividades disputadas = vitórias + empates + derrotas.', '<b>Aproveitamento</b> = pontos ÷ pontos possíveis (soma do valor da vitória de cada atividade disputada) × 100. Aparece na tela; não sai na folha impressa.'])}
     ${sec('Divisão da tabela', ['A <b>linha pontilhada vermelha</b> divide a tabela ao meio (metade das linhas; com número ímpar, a metade de cima fica com um a mais).',
       'A <b>metade de baixo</b> aparece em vermelho, na tela e na folha impressa.'])}
     </div><div class="mfoot"><span></span><button class="btn" id="cpcritf">Fechar</button></div>`, true);
