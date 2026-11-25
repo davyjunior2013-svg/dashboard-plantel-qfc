@@ -78,21 +78,27 @@ function flGrupos(s) {
   return { P, de };
 }
 
+// Média | Soma no comparativo: em teste só no jogo-treino de 24/11 (id 20); se o fisiologista aprovar, vira padrão
+const FL_CMP_SOMA = new Set([20]);
+const flCmpSoma = s => FL_CMP_SOMA.has(s.id) && S.fl.cmpModo?.[s.id] === 'soma';
+const flHm = sg => { const m = Math.round((sg || 0) / 60), h = Math.floor(m / 60); return h ? `${h}h${String(m % 60).padStart(2, '0')}` : `${m} min`; };
 // comparativo entre as partes (grupo 1 × grupo 2 ou 1º × 2º tempo): média de cada uma, lado a lado, total (não por minuto)
 function flComparaPartes(s, pdf) {
   if (flParteSel(s)) return ''; const P = flPartesComp(s); if (P.length < 2) return '';
   const G = flGrupos(s), tit = P.map(p => flGCurto(p.nome)).join(' × ');
-  const CMP = [['duracao_s', 'Duração', '', 0], ...FL_MET.map(([k, l, u, d]) => [k, l, u, d])];
-  const bloco = ([k, l, u, d]) => { const v = P.map(p => flMedia(p.rs, k)), mx = Math.max(1e-9, ...v.map(x => +x || 0));
+  const soma = flCmpSoma(s), CMP = [['duracao_s', soma ? 'Minutos somados' : 'Duração', '', 0], ...FL_MET.map(([k, l, u, d]) => [k, l, u, d])].filter(([k]) => !soma || !['vmax', 'mmin', 'plmin'].includes(k));
+  const bloco = ([k, l, u, d]) => { const v = P.map(p => soma ? flSoma(p.rs, k) : flMedia(p.rs, k)), mx = Math.max(1e-9, ...v.map(x => +x || 0));
     const dl = P.length === 2 && v[0] && v[1] != null ? Math.round((v[1] - v[0]) / v[0] * 100) : null;
-    return `<div class="flgc-m"><h5>${esc(l)}${u ? ` <small>${u}</small>` : ''}</h5>${P.map((p, i) => `<div class="flgc-l"><span>${esc(flGCurto(p.nome))}</span><div><i style="width:${(+v[i] || 0) / mx * 100}%;background:${p.cor}"></i></div><b>${k === 'duracao_s' ? flDur(v[i]) : flFmt(v[i], d)}</b></div>`).join('')}
+    return `<div class="flgc-m"><h5>${esc(l)}${u ? ` <small>${u}</small>` : ''}</h5>${P.map((p, i) => `<div class="flgc-l"><span>${esc(flGCurto(p.nome))}</span><div><i style="width:${(+v[i] || 0) / mx * 100}%;background:${p.cor}"></i></div><b>${k === 'duracao_s' ? (soma ? flHm(v[i]) : flDur(v[i])) : flFmt(v[i], d)}</b></div>`).join('')}
       ${dl != null ? `<small class="flgc-d${dl >= 10 ? ' up' : dl <= -10 ? ' dn' : ''}">${esc(flGCurto(P[1].nome))}: ${dl > 0 ? '+' : ''}${dl}%</small>` : ''}</div>`; };
   const leg = P.map(p => `<span><i style="background:${p.cor}"></i>${esc(p.nome)} <small>(${p.rs.length} atletas)</small></span>`).join('');
-  return `<div class="${pdf ? 'flgc-pdf' : 'panel'} flgc"><${pdf ? 'h3' : 'h2'}>${pdf ? 'COMPARATIVO ' + esc(tit.toUpperCase()) : 'Comparativo ' + esc(tit)} <small class="m">média de cada ${G ? 'grupo' : 'parte'} · valores totais${P.length === 2 ? ` · % = ${esc(flGCurto(P[1].nome))} em relação a ${esc(flGCurto(P[0].nome))}` : ''}</small></${pdf ? 'h3' : 'h2'}>
+  return `<div class="${pdf ? 'flgc-pdf' : 'panel'} flgc"><${pdf ? 'h3' : 'h2'}>${pdf ? 'COMPARATIVO ' + esc(tit.toUpperCase()) : 'Comparativo ' + esc(tit)} <small class="m">${soma ? `soma de todos os atletas de cada ${G ? 'grupo' : 'parte'} (sem vel. máxima, m/min e PL/min)` : `média de cada ${G ? 'grupo' : 'parte'} · valores totais`}${P.length === 2 ? ` · % = ${esc(flGCurto(P[1].nome))} em relação a ${esc(flGCurto(P[0].nome))}` : ''}</small></${pdf ? 'h3' : 'h2'}>
+    ${FL_CMP_SOMA.has(s.id) && !pdf ? `<div class="ind-tabs fl-modo flgc-modo"><button data-flcm="media" class="${soma ? '' : 'on'}">Média</button><button data-flcm="soma" class="${soma ? 'on' : ''}">Soma</button></div>` : ''}
     <div class="flgc-leg">${leg}</div><div class="flgc-g">${CMP.map(bloco).join('')}</div></div>`;
 }
 const flGLeg = G => G ? `<p class="m fl-nota flgc-leg">${G.P.map(p => `<span><i style="background:${p.cor}"></i>${esc(p.nome)}</span>`).join('')}<span><em class="fl-mk-s flgc-mk2"></em> traço = média de cada grupo</span></p>` : '';
-function ligarFlFiltro(s, re) { document.querySelectorAll('[data-flpf]').forEach(b => b.onclick = () => { S.fl.parte = S.fl.parte || {}; S.fl.parte[s.id] = +b.dataset.flpf; re(); }); }
+function ligarFlFiltro(s, re) {
+  document.querySelectorAll('[data-flcm]').forEach(b => b.onclick = () => { S.fl.cmpModo = S.fl.cmpModo || {}; S.fl.cmpModo[s.id] = b.dataset.flcm; const y = window.scrollY; re(); window.scrollTo(0, y); }); document.querySelectorAll('[data-flpf]').forEach(b => b.onclick = () => { S.fl.parte = S.fl.parte || {}; S.fl.parte[s.id] = +b.dataset.flpf; re(); }); }
 const flOrdS = (a, b) => (a.data + (a.hora || '')).localeCompare(b.data + (b.hora || ''));
 // linhas de sessão (periodo 0) de um atleta, em ordem
 const flLinhasAt = aid => flCache('lin', aid, () => S.fl.gps.filter(g => g.atleta_id === aid && g.periodo === 0).map(g => ({ g, s: flSessao(g.sessao_id) })).filter(x => x.s).sort((a, b) => flOrdS(a.s, b.s)));
