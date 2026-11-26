@@ -29,6 +29,25 @@ const pjCampo = l => l.x != null ? (+l.x < 50 ? 'defesa' : 'ataque') : (l.dados?
 const pjArea = (x, y, eq) => eq === 'ADV' ? x <= 15.7 && y >= 20.4 && y <= 79.6 : x >= 84.3 && y >= 20.4 && y <= 79.6;
 const pjEhRec = l => l.tipo === 'recuperacao', pjRoub = l => pjEhRec(l) && l.dados?.roubada;
 const pjEquipe = j => j?.equipe || 'QFC';
+/* nome curto sem repetir: apelido entre parênteses; senão primeiro nome e, se repetir, acrescenta o próximo nome até ficar único */
+function pjNomesCurtos(at) {
+  const sem = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const pal = a => { const ap = String(a.nome || '').match(/\(([^)]+)\)/); return (ap ? ap[1] : String(a.nome || '').replace(/\([^)]*\)/g, '')).trim().split(/\s+/).filter(Boolean); };
+  const P = new Map(at.map(a => [a.id, pal(a)])), R = new Map();
+  for (const a of at) { const w = P.get(a.id); let k = 1;
+    while (k < w.length && at.some(b => b.id !== a.id && sem(P.get(b.id).slice(0, k).join(' ')) === sem(w.slice(0, k).join(' ')))) k++;
+    R.set(a.id, w.slice(0, k).join(' ') || a.nome); }
+  return R;
+}
+/* escudos: os mesmos do Live Tagging (tabela lt_escudos) */
+const pjEsc = (nome, sz = 40) => typeof ltEscudo === 'function' ? ltEscudo(nome, sz) : '';
+const pjMandAdv = j => j?.mando === 'Fora';   // adversário é o mandante
+function pjPlacarTxt(j, st) { const n = `${pjEquipe(j)} ${j.gols_nos ?? st.golsN}`, a = `${j.gols_adv ?? st.golsA} ${j.adversario}`;
+  return pjMandAdv(j) ? `${j.adversario} ${j.gols_adv ?? st.golsA} × ${j.gols_nos ?? st.golsN} ${pjEquipe(j)}` : `${n} × ${a}`; }
+function pjPlacarHTML(j, st, sz = 46) {
+  const nos = [pjEquipe(j), j.gols_nos ?? st.golsN], adv = [j.adversario, j.gols_adv ?? st.golsA], [A, B] = pjMandAdv(j) ? [adv, nos] : [nos, adv];
+  return `<div class="pj-placar"><div class="pj-pe">${pjEsc(A[0], sz)}<b>${esc(A[0])}</b></div><div class="pj-pg">${A[1]}<i>×</i>${B[1]}</div><div class="pj-pe adv"><b>${esc(B[0])}</b>${pjEsc(B[0], sz)}</div></div>`;
+}
 // sentido real em cada tempo: 'dir' = atacamos para a direita
 const pjSentido = (j, tempo) => (tempo === 1) === (j.ataque_1t !== 'esq') ? 'dir' : 'esq';
 const pjTela = (j, tempo, x, y) => pjSentido(j, tempo) === 'dir' ? [x, y] : [100 - x, 100 - y];
@@ -36,6 +55,7 @@ const pjTela = (j, tempo, x, y) => pjSentido(j, tempo) === 'dir' ? [x, y] : [100
 async function pjCarregarJogos() {
   const { data, error } = await sb.from('pj_jogos').select('*').order('data', { ascending: false, nullsFirst: false }).order('id', { ascending: false });
   if (error) throw error; S.pj.jogos = data;
+  if (S.lt && !S.pj.escOk) { const e = await sb.from('lt_escudos').select('*'); if (!e.error) { (e.data || []).forEach(x => { S.lt.escudos[x.nome] = x.img; }); S.pj.escOk = true; } }
 }
 async function pjCarregarLances(ids) {
   const falta = ids.filter(id => !S.pj.lances[id]); if (!falta.length) return;
@@ -136,7 +156,7 @@ async function pPosJogo() {
   try { await pjCarregarJogos(); await pjCarregarLances(S.pj.jogos.map(j => j.id)); } catch (e) { $('#main .panel').innerHTML = esc(erroAmigavel(e)); return; }
   const J = S.pj.jogos, reais = J.filter(j => !j.teste);
   const lin = j => { const st = pjStats(S.pj.lances[j.id] || []);
-    return `<tr class="dm-tr" data-j="${j.id}"><td>${j.data ? dataBR(j.data) : '—'}${j.teste ? ' <span class="badge">demonstração</span>' : ''}</td><td><b>${esc(pjEquipe(j))} ${j.gols_nos ?? st.golsN} × ${j.gols_adv ?? st.golsA} ${esc(j.adversario)}</b><small class="m">${esc([j.competicao, j.rodada, j.mando].filter(Boolean).join(' · '))}</small></td>
+    return `<tr class="dm-tr" data-j="${j.id}"><td>${j.data ? dataBR(j.data) : '—'}${j.teste ? ' <span class="badge">demonstração</span>' : ''}</td><td>${pjEsc(pjMandAdv(j) ? j.adversario : pjEquipe(j), 22)} <b>${esc(pjPlacarTxt(j, st))}</b> ${pjEsc(pjMandAdv(j) ? pjEquipe(j) : j.adversario, 22)}<small class="m">${esc([j.competicao, j.rodada, j.mando].filter(Boolean).join(' · '))}</small></td>
       <td>${st.fN.length} <small class="m">(${pjPct(st.alvoN, st.fN.length)} no alvo)</small></td><td>${st.fA.length}</td><td>${st.rec.length} <small class="m">(${st.roub.length} roub.)</small></td><td>${st.perdas.length}</td><td>${(S.pj.lances[j.id] || []).length}</td></tr>`; };
   const abas = `<div class="ind-tabs pj-abas"><button data-v="jogos" class="${S.pj.vis === 'jogos' ? 'on' : ''}">Jogos</button><button data-v="longo" class="${S.pj.vis === 'longo' ? 'on' : ''}">Médio-longo prazo</button></div>`;
   const corpo = S.pj.vis === 'longo' ? pjLongoHTML(reais)
@@ -169,12 +189,12 @@ async function pjJogo(id) {
   try { if (!S.pj.jogos) await pjCarregarJogos(); await pjCarregarLances([id]); } catch (e) { $('#main').innerHTML = `<div class="panel">${esc(erroAmigavel(e))}</div>`; return; }
   const j = S.pj.jogos.find(x => x.id === id); if (!j) { S.pj.jogo = null; return pPosJogo(); }
   const L = pjOrdena(S.pj.lances[id]), st = pjStats(L), aba = pode ? S.pj.aba : (S.pj.aba === 'lancar' ? 'relatorio' : S.pj.aba);
-  const tit = `${pjEquipe(j)} ${j.gols_nos ?? st.golsN} × ${j.gols_adv ?? st.golsA} ${j.adversario}`;
+  const tit = pjPlacarTxt(j, st);
   const acoes = `<button class="btn" id="pjvolta">◀ Jogos</button><button class="btn" id="pjpdf">Baixar PDF</button>${pode ? '<button class="btn" id="pjedj">Dados do jogo</button>' : ''}`;
   const sub = [j.data ? dataBR(j.data) : '', j.competicao, j.rodada, j.mando, j.teste ? 'jogo de demonstração' : ''].filter(Boolean).join(' · ');
   const abas = `<div class="ind-tabs pj-abas">${pode ? `<button data-a="lancar" class="${aba === 'lancar' ? 'on' : ''}">Lançar</button>` : ''}<button data-a="relatorio" class="${aba === 'relatorio' ? 'on' : ''}">Relatório pós-jogo</button><button data-a="lances" class="${aba === 'lances' ? 'on' : ''}">Lances (${L.length})</button></div>`;
   const corpo = aba === 'lancar' ? pjLancarHTML(j, L) : aba === 'relatorio' ? `<div class="pj-rel">${pjRelatorioHTML(j, L)}</div>` : pjListaHTML(j, L, pode);
-  $('#main').innerHTML = topo('Pós-jogo', tit, sub, acoes) + abas + corpo;
+  $('#main').innerHTML = topo('Pós-jogo', tit, sub, acoes) + pjPlacarHTML(j, st) + abas + corpo;
   $('#pjvolta').onclick = () => { S.pj.jogo = null; S.pj.pend = null; pPosJogo(); };
   $('#pjpdf').onclick = () => pjPDF(j);
   document.querySelectorAll('.pj-abas [data-a]').forEach(b => b.onclick = () => { S.pj.aba = b.dataset.a; S.pj.pend = null; pjJogo(id); });
@@ -192,7 +212,7 @@ function pjLancarHTML(j, L) {
   return `<div class="panel pj-bar"><div class="gol-seg"><button data-t="1" class="${t === 1 ? 'on' : ''}">1º tempo</button><button data-t="2" class="${t === 2 ? 'on' : ''}">2º tempo</button></div>
       <label class="m">Minuto <input class="in pj-min" id="pjmin" value="${esc(S.pj.relogio)}" placeholder="opcional"></label>
       <span class="pj-ver m">Mostrar <span class="gol-seg"><button data-ver="0" class="${!S.pj.ver ? 'on' : ''}">Jogo</button><button data-ver="1" class="${S.pj.ver === 1 ? 'on' : ''}">1º T</button><button data-ver="2" class="${S.pj.ver === 2 ? 'on' : ''}">2º T</button></span></span>
-      <span class="m pj-dica">${pend ? `<b>Clique no campo para marcar o lance de ${esc(pjRotulo(pend))}.</b> <button class="btn sm" id="pjpendx">Cancelar</button>` : 'Clique no campo do lance → escolha o jogador. Bolinha com contorno escuro = 2º tempo.'}</span></div>
+      <span class="m pj-dica">${pend ? `<b>Clique no campo para marcar o lance de ${esc(pjRotulo(pend))}.</b> <button class="btn sm" id="pjpendx">Cancelar</button>` : 'Clique no campo do lance → escolha o jogador. Clicou em cima de outra bolinha: “+ Novo lance aqui” ou editar. Contorno escuro = 2º tempo.'}</span></div>
     ${PJ_BLOCOS.filter(b => b.campos.length > 1).map(bloco).join('')}<div class="pj-bl3">${PJ_BLOCOS.filter(b => b.campos.length === 1).map(bloco).join('')}</div>`;
 }
 function pjLigarLancar(j, L) {
@@ -203,15 +223,29 @@ function pjLigarLancar(j, L) {
   document.querySelectorAll('[data-graf]').forEach(b => b.onclick = () => pjGraficoBloco(j, L, b.dataset.graf));
   document.querySelectorAll('.pj-campo.clic').forEach(box => { const svg = box.querySelector('svg'), m = box.dataset.m;
     svg.onclick = async ev => {
-      const dot = ev.target.closest('.pj-dot'); if (dot && !S.pj.pend) return pjFormLance(j, L.find(x => x.id === +dot.dataset.l));
       const p = svg.createSVGPoint(); p.x = ev.clientX; p.y = ev.clientY; const q = p.matrixTransform(svg.getScreenCTM().inverse());
       const x = +Math.max(0, Math.min(100, q.x / 1.05)).toFixed(1), y = +Math.max(0, Math.min(100, q.y / .68)).toFixed(1);
+      if (!S.pj.pend) { const perto = [...svg.querySelectorAll('.pj-dot')].map(g => { const c = g.querySelector('circle:not([fill="none"])') || g.querySelector('circle');
+          return { l: L.find(z => z.id === +g.dataset.l), d: Math.hypot(+c.getAttribute('cx') - q.x, +c.getAttribute('cy') - q.y) }; }).filter(o => o.l && o.d <= 3.2).sort((a, b) => a.d - b.d);
+        if (perto.length) return pjMenuPonto(ev, perto.map(o => o.l), () => pjFormLance(j, null, { modo: m, x, y }), l => pjFormLance(j, l)); }
       if (S.pj.pend) { const l = S.pj.pend; if (pjModo(l) !== m) return toast(`Esse lance é de “${PJ_TIPOS[pjModo(l)].l}”: clique no campo dele.`, true);
         const d = { ...(l.dados || {}) }; if (l.tipo === 'finalizacao' && !d.regiao_manual) d.regiao = pjArea(x, y, l.equipe) ? 'Área' : 'Fora da área';
         const { error } = await sb.from('pj_lances').update({ x, y, dados: d }).eq('id', l.id); if (error) return toast(erroAmigavel(error), true);
         Object.assign(l, { x, y, dados: d }); S.pj.pend = null; toast('Local marcado.'); return pjJogo(j.id); }
       pjFormLance(j, null, { modo: m, x, y });
     }; });
+}
+// clique em cima de bolinha(s): lance novo no mesmo ponto (primeira opção) ou editar uma das que estão ali
+function pjMenuPonto(ev, ls, novo, editar) {
+  document.querySelectorAll('.pj-menu').forEach(x => x.remove());
+  const mn = document.createElement('div'); mn.className = 'pj-menu';
+  mn.innerHTML = `<button class="pj-mn-novo" data-i="-1">+ Novo lance aqui</button><small>ou editar:</small>${ls.map((l, i) => `<button data-i="${i}"><i style="background:${PJ_TIPOS[pjModo(l)]?.cor || '#555'}"></i>${l.tempo}ºT ${esc(pjMin(l.seg) || '–')} · ${esc(pjRotulo(l))} · ${esc(pjNome(l))}</button>`).join('')}`;
+  document.body.appendChild(mn);
+  const r = mn.getBoundingClientRect(); mn.style.left = Math.min(ev.clientX + 6, innerWidth - r.width - 8) + 'px'; mn.style.top = Math.min(ev.clientY + 6, innerHeight - r.height - 8) + 'px';
+  const sai = () => { mn.remove(); document.removeEventListener('mousedown', fora, true); document.removeEventListener('keydown', tecla); };
+  const fora = e => { if (!mn.contains(e.target)) sai(); }, tecla = e => { if (e.key === 'Escape') sai(); if (e.key === 'Enter') { sai(); novo(); } };
+  setTimeout(() => { document.addEventListener('mousedown', fora, true); document.addEventListener('keydown', tecla); }, 0);
+  mn.onclick = e => { const b = e.target.closest('[data-i]'); if (!b) return; sai(); const i = +b.dataset.i; i < 0 ? novo() : editar(ls[i]); };
 }
 /* gráfico de cada bloco (pizza) */
 function pjGraficoBloco(j, L, b) {
@@ -305,9 +339,13 @@ function pjFormJogo(j) {
       <label class="f"><span>Gols nossos</span><input type="number" class="in" id="pjgn" min="0" value="${j.gols_nos ?? ''}" placeholder="pelos lances"></label>
       <label class="f"><span>Gols adversário</span><input type="number" class="in" id="pjga" min="0" value="${j.gols_adv ?? ''}" placeholder="pelos lances"></label>
       <label class="f"><span>No 1º tempo atacamos para</span><select class="in" id="pjat">${opts([['dir', 'a direita →'], ['esq', '← a esquerda']], j.ataque_1t)}</select></label></div>
+    <div class="lt-escs"><div class="f"><span>Nosso escudo</span><div class="row"><div class="lt-escf" id="pjesnp">${pjEsc(j.equipe || 'QFC', 48)}</div><input type="file" accept="image/*" id="pjesn"></div></div>
+      <div class="f"><span>Escudo do adversário</span><div class="row"><div class="lt-escf" id="pjesap">${pjEsc(j.adversario, 48)}</div><input type="file" accept="image/*" id="pjesa"></div><small class="m">Fica guardado (o mesmo do Live Tagging) e volta sozinho quando o adversário se repetir.</small></div></div>
     <label class="f"><span>Observações</span><textarea class="in" id="pjo" rows="2">${esc(j.obs || '')}</textarea></label>
     <div class="mfoot">${n ? '<span></span>' : '<button class="btn dan" id="pjdel">Excluir jogo</button>'}<div class="row"><button class="btn" id="pjcx">Cancelar</button><button class="btn pri" id="pjsv">Salvar</button></div></div>`, true);
-  $('#pjcx').onclick = fechar;
+  $('#pjcx').onclick = fechar; const esc2 = {};
+  [['#pjesn', 'n'], ['#pjesa', 'a']].forEach(([s, k]) => { $(s).onchange = async () => { const f = $(s).files[0]; if (!f) return;
+    try { esc2[k] = await ltLerEscudo(f); $(s + 'p').innerHTML = `<img class="lt-esc" src="${esc2[k]}" style="width:48px;height:48px" alt="">`; } catch (e) { toast('Não consegui ler a imagem.', true); } }; });
   if ($('#pjdel')) $('#pjdel').onclick = async () => { if (!confirm(`Excluir o jogo contra ${j.adversario} e todos os ${(S.pj.lances[j.id] || []).length} lances? Não dá para desfazer.`)) return;
     const { error } = await sb.from('pj_jogos').delete().eq('id', j.id); if (error) return toast(erroAmigavel(error), true);
     S.pj.jogos = S.pj.jogos.filter(x => x.id !== j.id); delete S.pj.lances[j.id]; S.pj.jogo = null; fechar(); toast('Jogo excluído.'); pPosJogo(); };
@@ -316,6 +354,9 @@ function pjFormJogo(j) {
     const row = { data: $('#pjd').value || null, adversario: $('#pja').value.trim(), mando: $('#pjmd').value || null, competicao: $('#pjc').value.trim() || null, rodada: $('#pjr').value.trim() || null,
       equipe: $('#pje').value.trim() || 'QFC', gols_nos: num('#pjgn'), gols_adv: num('#pjga'), ataque_1t: $('#pjat').value, obs: $('#pjo').value.trim() || null, atualizado_em: new Date().toISOString() };
     if (!row.adversario) return toast('Informe o adversário.', true);
+    for (const [k, nome] of [['n', row.equipe], ['a', row.adversario]]) if (esc2[k]) {
+      const { error } = await sb.from('lt_escudos').upsert({ nome: ltChave(nome), img: esc2[k], atualizado_em: new Date().toISOString() });
+      if (error) return toast(erroAmigavel(error), true); S.lt.escudos[ltChave(nome)] = esc2[k]; }
     const q = n ? sb.from('pj_jogos').insert(row).select().single() : sb.from('pj_jogos').update(row).eq('id', j.id).select().single();
     const { data, error } = await q; if (error) return toast(erroAmigavel(error), true);
     if (n) { S.pj.jogos = [data, ...(S.pj.jogos || [])]; S.pj.lances[data.id] = []; S.pj.aba = 'lancar'; S.pj.tempo = 1; S.pj.relogio = ''; } else Object.assign(j, data);
@@ -323,7 +364,8 @@ function pjFormJogo(j) {
 }
 function pjChipsAtl(sel, id) {
   const at = S.atletas.filter(a => a.ativo && a.status !== 'Inativo').sort((a, b) => (a.numero ?? 999) - (b.numero ?? 999) || a.nome.localeCompare(b.nome, 'pt'));
-  return `<div class="pj-chips" id="${id}">${at.map(a => `<button type="button" class="chip${sel === a.id ? ' on' : ''}" data-a="${a.id}">${a.numero != null ? `<b>${a.numero}</b> ` : ''}${esc(a.nome.split(' ')[0])}</button>`).join('')}</div>`;
+  const N = pjNomesCurtos(at); at.sort((a, b) => (a.numero ?? 999) - (b.numero ?? 999) || N.get(a.id).localeCompare(N.get(b.id), 'pt'));
+  return `<div class="pj-chips" id="${id}">${at.map(a => `<button type="button" class="chip${sel === a.id ? ' on' : ''}" data-a="${a.id}" title="${esc(a.nome)}${a.posicao ? ' · ' + esc(a.posicao) : ''}">${a.numero != null ? `<b>${a.numero}</b> ` : ''}${esc(N.get(a.id))}</button>`).join('')}</div>`;
 }
 function pjFormLance(j, l, novo) {
   const ed = !!l; let modo = novo?.modo;
@@ -399,8 +441,8 @@ function pjFormLance(j, l, novo) {
 /* ---------- PDF do relatório pós-jogo (A4 paisagem, 1 página) ---------- */
 function pjPDF(j) {
   const L = pjOrdena(S.pj.lances[j.id] || []), st = pjStats(L);
-  const tit = `${pjEquipe(j)} ${j.gols_nos ?? st.golsN} × ${j.gols_adv ?? st.golsA} ${j.adversario}`;
-  const html = `<section class="pjp"><div class="flp-cab"><img src="${LOGO}" alt=""><div><small>QFC | ANÁLISE DE DESEMPENHO</small><h1>PÓS-JOGO</h1></div><div class="flp-dt"><b>${esc(tit)}</b><span>${esc([j.data ? dataBR(j.data) : '', j.competicao, j.rodada, j.mando, j.teste ? 'demonstração' : ''].filter(Boolean).join(' · '))}</span></div></div>
+  const tit = pjPlacarTxt(j, st);
+  const html = `<section class="pjp"><div class="flp-cab"><img src="${LOGO}" alt=""><div><small>QFC | ANÁLISE DE DESEMPENHO</small><h1>PÓS-JOGO</h1></div><div class="flp-dt">${pjPlacarHTML(j, st, 30)}<span>${esc([j.data ? dataBR(j.data) : '', j.competicao, j.rodada, j.mando, j.teste ? 'demonstração' : ''].filter(Boolean).join(' · '))}</span></div></div>
     <div class="pj-rel">${pjRelatorioHTML(j, L)}</div></section>`;
   document.querySelectorAll('#print-area').forEach(x => x.remove());
   const w = document.createElement('div'); w.id = 'print-area'; w.className = 'flp pjp-w'; w.innerHTML = html;
